@@ -18,6 +18,8 @@ import { isWinningDefeat, triggerWin } from "../../domain/progress/winState";
 import { completeCurrentFloor } from "../../domain/progress/towerProgress";
 import type { CombatOverlayData } from "./CombatOverlay";
 import type { PickupModalData } from "./PickupModalScene";
+import type { PauseMenuData } from "./PauseMenuScene";
+import { resumeFromCheckpoint, returnToMainMenu } from "../../domain/hazard/recovery";
 import type { EncounterResult } from "../../domain/combat/simulateEncounter";
 import type { DropTable, EnemyDefinition, ItemDefinition } from "../../domain/floor/types";
 import type { KeyDefinition, PowerupDefinition } from "../../domain/character/types";
@@ -103,10 +105,51 @@ export class FloorScene extends Phaser.Scene {
   private setupInput(): void {
     this.input.keyboard!.on("keydown", (event: KeyboardEvent) => {
       if (!this.canMove) return;
+      if (event.key === "Escape") {
+        this.openPauseMenu();
+        return;
+      }
       const direction = this.directionFromKey(event.key);
       if (!direction) return;
       this.attemptMove(direction);
     });
+  }
+
+  /**
+   * FR-002/FR-008: opens the pause menu, blocking further floor input until it's closed.
+   * Reachable via ESC (setupInput, gated by the same `canMove` flag that already blocks
+   * movement during a pickup modal) or the side-panel pause control (SidePanelScene).
+   * Reusing FloorScene.scene.pause() means Phaser simply stops dispatching input to this
+   * scene while combat is playing out, satisfying FR-008's combat case for free.
+   */
+  openPauseMenu(): void {
+    const ctx = this.ctx;
+    const data: PauseMenuData = {
+      onResume: () => {
+        this.scene.stop("PauseMenuScene");
+        this.scene.resume();
+      },
+      onRestart: () => {
+        ctx.save = resumeFromCheckpoint(ctx.save, ctx.currentFloor, ctx.powerupCatalog);
+        ctx.persist();
+        this.scene.stop("PauseMenuScene");
+        this.scene.resume();
+        this.scene.restart();
+      },
+      onReturnToMenu: () => {
+        ctx.save = returnToMainMenu(ctx.save);
+        ctx.persist();
+        this.scene.stop("PauseMenuScene");
+        // Mirrors the existing hazard-death/win transitions above: the side panel/event log's
+        // DOM text sits above the whole canvas regardless of Phaser scene depth, so it must be
+        // stopped explicitly rather than relying on MainMenuScene to visually hide it.
+        this.scene.stop("SidePanelScene");
+        this.scene.stop("EventLogScene");
+        this.scene.start("MainMenuScene");
+      },
+    };
+    this.scene.launch("PauseMenuScene", data);
+    this.scene.pause();
   }
 
   /** Cardinal-only input (FR-016): arrow keys or WASD, one tile per keypress. */

@@ -2,7 +2,7 @@ import type { Position } from "../types";
 import { emptyFloorProgress, type PlayerSave } from "./save";
 
 /** Base combat stats for a brand-new playable character, before any powerups. */
-export const BASE_PLAYER_STATS = {
+const BASE_PLAYER_STATS = {
   damage: 10,
   defence: 2,
   hp: 30,

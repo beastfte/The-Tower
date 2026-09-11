@@ -9,6 +9,10 @@ import {
 } from "../uiContent/itemDescriptions";
 import { SIDE_PANEL_AREA, DESIGN_SIDE_PANEL_AREA } from "../gameConfig";
 import { getUiRoot, px } from "../ui/domOverlay";
+import type { FloorScene } from "./FloorScene";
+
+/** Height reserved at the top of the side panel for the pause control (design-space units). */
+const PAUSE_BUTTON_AREA_HEIGHT = 20;
 
 /**
  * 002 FR-001–FR-006: a full-height, right-hand side panel showing the player's current
@@ -50,14 +54,46 @@ export class SidePanelScene extends Phaser.Scene {
     this.rows.dataset.testid = "side-panel-rows";
     this.rows.style.position = "absolute";
     this.rows.style.left = px(DESIGN_SIDE_PANEL_AREA.x);
-    this.rows.style.top = px(DESIGN_SIDE_PANEL_AREA.y);
+    this.rows.style.top = px(DESIGN_SIDE_PANEL_AREA.y + PAUSE_BUTTON_AREA_HEIGHT);
     this.rows.style.width = px(DESIGN_SIDE_PANEL_AREA.width);
-    this.rows.style.height = px(DESIGN_SIDE_PANEL_AREA.height);
+    this.rows.style.height = px(DESIGN_SIDE_PANEL_AREA.height - PAUSE_BUTTON_AREA_HEIGHT);
     this.rows.style.padding = px(6);
     this.rows.style.overflowY = "auto";
     this.rows.style.pointerEvents = "auto";
     getUiRoot().appendChild(this.rows);
     this.events.once("shutdown", () => this.rows.remove());
+
+    const pauseButton = document.createElement("button");
+    pauseButton.dataset.testid = "pause-button";
+    pauseButton.title = "Pause";
+    pauseButton.className = "ui-menu-option";
+    pauseButton.style.position = "absolute";
+    pauseButton.style.left = px(DESIGN_SIDE_PANEL_AREA.x + 6);
+    pauseButton.style.top = px(DESIGN_SIDE_PANEL_AREA.y + 4);
+    pauseButton.style.width = px(12);
+    pauseButton.style.height = px(10);
+    for (const barLeft of [0, 6]) {
+      const bar = document.createElement("span");
+      bar.style.position = "absolute";
+      bar.style.left = px(barLeft);
+      bar.style.top = "0";
+      bar.style.width = px(4);
+      bar.style.height = px(10);
+      bar.style.background = "#e0c9a6";
+      pauseButton.appendChild(bar);
+    }
+    pauseButton.addEventListener("click", () => {
+      if (
+        this.scene.isActive("CombatOverlay") ||
+        this.scene.isActive("PickupModalScene") ||
+        this.scene.isActive("PauseMenuScene")
+      ) {
+        return;
+      }
+      (this.scene.get("FloorScene") as FloorScene).openPauseMenu();
+    });
+    getUiRoot().appendChild(pauseButton);
+    this.events.once("shutdown", () => pauseButton.remove());
 
     this.lastSignature = "";
     this.redraw();

@@ -8,7 +8,7 @@ import {
   DESIGN_EVENT_LOG_HEIGHT,
 } from "./scaleConfig";
 
-export { MAX_SCALE, DESIGN_WIDTH, DESIGN_HEIGHT, DESIGN_SIDE_PANEL_WIDTH, DESIGN_EVENT_LOG_HEIGHT };
+export { DESIGN_WIDTH, DESIGN_HEIGHT };
 
 /** Fixed internal render resolution for the pixel-art style (FR-014), scaled by RENDER_SCALE
  * so the canvas has real pixels for sprites/tiles to render into. Scaled up further by

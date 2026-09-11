@@ -1,15 +1,5 @@
 import type { FloorDefinition } from "../../domain/floor/types";
-
-const W = { walkable: true };
-const X = { walkable: false };
-
-function wallRow(): (typeof W)[] {
-  return Array(20).fill(X);
-}
-
-function corridorRow(): (typeof W)[] {
-  return Array(20).fill(W);
-}
+import { W, wallRow, corridorRow } from "./gridHelpers";
 
 function rowWithOpenings(...xs: number[]): (typeof W)[] {
   const row = wallRow();

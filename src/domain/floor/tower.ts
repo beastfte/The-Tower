@@ -11,7 +11,7 @@ export function createTower(floors: FloorDefinition[]): Tower {
   return { floors, finalFloorIndex: floors.length - 1 };
 }
 
-export function floorIndexById(tower: Tower, floorId: string): number {
+function floorIndexById(tower: Tower, floorId: string): number {
   return tower.floors.findIndex((f) => f.id === floorId);
 }
 

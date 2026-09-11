@@ -13,6 +13,7 @@ import { WinScreenScene } from "./game/scenes/WinScreenScene";
 import { SidePanelScene } from "./game/scenes/SidePanelScene";
 import { EventLogScene } from "./game/scenes/EventLogScene";
 import { PickupModalScene } from "./game/scenes/PickupModalScene";
+import { PauseMenuScene } from "./game/scenes/PauseMenuScene";
 
 const persistence = new LocalStoragePersistenceService();
 const firstFloor = TOWER.floors[0]!;
@@ -29,6 +30,7 @@ const game = new Phaser.Game(
     SidePanelScene,
     EventLogScene,
     PickupModalScene,
+    PauseMenuScene,
     DeathScreenScene,
     WinScreenScene,
   ]),
