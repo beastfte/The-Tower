@@ -1,0 +1,32 @@
+{
+  "name": "the-tower",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "phaser": "3.80.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.11.1",
+    "@playwright/test": "1.47.2",
+    "@types/node": "22.7.4",
+    "@typescript-eslint/eslint-plugin": "8.8.0",
+    "@typescript-eslint/parser": "8.8.0",
+    "eslint": "9.11.1",
+    "eslint-config-prettier": "9.1.0",
+    "prettier": "3.3.3",
+    "typescript": "5.6.2",
+    "vite": "5.4.8",
+    "vitest": "2.1.1"
+  }
+}

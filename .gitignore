@@ -1,0 +1,43 @@
+# Machine-local Spec Kit state — not meant to be shared.
+# Managed by the Specify CLI; safe to edit (your changes are preserved on refresh).
+
+# Local pointer to the current feature directory. Rewritten every time you
+# switch features, so it is per-checkout state rather than something to share.
+feature.json
+
+# Per-machine extension config overrides.
+extensions/*/local-config.yml
+
+# Cluade AI markdown files
+.claude/
+
+#SSD Specifity
+.specify/
+
+#Ignore all specification files
+specs/
+
+# Node / Vite / build output
+node_modules/
+dist/
+dist-ssr/
+*.tsbuildinfo
+*.local
+
+# Test artifacts
+coverage/
+playwright-report/
+test-results/
+
+# Logs and OS/editor cruft
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Env files
+.env
+.env.*
+!.env.example
