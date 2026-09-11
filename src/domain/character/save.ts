@@ -1,4 +1,5 @@
 import type { CombatStats, Position } from "../types";
+import type { ArmorTierId, WeaponId } from "./types";
 
 /** Per-floor player progress for the floor currently being attempted, or a frozen completed floor. */
 export interface FloorProgress {
@@ -17,6 +18,9 @@ export interface PlayerCharacterState {
   /** Held key *types* (KeyDefinition.keyType values) — a KeyedDoorDefinition is passable
    * once its doorType appears here (FR-013a). */
   keyIds: string[];
+  /** Absent = unarmed / unarmoured (FR-010's Edge Cases baseline). */
+  equippedWeaponId?: WeaponId;
+  equippedArmorTier?: ArmorTierId;
 }
 
 /** The single object persisted to localStorage (FR-010/FR-010a). */

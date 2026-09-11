@@ -1,18 +1,25 @@
 import type { CombatStats } from "../types";
 import type { PlayerCharacterState } from "./save";
-import type { PowerupDefinition } from "./types";
+import type { ArmorTierDefinition, ArmorTierId, PowerupDefinition, WeaponDefinition, WeaponId } from "./types";
 
 /**
- * Computes the player's effective combat stats: base stats plus every collected
- * powerup's stat bonus (FR-008). `hp` reflects the character's current HP (a real,
- * persistent resource, research.md #6), not max HP.
+ * Computes the player's effective combat stats: an equipped weapon replaces base
+ * damage (FR-005), an equipped armor tier adds to base defence (FR-008), and every
+ * collected powerup's stat bonus applies on top of that (004 research.md #2). `hp`
+ * reflects the character's current HP (a real, persistent resource, research.md #6),
+ * not max HP.
  */
 export function computeEffectiveStats(
   character: PlayerCharacterState,
   powerupCatalog: ReadonlyMap<string, PowerupDefinition>,
+  weaponCatalog: ReadonlyMap<WeaponId, WeaponDefinition>,
+  armorTierCatalog: ReadonlyMap<ArmorTierId, ArmorTierDefinition>,
 ): CombatStats {
-  let damage = character.baseStats.damage;
-  let defence = character.baseStats.defence;
+  const weapon = character.equippedWeaponId ? weaponCatalog.get(character.equippedWeaponId) : undefined;
+  const armorTier = character.equippedArmorTier ? armorTierCatalog.get(character.equippedArmorTier) : undefined;
+
+  let damage = weapon?.attackValue ?? character.baseStats.damage;
+  let defence = character.baseStats.defence + (armorTier?.defenceBonus ?? 0);
 
   for (const id of character.powerupIds) {
     const powerup = powerupCatalog.get(id);

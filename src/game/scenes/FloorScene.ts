@@ -22,7 +22,7 @@ import type { PauseMenuData } from "./PauseMenuScene";
 import { resumeFromCheckpoint, returnToMainMenu } from "../../domain/hazard/recovery";
 import type { EncounterResult } from "../../domain/combat/simulateEncounter";
 import type { DropTable, EnemyDefinition, ItemDefinition } from "../../domain/floor/types";
-import type { KeyDefinition, PowerupDefinition } from "../../domain/character/types";
+import type { ArmorTierId, KeyDefinition, PowerupDefinition, WeaponId } from "../../domain/character/types";
 import { keyTypeDescriptions } from "../uiContent/itemDescriptions";
 import { PLAY_AREA, DESIGN_PLAY_AREA } from "../gameConfig";
 import { createUiText, getUiRoot } from "../ui/domOverlay";
@@ -30,6 +30,11 @@ import { scalePx } from "../scaleConfig";
 import { computeTileSize, computeTileLayerOrigin } from "../floorLayout";
 
 const MOVE_COOLDOWN_MS = 160;
+
+/** 004: species/weapon/player-armor-tier art baked to public/icons/*.svg (research.md #1). */
+const SPECIES_TEXTURE_KEYS = ["goblin", "ogre", "wizard"] as const;
+const WEAPON_TEXTURE_KEYS = ["sword", "axe", "mace", "bow", "staff"] as const;
+const PLAYER_TEXTURE_KEYS = ["player-none", "player-leather", "player-mail", "player-plate"] as const;
 
 const COLORS = {
   floor: 0x2b2430,
@@ -45,7 +50,6 @@ const COLORS = {
   currency: 0xf4a261,
   powerup: 0x8ecae6,
   key: 0xf4d35e,
-  player: 0xf2e9d8,
 } as const;
 
 interface PendingPickup {
@@ -57,7 +61,7 @@ interface PendingPickup {
 export class FloorScene extends Phaser.Scene {
   private ctx!: GameContext;
   private canMove = true;
-  private playerSprite!: Phaser.GameObjects.Rectangle;
+  private playerSprite!: Phaser.GameObjects.Image;
   private tileLayer!: Phaser.GameObjects.Container;
   private messageText!: HTMLDivElement;
   /** Computed per floor (create()) from that floor's grid size against PLAY_AREA, so the
@@ -67,6 +71,15 @@ export class FloorScene extends Phaser.Scene {
 
   constructor() {
     super("FloorScene");
+  }
+
+  preload(): void {
+    for (const key of [...SPECIES_TEXTURE_KEYS, ...PLAYER_TEXTURE_KEYS]) {
+      if (!this.textures.exists(key)) this.load.svg(key, `/icons/${key}.svg`, { width: 128, height: 128 });
+    }
+    for (const key of WEAPON_TEXTURE_KEYS) {
+      if (!this.textures.exists(key)) this.load.svg(key, `/icons/${key}.svg`, { width: 64, height: 64 });
+    }
   }
 
   create(): void {
@@ -336,7 +349,13 @@ export class FloorScene extends Phaser.Scene {
 
   private engage(enemy: EnemyDefinition): void {
     const ctx = this.ctx;
-    const result = checkEngagementAllowed(ctx.save.character, ctx.powerupCatalog, enemy.stats);
+    const result = checkEngagementAllowed(
+      ctx.save.character,
+      ctx.powerupCatalog,
+      ctx.weaponCatalog,
+      ctx.armorTierCatalog,
+      enemy.stats,
+    );
     if (!result.allowed) {
       this.setMessage("Too weak to fight this enemy");
       return;
@@ -437,6 +456,16 @@ export class FloorScene extends Phaser.Scene {
 
     for (const item of floor.items) {
       if (collected.has(item.id)) continue;
+      if (item.kind === "weapon") {
+        const weapon = ctx.weaponCatalog.get(item.payload as WeaponId);
+        if (weapon) this.addTextureMarker(item.position, weapon.textureKey, 0.6);
+        continue;
+      }
+      if (item.kind === "armor") {
+        const armor = ctx.armorTierCatalog.get(item.payload as ArmorTierId);
+        if (armor) this.addTextureMarker(item.position, armor.textureKey, 0.6);
+        continue;
+      }
       const color =
         item.kind === "loot"
           ? COLORS.loot
@@ -450,9 +479,14 @@ export class FloorScene extends Phaser.Scene {
 
     for (const enemy of floor.enemies) {
       if (defeated.has(enemy.id)) continue;
-      const color =
-        enemy.placement === "compulsory" ? COLORS.enemyCompulsory : COLORS.enemyOptional;
-      this.addMarker(enemy.position, color, 0.8);
+      const species = ctx.monsterSpeciesCatalog.get(enemy.species);
+      if (species) {
+        this.addTextureMarker(enemy.position, species.textureKey, 0.85);
+      } else {
+        const color =
+          enemy.placement === "compulsory" ? COLORS.enemyCompulsory : COLORS.enemyOptional;
+        this.addMarker(enemy.position, color, 0.8);
+      }
     }
 
     this.drawPlayer(progress.playerPosition);
@@ -482,16 +516,31 @@ export class FloorScene extends Phaser.Scene {
     this.tileLayer.add(rect);
   }
 
+  /** 004 US1/US2/US3: species/weapon/armor art (research.md #1), sized to fit the tile. */
+  private addTextureMarker(position: Position, textureKey: string, scale: number): void {
+    const size = this.tileSize;
+    const image = this.add.image(
+      position.x * size + size / 2,
+      position.y * size + size / 2,
+      textureKey,
+    );
+    image.setDisplaySize((size - scalePx(2)) * scale, (size - scalePx(2)) * scale);
+    this.tileLayer.add(image);
+  }
+
   private drawPlayer(position: Position): void {
     if (this.playerSprite) this.playerSprite.destroy();
     const size = this.tileSize;
-    this.playerSprite = this.add.rectangle(
+    const armorTier = this.ctx.save.character.equippedArmorTier;
+    const textureKey = armorTier
+      ? (this.ctx.armorTierCatalog.get(armorTier)?.textureKey ?? "player-none")
+      : "player-none";
+    this.playerSprite = this.add.image(
       position.x * size + size / 2,
       position.y * size + size / 2,
-      size - scalePx(4),
-      size - scalePx(4),
-      COLORS.player,
+      textureKey,
     );
+    this.playerSprite.setDisplaySize(size - scalePx(4), size - scalePx(4));
     this.tileLayer.add(this.playerSprite);
   }
 }

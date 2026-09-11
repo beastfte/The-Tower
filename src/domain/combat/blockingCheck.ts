@@ -1,6 +1,6 @@
 import type { CombatStats } from "../types";
 import type { PlayerCharacterState } from "../character/save";
-import type { PowerupDefinition } from "../character/types";
+import type { ArmorTierDefinition, ArmorTierId, PowerupDefinition, WeaponDefinition, WeaponId } from "../character/types";
 import { computeEffectiveStats } from "../character/powerups";
 import { simulateEncounter, type EncounterResult } from "./simulateEncounter";
 
@@ -11,16 +11,19 @@ export interface BlockingCheckResult {
 
 /**
  * The pre-combat blocking check (FR-004b): simulates the deterministic encounter using
- * the player's *effective* stats (base + powerups, FR-008) against the enemy's stats.
- * If the enemy would win, the engagement is blocked before combat starts; the player
- * character can never actually be defeated in the resulting animation.
+ * the player's *effective* stats (base + equipped weapon/armor + powerups, FR-005/FR-008)
+ * against the enemy's stats. If the enemy would win, the engagement is blocked before
+ * combat starts; the player character can never actually be defeated in the resulting
+ * animation.
  */
 export function checkEngagementAllowed(
   character: PlayerCharacterState,
   powerupCatalog: ReadonlyMap<string, PowerupDefinition>,
+  weaponCatalog: ReadonlyMap<WeaponId, WeaponDefinition>,
+  armorTierCatalog: ReadonlyMap<ArmorTierId, ArmorTierDefinition>,
   enemyStats: CombatStats,
 ): BlockingCheckResult {
-  const playerStats = computeEffectiveStats(character, powerupCatalog);
+  const playerStats = computeEffectiveStats(character, powerupCatalog, weaponCatalog, armorTierCatalog);
   const encounter = simulateEncounter(playerStats, enemyStats);
   return { allowed: encounter.winner === "player", encounter };
 }

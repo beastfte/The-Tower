@@ -1,6 +1,6 @@
 import { positionKey, type Position } from "../types";
 import type { PlayerCharacterState } from "../character/save";
-import type { KeyDefinition, LootItem, PowerupDefinition } from "../character/types";
+import type { ArmorTierId, KeyDefinition, LootItem, PowerupDefinition, WeaponId } from "../character/types";
 import { applyPowerup } from "../character/powerups";
 import type { ItemDefinition, FloorDefinition } from "./types";
 
@@ -42,6 +42,14 @@ export function applyItemPickup(
     case "powerup": {
       const powerup = item.payload as PowerupDefinition;
       return applyPowerup(character, powerup);
+    }
+    case "weapon": {
+      const weaponId = item.payload as WeaponId;
+      return { ...character, equippedWeaponId: weaponId };
+    }
+    case "armor": {
+      const armorTierId = item.payload as ArmorTierId;
+      return { ...character, equippedArmorTier: armorTierId };
     }
   }
 }

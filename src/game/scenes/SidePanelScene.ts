@@ -108,7 +108,12 @@ export class SidePanelScene extends Phaser.Scene {
 
   private computeSignature(): string {
     const { character } = this.ctx.save;
-    const stats = computeEffectiveStats(character, this.ctx.powerupCatalog);
+    const stats = computeEffectiveStats(
+      character,
+      this.ctx.powerupCatalog,
+      this.ctx.weaponCatalog,
+      this.ctx.armorTierCatalog,
+    );
     return JSON.stringify([
       character.currentHp,
       stats.damage,
@@ -117,6 +122,8 @@ export class SidePanelScene extends Phaser.Scene {
       character.inventory,
       character.powerupIds,
       character.keyIds,
+      character.equippedWeaponId,
+      character.equippedArmorTier,
     ]);
   }
 
@@ -136,9 +143,18 @@ export class SidePanelScene extends Phaser.Scene {
     this.rows.replaceChildren();
 
     const { character } = this.ctx.save;
-    const stats = computeEffectiveStats(character, this.ctx.powerupCatalog);
+    const stats = computeEffectiveStats(
+      character,
+      this.ctx.powerupCatalog,
+      this.ctx.weaponCatalog,
+      this.ctx.armorTierCatalog,
+    );
     const maxHp = computeMaxHp(character, this.ctx.powerupCatalog);
     const low = isLowHp(character.currentHp, maxHp);
+    const weapon = character.equippedWeaponId ? this.ctx.weaponCatalog.get(character.equippedWeaponId) : undefined;
+    const armorTier = character.equippedArmorTier
+      ? this.ctx.armorTierCatalog.get(character.equippedArmorTier)
+      : undefined;
 
     this.addRow("Player", "Your character.", "#8ecae6");
     this.addRow(
@@ -148,6 +164,8 @@ export class SidePanelScene extends Phaser.Scene {
     );
     this.addRow(`Dmg: ${stats.damage}`, "Damage dealt per successful attack.");
     this.addRow(`Def: ${stats.defence}`, "Reduces incoming damage per attack.");
+    this.addRow(`Weapon: ${weapon?.name ?? "(unarmed)"}`, "Determines damage dealt in combat.");
+    this.addRow(`Armor: ${armorTier?.name ?? "(none)"}`, "Determines defence and on-screen appearance.");
     this.addRow(`Gold: ${character.currency}`, "Currency collected so far this playthrough.");
 
     this.addRow("Items:", "Loot collected on floors.", "#8ecae6");
