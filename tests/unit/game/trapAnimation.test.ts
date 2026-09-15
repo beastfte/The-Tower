@@ -10,13 +10,13 @@ import {
   SPIKE_RETRACTED_MS,
   SPIKE_RISING_MS,
 } from "../../../src/game/trapAnimation";
-import { computeItemPhase } from "../../../src/game/itemAnimation";
+import { computePositionPhase } from "../../../src/game/livingAnimation";
 
 const pitAt = (x: number, y: number) => ({ id: "p", position: { x, y }, damage: 5 });
 
 describe("computeSpikePitSegment / isSpikePitArmed", () => {
   const pit = { id: "p0", position: { x: 0, y: 0 }, damage: 5 };
-  const phase = computeItemPhase(pit.position); // 0 for (0,0)
+  const phase = computePositionPhase(pit.position); // 0 for (0,0)
 
   it("is retracted at the start of the cycle and not armed", () => {
     expect(computeSpikePitSegment(pit, 0 - phase)).toBe("retracted");
@@ -51,7 +51,7 @@ describe("computeSpikePitSegment / isSpikePitArmed", () => {
     const b = pitAt(5, 7);
     const t = SPIKE_RETRACTED_MS + SPIKE_RISING_MS + 10;
     // Different phases at the same elapsed time can land in different segments.
-    expect(computeItemPhase(a.position)).not.toBe(computeItemPhase(b.position));
+    expect(computePositionPhase(a.position)).not.toBe(computePositionPhase(b.position));
     expect(typeof computeSpikePitSegment(a, t)).toBe("string");
     expect(typeof computeSpikePitSegment(b, t)).toBe("string");
   });
@@ -59,7 +59,7 @@ describe("computeSpikePitSegment / isSpikePitArmed", () => {
 
 describe("computeLavaFrame", () => {
   const lava = { id: "l0", position: { x: 0, y: 0 }, damage: 8 };
-  const phase = computeItemPhase(lava.position); // 0 for (0,0)
+  const phase = computePositionPhase(lava.position); // 0 for (0,0)
 
   it("is the base frame at the start of the cycle", () => {
     expect(computeLavaFrame(lava, 0 - phase)).toBe("lava");
@@ -77,7 +77,7 @@ describe("computeLavaFrame", () => {
   it("gives independently-phased tiles potentially different frames at the same instant", () => {
     const a = { id: "a", position: { x: 0, y: 0 }, damage: 8 };
     const b = { id: "b", position: { x: 5, y: 7 }, damage: 8 };
-    expect(computeItemPhase(a.position)).not.toBe(computeItemPhase(b.position));
+    expect(computePositionPhase(a.position)).not.toBe(computePositionPhase(b.position));
     expect(["lava", "lava-glow"]).toContain(computeLavaFrame(a, LAVA_BASE_MS + 10));
     expect(["lava", "lava-glow"]).toContain(computeLavaFrame(b, LAVA_BASE_MS + 10));
   });

@@ -39,7 +39,7 @@ import { PLAY_AREA, DESIGN_PLAY_AREA } from "../gameConfig";
 import { createUiText, getUiRoot } from "../ui/domOverlay";
 import { scalePx } from "../scaleConfig";
 import { computeTileSize, computeTileLayerOrigin } from "../floorLayout";
-import { computeBobOffset, computeItemPhase } from "../itemAnimation";
+import { computeBobOffset, computePositionPhase } from "../livingAnimation";
 import {
   computeLavaFrame,
   computeSpikePitSegment,
@@ -114,9 +114,12 @@ export class FloorScene extends Phaser.Scene {
    * whole grid always fits inside the play area instead of overflowing behind the side
    * panel/event log (002 FR-007/FR-016). */
   private tileSize!: number;
-  /** 006 US1: floor-item pickup markers currently bobbing (rebuilt every redraw()); never
-   * includes enemy/player markers (spec Assumptions — those don't animate). */
-  private animatedMarkers: {
+  /** 008: markers for every "living" floor entity currently bobbing (rebuilt every redraw()).
+   * Monsters are pushed here; the player character is deliberately excluded (008 follow-up —
+   * idle motion turned off for the player specifically) even though it's also "alive". Item
+   * pickups were removed from this list too — they render static, see the item-rendering loop
+   * below. */
+  private livingMarkers: {
     gameObject: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image;
     baseY: number;
     phase: number;
@@ -556,7 +559,7 @@ export class FloorScene extends Phaser.Scene {
     const leverEffects = resolveLeverEffects(floor, progress.toggledLeverIds);
 
     this.tileLayer.removeAll(true);
-    this.animatedMarkers = [];
+    this.livingMarkers = [];
     this.spikePitMarkers = [];
     this.lavaMarkers = [];
 
@@ -634,25 +637,23 @@ export class FloorScene extends Phaser.Scene {
           ? this.addTextureMarker(item.position, textureKey, 0.6)
           : this.addMarker(item.position, COLORS.loot, 0.5);
       }
-      if (marker) {
-        this.animatedMarkers.push({
-          gameObject: marker,
-          baseY: marker.y,
-          phase: computeItemPhase(item.position),
-        });
-      }
     }
 
     for (const enemy of floor.enemies) {
       if (defeated.has(enemy.id)) continue;
       const species = ctx.monsterSpeciesCatalog.get(enemy.species);
-      if (species) {
-        this.addTextureMarker(enemy.position, species.textureKey, 0.85);
-      } else {
-        const color =
-          enemy.placement === "compulsory" ? COLORS.enemyCompulsory : COLORS.enemyOptional;
-        this.addMarker(enemy.position, color, 0.8);
-      }
+      const marker = species
+        ? this.addTextureMarker(enemy.position, species.textureKey, 0.85)
+        : this.addMarker(
+            enemy.position,
+            enemy.placement === "compulsory" ? COLORS.enemyCompulsory : COLORS.enemyOptional,
+            0.8,
+          );
+      this.livingMarkers.push({
+        gameObject: marker,
+        baseY: marker.y,
+        phase: computePositionPhase(enemy.position),
+      });
     }
 
     this.drawPlayer(progress.playerPosition);
@@ -696,11 +697,12 @@ export class FloorScene extends Phaser.Scene {
     return image;
   }
 
-  /** 006 US1: applies the shared idle bob to every tracked floor-item marker each frame.
+  /** 008: applies the shared idle bob to every tracked living-entity marker (monsters only —
+   * the player is excluded, see the field comment above) each frame.
    * 007 US1: swaps each spike pit's texture to match its current cycle segment.
    * 007 US2: swaps each lava tile's texture between its base and glow frames. */
   override update(time: number): void {
-    for (const { gameObject, baseY, phase } of this.animatedMarkers) {
+    for (const { gameObject, baseY, phase } of this.livingMarkers) {
       gameObject.y = baseY + computeBobOffset(time, phase);
     }
     for (const { gameObject, pit } of this.spikePitMarkers) {
