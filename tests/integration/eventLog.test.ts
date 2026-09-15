@@ -41,7 +41,7 @@ describe("GameContext event log (002 FR-015, FR-017)", () => {
 
     const enemy = floor.enemies.find((e) => e.placement === "optional")!;
     ctx.logCombatEncounter(enemy.id, simulateEncounter({ damage: 10, defence: 2, hp: 30 }, enemy.stats));
-    ctx.logPickup("powerup", "power-glove");
+    ctx.logPickup("currency", "20 gold");
     ctx.persist();
 
     const reloaded = persistence.load();
@@ -52,9 +52,9 @@ describe("GameContext event log (002 FR-015, FR-017)", () => {
     expect(freshCtx.eventLog).toEqual([]);
   });
 
-  it("adds no entry to the log for a plain loot/currency pickup, since no such call is ever made", () => {
-    // GameContext exposes only logCombatEncounter/logPickup("key"|"powerup", ...) — there is
-    // no method to log loot/currency, so a caller cannot produce a log entry for them (FR-015).
+  it("adds no entry to the log for a plain loot pickup, since no such call is ever made", () => {
+    // GameContext exposes only logCombatEncounter/logPickup("key"|"potion"|"currency", ...) —
+    // there is no method to log loot, so a caller cannot produce a log entry for it (FR-015).
     const floor = TOWER.floors[0]!;
     const save = createInitialPlayerSave(floor.id, floor.entrance);
     const ctx = new GameContext(TOWER, new InMemoryPersistenceService(), save);

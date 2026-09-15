@@ -40,7 +40,6 @@ describe("death and recovery", () => {
       character: {
         baseStats: { damage: 10, defence: 2, hp: 30 },
         currentHp: 0,
-        powerupIds: [],
         inventory: [],
         currency: 0,
         keyIds: [],
@@ -62,7 +61,7 @@ describe("death and recovery", () => {
   });
 
   it("resumeFromCheckpoint resets the floor attempt and restores max HP", () => {
-    const save = resumeFromCheckpoint(buildSave(), floor, new Map());
+    const save = resumeFromCheckpoint(buildSave(), floor);
     expect(save.isDead).toBe(false);
     expect(save.currentFloorState.defeatedEnemyIds).toEqual([]);
     expect(save.currentFloorState.collectedItemIds).toEqual([]);

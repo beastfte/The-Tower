@@ -36,9 +36,9 @@ describe("formatPickupEntry", () => {
     expect(entry.message).toBe("Picked up key: bronze key.");
   });
 
-  it("describes a powerup pickup", () => {
-    const entry = formatPickupEntry("powerup", "power-glove");
+  it("describes a currency pickup", () => {
+    const entry = formatPickupEntry("currency", "30 gold");
     expect(entry.kind).toBe("pickup");
-    expect(entry.message).toBe("Picked up powerup: power-glove.");
+    expect(entry.message).toBe("Picked up gold: 30 gold.");
   });
 });

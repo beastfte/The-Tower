@@ -5,15 +5,15 @@ import { createMenuOption } from "../ui/MenuOption";
 import { scalePx } from "../scaleConfig";
 
 export interface PickupModalData {
-  kind: "key" | "powerup";
+  kind: "key" | "potion" | "currency";
   label: string;
   description: string;
   onDismiss: () => void;
 }
 
 /**
- * 002 FR-018/FR-019: a blocking pop-up shown the moment a key or powerup is collected,
- * briefly describing its effect. Pauses the launching scene (FloorScene or CombatOverlay)
+ * 002 FR-018/FR-019: a blocking pop-up shown the moment a key is collected, briefly
+ * describing its effect. Pauses the launching scene (FloorScene or CombatOverlay)
  * until the player explicitly dismisses it (click or the confirm key), reusing the same
  * pause/resume pattern already established by CombatOverlay (research.md #7).
  */
@@ -39,7 +39,16 @@ export class PickupModalScene extends Phaser.Scene {
       .rectangle(cx, cy, width - scalePx(20), height - scalePx(20), 0x120a10, 0.95)
       .setDepth(0);
 
-    const title = this.data_.kind === "key" ? "Key acquired!" : "Powerup acquired!";
+    // 005 FR-008: a chest's revealed gold reward still renders with the same distinct coin
+    // appearance as a floor-standing currency pickup, not text alone. "coin" is already loaded
+    // into the shared Phaser texture manager by FloorScene's preload before any modal can launch.
+    if (this.data_.kind === "currency" && this.textures.exists("coin")) {
+      const coinIcon = this.add.image(cx, cy - scalePx(46), "coin");
+      coinIcon.setDisplaySize(scalePx(24), scalePx(24));
+    }
+
+    const title =
+      this.data_.kind === "key" ? "Key acquired!" : this.data_.kind === "potion" ? "Health Potion!" : "Gold found!";
     const titleEl = createUiText(title, { x: dcx, y: dcy - 30, fontSize: 11, color: "#8ecae6" });
     const labelEl = createUiText(this.data_.label, { x: dcx, y: dcy - 12, fontSize: 10, color: "#e0c9a6" });
     const descriptionEl = createUiText(this.data_.description, {

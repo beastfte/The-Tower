@@ -1,11 +1,5 @@
 import type { CombatStats, Position, Tile } from "../types";
-import type {
-  ArmorTierId,
-  KeyDefinition,
-  LootItem,
-  PowerupDefinition,
-  WeaponId,
-} from "../character/types";
+import type { ArmorTierId, KeyDefinition, LootItem, WeaponId } from "../character/types";
 
 export type EnemyPlacement = "compulsory" | "optional";
 
@@ -21,7 +15,6 @@ export interface MonsterSpecies {
 export interface DropTable {
   loot?: LootItem[];
   currency?: number;
-  powerup?: PowerupDefinition;
   key?: KeyDefinition;
 }
 
@@ -35,9 +28,12 @@ export interface EnemyDefinition {
   drops?: DropTable;
 }
 
-export type ItemKind = "loot" | "currency" | "powerup" | "key" | "weapon" | "armor";
+export type ItemKind = "loot" | "currency" | "key" | "weapon" | "armor" | "potion" | "chest";
 
-export type ItemPayload = LootItem | number | PowerupDefinition | KeyDefinition | WeaponId | ArmorTierId;
+/** A chest's one predetermined reward, fixed at authoring time (005 spec Assumptions). */
+export type ChestReward = { kind: "currency"; amount: number } | { kind: "potion" };
+
+export type ItemPayload = LootItem | number | KeyDefinition | WeaponId | ArmorTierId | ChestReward | undefined;
 
 export interface ItemDefinition {
   id: string;

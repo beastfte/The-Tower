@@ -21,13 +21,14 @@ import type { PickupModalData } from "./PickupModalScene";
 import type { PauseMenuData } from "./PauseMenuScene";
 import { resumeFromCheckpoint, returnToMainMenu } from "../../domain/hazard/recovery";
 import type { EncounterResult } from "../../domain/combat/simulateEncounter";
-import type { DropTable, EnemyDefinition, ItemDefinition } from "../../domain/floor/types";
-import type { ArmorTierId, KeyDefinition, PowerupDefinition, WeaponId } from "../../domain/character/types";
-import { keyTypeDescriptions } from "../uiContent/itemDescriptions";
+import type { ChestReward, DropTable, EnemyDefinition, ItemDefinition } from "../../domain/floor/types";
+import type { ArmorTierId, KeyDefinition, LootItem, WeaponId } from "../../domain/character/types";
+import { keyTypeDescriptions, potionDescription } from "../uiContent/itemDescriptions";
 import { PLAY_AREA, DESIGN_PLAY_AREA } from "../gameConfig";
 import { createUiText, getUiRoot } from "../ui/domOverlay";
 import { scalePx } from "../scaleConfig";
 import { computeTileSize, computeTileLayerOrigin } from "../floorLayout";
+import { computeBobOffset, computeItemPhase } from "../itemAnimation";
 
 const MOVE_COOLDOWN_MS = 160;
 
@@ -35,25 +36,30 @@ const MOVE_COOLDOWN_MS = 160;
 const SPECIES_TEXTURE_KEYS = ["goblin", "ogre", "wizard"] as const;
 const WEAPON_TEXTURE_KEYS = ["sword", "axe", "mace", "bow", "staff"] as const;
 const PLAYER_TEXTURE_KEYS = ["player-none", "player-leather", "player-mail", "player-plate"] as const;
+/** 005: potion (US1), coin (US3), chest (US2) — item/prop art baked to public/icons/*.svg.
+ * 006: torch (a loot item) and key-bronze (US1's real key art, FR-008/FR-009) added. */
+const ITEM_TEXTURE_KEYS = ["potion", "coin", "chest", "torch", "key-bronze"] as const;
+/** 006 FR-010/FR-011: keyed-door and floor entrance/exit ("stairs") board-tile art. */
+const PROP_TEXTURE_KEYS = ["door-closed", "door-open", "stairs-up", "stairs-down"] as const;
+
+/** 006 FR-009: maps a LootItem id to its baked texture key. A loot id with no entry here
+ * falls back to the plain colored marker (COLORS.loot) rather than fabricating new art. */
+const LOOT_TEXTURE_KEYS: Record<string, string> = {
+  "loot-torch": "torch",
+};
 
 const COLORS = {
   floor: 0x2b2430,
   wall: 0x0d0a0f,
-  entrance: 0x3a5a40,
-  exit: 0x588157,
   enemyCompulsory: 0x8c2f39,
   enemyOptional: 0xb56576,
-  keyedDoor: 0x6f4518,
-  keyedDoorOpen: 0x8a6a3a,
   hazard: 0xd1495b,
   loot: 0xe9c46a,
-  currency: 0xf4a261,
-  powerup: 0x8ecae6,
   key: 0xf4d35e,
 } as const;
 
 interface PendingPickup {
-  kind: "key" | "powerup";
+  kind: "key" | "potion" | "currency";
   label: string;
   description: string;
 }
@@ -68,6 +74,13 @@ export class FloorScene extends Phaser.Scene {
    * whole grid always fits inside the play area instead of overflowing behind the side
    * panel/event log (002 FR-007/FR-016). */
   private tileSize!: number;
+  /** 006 US1: floor-item pickup markers currently bobbing (rebuilt every redraw()); never
+   * includes enemy/player markers (spec Assumptions — those don't animate). */
+  private animatedMarkers: {
+    gameObject: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image;
+    baseY: number;
+    phase: number;
+  }[] = [];
 
   constructor() {
     super("FloorScene");
@@ -78,6 +91,9 @@ export class FloorScene extends Phaser.Scene {
       if (!this.textures.exists(key)) this.load.svg(key, `/icons/${key}.svg`, { width: 128, height: 128 });
     }
     for (const key of WEAPON_TEXTURE_KEYS) {
+      if (!this.textures.exists(key)) this.load.svg(key, `/icons/${key}.svg`, { width: 64, height: 64 });
+    }
+    for (const key of [...ITEM_TEXTURE_KEYS, ...PROP_TEXTURE_KEYS]) {
       if (!this.textures.exists(key)) this.load.svg(key, `/icons/${key}.svg`, { width: 64, height: 64 });
     }
   }
@@ -143,7 +159,7 @@ export class FloorScene extends Phaser.Scene {
         this.scene.resume();
       },
       onRestart: () => {
-        ctx.save = resumeFromCheckpoint(ctx.save, ctx.currentFloor, ctx.powerupCatalog);
+        ctx.save = resumeFromCheckpoint(ctx.save, ctx.currentFloor);
         ctx.persist();
         this.scene.stop("PauseMenuScene");
         this.scene.resume();
@@ -196,12 +212,8 @@ export class FloorScene extends Phaser.Scene {
     });
   }
 
-  /** 002 FR-018: describes a single floor-placed item pickup as a pending pickup-modal entry, if it's a key or powerup. */
+  /** 002 FR-018: describes a single floor-placed item pickup as a pending pickup-modal entry, if it's a key. */
   private describeItemPickup(item: ItemDefinition): PendingPickup | null {
-    if (item.kind === "powerup") {
-      const powerup = item.payload as PowerupDefinition;
-      return { kind: "powerup", label: powerup.id, description: powerup.description };
-    }
     if (item.kind === "key") {
       const key = item.payload as KeyDefinition;
       return {
@@ -210,16 +222,31 @@ export class FloorScene extends Phaser.Scene {
         description: keyTypeDescriptions[key.keyType] ?? "",
       };
     }
+    if (item.kind === "potion") {
+      return { kind: "potion", label: "Health Potion", description: potionDescription };
+    }
+    if (item.kind === "chest") {
+      return this.describeChestReward(item.payload as ChestReward);
+    }
     return null;
   }
 
-  /** 002 FR-018: describes an enemy's drop table's key/powerup as pending pickup-modal entries (powerup first, then key). */
+  /** 005 FR-005/FR-006: describes a chest's revealed reward exactly as if it were the
+   * matching plain pickup — the same modal a direct currency/potion pickup would show,
+   * so "what did I find" messaging never drifts from what collecting it did. */
+  private describeChestReward(reward: ChestReward): PendingPickup {
+    switch (reward.kind) {
+      case "currency":
+        return { kind: "currency", label: `${reward.amount} gold`, description: "A pile of gold coins." };
+      case "potion":
+        return { kind: "potion", label: "Health Potion", description: potionDescription };
+    }
+  }
+
+  /** 002 FR-018: describes an enemy's drop table's key as a pending pickup-modal entry. */
   private describeDropPickups(drops: DropTable | undefined): PendingPickup[] {
     if (!drops) return [];
     const pickups: PendingPickup[] = [];
-    if (drops.powerup) {
-      pickups.push({ kind: "powerup", label: drops.powerup.id, description: drops.powerup.description });
-    }
     if (drops.key) {
       pickups.push({
         kind: "key",
@@ -349,13 +376,7 @@ export class FloorScene extends Phaser.Scene {
 
   private engage(enemy: EnemyDefinition): void {
     const ctx = this.ctx;
-    const result = checkEngagementAllowed(
-      ctx.save.character,
-      ctx.powerupCatalog,
-      ctx.weaponCatalog,
-      ctx.armorTierCatalog,
-      enemy.stats,
-    );
+    const result = checkEngagementAllowed(ctx.save.character, ctx.weaponCatalog, ctx.armorTierCatalog, enemy.stats);
     if (!result.allowed) {
       this.setMessage("Too weak to fight this enemy");
       return;
@@ -428,6 +449,7 @@ export class FloorScene extends Phaser.Scene {
     const heldKeys = new Set(ctx.save.character.keyIds);
 
     this.tileLayer.removeAll(true);
+    this.animatedMarkers = [];
 
     for (let y = 0; y < floor.grid.length; y++) {
       const row = floor.grid[y]!;
@@ -438,16 +460,14 @@ export class FloorScene extends Phaser.Scene {
       }
     }
 
-    this.addTile(floor.entrance.x, floor.entrance.y, COLORS.entrance);
-    this.addTile(floor.exit.x, floor.exit.y, COLORS.exit);
+    // 006 FR-011: the entrance is where the player arrived from (stairs down into this
+    // floor); the exit leads further up the tower (stairs up).
+    this.addTextureMarker(floor.entrance, "stairs-down", 1);
+    this.addTextureMarker(floor.exit, "stairs-up", 1);
 
     for (const door of floor.keyedDoors) {
       const open = isDoorPassable(door, heldKeys);
-      this.addTile(
-        door.position.x,
-        door.position.y,
-        open ? COLORS.keyedDoorOpen : COLORS.keyedDoor,
-      );
+      this.addTextureMarker(door.position, open ? "door-open" : "door-closed", 1);
     }
 
     for (const hazard of floor.hazardTiles) {
@@ -456,25 +476,43 @@ export class FloorScene extends Phaser.Scene {
 
     for (const item of floor.items) {
       if (collected.has(item.id)) continue;
+      let marker: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image | undefined;
       if (item.kind === "weapon") {
         const weapon = ctx.weaponCatalog.get(item.payload as WeaponId);
-        if (weapon) this.addTextureMarker(item.position, weapon.textureKey, 0.6);
-        continue;
-      }
-      if (item.kind === "armor") {
+        if (weapon) marker = this.addTextureMarker(item.position, weapon.textureKey, 0.6);
+      } else if (item.kind === "armor") {
         const armor = ctx.armorTierCatalog.get(item.payload as ArmorTierId);
-        if (armor) this.addTextureMarker(item.position, armor.textureKey, 0.6);
-        continue;
+        if (armor) marker = this.addTextureMarker(item.position, armor.textureKey, 0.6);
+      } else if (item.kind === "currency") {
+        marker = this.addTextureMarker(item.position, "coin", 0.6);
+      } else if (item.kind === "potion") {
+        marker = this.addTextureMarker(item.position, "potion", 0.6);
+      } else if (item.kind === "chest") {
+        marker = this.addTextureMarker(item.position, "chest", 0.8);
+      } else if (item.kind === "key") {
+        // 006 FR-008: real key art, keyed by tier; a tier with no baked icon yet falls
+        // back to the plain colored marker rather than fabricating new art (FR-007).
+        const key = item.payload as KeyDefinition;
+        const textureKey = `key-${key.keyType}`;
+        marker = this.textures.exists(textureKey)
+          ? this.addTextureMarker(item.position, textureKey, 0.6)
+          : this.addMarker(item.position, COLORS.key, 0.5);
+      } else {
+        // item.kind === "loot" (006 FR-009): real art for ids with a baked icon (LOOT_TEXTURE_KEYS),
+        // falling back to the plain colored marker for any other loot id (FR-007).
+        const loot = item.payload as LootItem;
+        const textureKey = LOOT_TEXTURE_KEYS[loot.id];
+        marker = textureKey
+          ? this.addTextureMarker(item.position, textureKey, 0.6)
+          : this.addMarker(item.position, COLORS.loot, 0.5);
       }
-      const color =
-        item.kind === "loot"
-          ? COLORS.loot
-          : item.kind === "currency"
-            ? COLORS.currency
-            : item.kind === "powerup"
-              ? COLORS.powerup
-              : COLORS.key;
-      this.addMarker(item.position, color, 0.5);
+      if (marker) {
+        this.animatedMarkers.push({
+          gameObject: marker,
+          baseY: marker.y,
+          phase: computeItemPhase(item.position),
+        });
+      }
     }
 
     for (const enemy of floor.enemies) {
@@ -504,7 +542,7 @@ export class FloorScene extends Phaser.Scene {
     this.tileLayer.add(rect);
   }
 
-  private addMarker(position: Position, color: number, scale: number): void {
+  private addMarker(position: Position, color: number, scale: number): Phaser.GameObjects.Rectangle {
     const size = this.tileSize;
     const rect = this.add.rectangle(
       position.x * size + size / 2,
@@ -514,10 +552,11 @@ export class FloorScene extends Phaser.Scene {
       color,
     );
     this.tileLayer.add(rect);
+    return rect;
   }
 
   /** 004 US1/US2/US3: species/weapon/armor art (research.md #1), sized to fit the tile. */
-  private addTextureMarker(position: Position, textureKey: string, scale: number): void {
+  private addTextureMarker(position: Position, textureKey: string, scale: number): Phaser.GameObjects.Image {
     const size = this.tileSize;
     const image = this.add.image(
       position.x * size + size / 2,
@@ -526,6 +565,14 @@ export class FloorScene extends Phaser.Scene {
     );
     image.setDisplaySize((size - scalePx(2)) * scale, (size - scalePx(2)) * scale);
     this.tileLayer.add(image);
+    return image;
+  }
+
+  /** 006 US1: applies the shared idle bob to every tracked floor-item marker each frame. */
+  override update(time: number): void {
+    for (const { gameObject, baseY, phase } of this.animatedMarkers) {
+      gameObject.y = baseY + computeBobOffset(time, phase);
+    }
   }
 
   private drawPlayer(position: Position): void {

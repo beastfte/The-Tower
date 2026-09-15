@@ -5,9 +5,7 @@ import type { Tower } from "../../domain/floor/tower";
  * Presentation-layer copy for the side panel, tooltips, and pickup modal (research.md #4).
  * `LootItem`/`KeyDefinition` (src/domain/character/types.ts) carry no description text of
  * their own, and adding one there would mean modifying 001-fantasy-tower-adventure's domain
- * model — outside this feature's UI-only scope. Powerup tooltips/modal text instead reuse
- * the existing `PowerupDefinition.description` field directly; no lookup entry is needed
- * for powerups here.
+ * model — outside this feature's UI-only scope.
  *
  * Authoring note: every new `LootItem` id and every new `KeyDefinition`/`KeyedDoorDefinition`
  * type added to `src/data/floors/*` MUST get a matching entry below — enforced by
@@ -20,6 +18,10 @@ export const lootDescriptions: Record<string, string> = {
 export const keyTypeDescriptions: Record<string, string> = {
   bronze: "A tarnished bronze key. Opens bronze-marked doors.",
 };
+
+/** 005 FR-002/FR-007: every potion is identical, so this is a single fixed string
+ * rather than an id-keyed lookup table like `lootDescriptions`/`keyTypeDescriptions`. */
+export const potionDescription = "A vial of red liquid. Restores your HP to full.";
 
 /** Maps every LootItem id referenced anywhere in the tower to its display name, for the side panel. */
 export function buildLootNameCatalog(tower: Tower): ReadonlyMap<string, string> {

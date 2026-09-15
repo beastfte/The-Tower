@@ -11,7 +11,11 @@ import { rowFromPattern } from "./gridHelpers";
  * added off previously-unused stretches of the corridor — scaling up the existing
  * "main corridor + alcoves" pattern (research.md #6) rather than replacing it. Walkable
  * area is 230 tiles across a 20x20 grid (FR-014, ≥15x15; FR-016's modest extra content:
- * one more monster species pairing plus a weapon and an armor pickup).
+ * one more monster species pairing plus a weapon and an armor pickup). 005 adds a health
+ * potion in the wizard's dead-end room and a treasure chest (currency reward) in the
+ * bottom-left room, both reachable without affecting the critical path (FR-009). 006
+ * removed the powerup mechanic entirely (see spec.md) — the rat's drop and the chest's
+ * reward, both formerly powerups, now grant currency instead.
  */
 export const FLOOR_01: FloorDefinition = {
   id: "floor-01",
@@ -54,13 +58,7 @@ export const FLOOR_01: FloorDefinition = {
       species: "goblin",
       stats: { damage: 3, defence: 0, hp: 10 },
       placement: "optional",
-      drops: {
-        powerup: {
-          id: "power-glove",
-          statBonus: { damage: 5 },
-          description: "A worn leather glove that hits harder.",
-        },
-      },
+      drops: { currency: 20 },
     },
     {
       id: "floor01-ogre",
@@ -109,6 +107,18 @@ export const FLOOR_01: FloorDefinition = {
       position: { x: 10, y: 4 },
       kind: "armor",
       payload: "leather",
+    },
+    {
+      id: "floor01-potion",
+      position: { x: 18, y: 3 },
+      kind: "potion",
+      payload: undefined,
+    },
+    {
+      id: "floor01-chest",
+      position: { x: 2, y: 15 },
+      kind: "chest",
+      payload: { kind: "currency", amount: 30 },
     },
   ],
   keyedDoors: [{ id: "floor01-door-bronze", position: { x: 6, y: 10 }, doorType: "bronze" }],

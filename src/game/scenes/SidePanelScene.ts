@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { GameContext } from "../GameContext";
-import { computeEffectiveStats, computeMaxHp } from "../../domain/character/powerups";
+import { computeEffectiveStats, computeMaxHp } from "../../domain/character/combatStats";
 import { isLowHp } from "../sidePanel/hpState";
 import {
   lootDescriptions,
@@ -16,8 +16,8 @@ const PAUSE_BUTTON_AREA_HEIGHT = 20;
 
 /**
  * 002 FR-001–FR-006: a full-height, right-hand side panel showing the player's current
- * stats and every individually collected loot item, powerup, and held key type, with
- * hover tooltips (the browser's own native title-attribute tooltip). Replaces the base
+ * stats and every individually collected loot item and held key type, with hover
+ * tooltips (the browser's own native title-attribute tooltip). Replaces the base
  * game's HudOverlay entirely. Redraws only when the relevant state actually changes
  * (tracked via a cheap signature), so pointer hover listeners aren't torn down every frame.
  * Renders as a real, natively-scrollable DOM panel (see ui/domOverlay.ts) rather than
@@ -108,19 +108,13 @@ export class SidePanelScene extends Phaser.Scene {
 
   private computeSignature(): string {
     const { character } = this.ctx.save;
-    const stats = computeEffectiveStats(
-      character,
-      this.ctx.powerupCatalog,
-      this.ctx.weaponCatalog,
-      this.ctx.armorTierCatalog,
-    );
+    const stats = computeEffectiveStats(character, this.ctx.weaponCatalog, this.ctx.armorTierCatalog);
     return JSON.stringify([
       character.currentHp,
       stats.damage,
       stats.defence,
       character.currency,
       character.inventory,
-      character.powerupIds,
       character.keyIds,
       character.equippedWeaponId,
       character.equippedArmorTier,
@@ -143,13 +137,8 @@ export class SidePanelScene extends Phaser.Scene {
     this.rows.replaceChildren();
 
     const { character } = this.ctx.save;
-    const stats = computeEffectiveStats(
-      character,
-      this.ctx.powerupCatalog,
-      this.ctx.weaponCatalog,
-      this.ctx.armorTierCatalog,
-    );
-    const maxHp = computeMaxHp(character, this.ctx.powerupCatalog);
+    const stats = computeEffectiveStats(character, this.ctx.weaponCatalog, this.ctx.armorTierCatalog);
+    const maxHp = computeMaxHp(character);
     const low = isLowHp(character.currentHp, maxHp);
     const weapon = character.equippedWeaponId ? this.ctx.weaponCatalog.get(character.equippedWeaponId) : undefined;
     const armorTier = character.equippedArmorTier
@@ -176,16 +165,6 @@ export class SidePanelScene extends Phaser.Scene {
         const name = this.lootNameCatalog.get(lootId) ?? lootId;
         const description = lootDescriptions[lootId] ?? "";
         this.addRow(`  ${name}`, description);
-      }
-    }
-
-    this.addRow("Powerups:", "Lasting stat bonuses collected.", "#8ecae6");
-    if (character.powerupIds.length === 0) {
-      this.addRow("  (none)", "No powerups collected yet.");
-    } else {
-      for (const powerupId of character.powerupIds) {
-        const powerup = this.ctx.powerupCatalog.get(powerupId);
-        this.addRow(`  ${powerupId}`, powerup?.description ?? "");
       }
     }
 

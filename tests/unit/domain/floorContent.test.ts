@@ -5,6 +5,7 @@ import { TOWER } from "../../../src/data/floors";
 import { WEAPONS } from "../../../src/data/weapons";
 import { ARMOR_TIERS } from "../../../src/data/armorTiers";
 import type { ArmorTierId, WeaponId } from "../../../src/domain/character/types";
+import type { ChestReward } from "../../../src/domain/floor/types";
 
 describe("authored floor content", () => {
   it.each(TOWER.floors)("floor $id satisfies the floor-data contract invariants", (floor) => {
@@ -44,5 +45,23 @@ describe("authored floor content", () => {
   it.each(TOWER.floors)("floor $id has a walkable area of at least 225 tiles", (floor) => {
     const walkableCount = floor.grid.flat().filter((tile) => tile.walkable).length;
     expect(walkableCount).toBeGreaterThanOrEqual(225);
+  });
+
+  // 005 contract invariant 18: each floor places at least one potion and one chest (FR-009).
+  it.each(TOWER.floors)("floor $id places at least one potion and one chest", (floor) => {
+    expect(floor.items.some((i) => i.kind === "potion")).toBe(true);
+    expect(floor.items.some((i) => i.kind === "chest")).toBe(true);
+  });
+
+  // 005 contract invariant 15: every chest's ChestReward is well-formed.
+  it.each(TOWER.floors)("floor $id's chests carry a well-formed reward", (floor) => {
+    for (const item of floor.items) {
+      if (item.kind !== "chest") continue;
+      const reward = item.payload as ChestReward;
+      if (reward.kind === "currency") {
+        expect(Number.isInteger(reward.amount)).toBe(true);
+        expect(reward.amount).toBeGreaterThan(0);
+      }
+    }
   });
 });

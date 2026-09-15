@@ -1,6 +1,5 @@
 import { emptyFloorProgress, type PlayerSave } from "../character/save";
-import { computeMaxHp } from "../character/powerups";
-import type { PowerupDefinition } from "../character/types";
+import { computeMaxHp } from "../character/combatStats";
 import type { FloorDefinition } from "../floor/types";
 
 /**
@@ -9,18 +8,14 @@ import type { FloorDefinition } from "../floor/types";
  * FloorProgress to its original fixed state and restores the character to max HP.
  * `completedFloorIds`/`completedFloorStates` and all other character progress are untouched.
  */
-export function resumeFromCheckpoint(
-  save: PlayerSave,
-  floor: FloorDefinition,
-  powerupCatalog: ReadonlyMap<string, PowerupDefinition>,
-): PlayerSave {
+export function resumeFromCheckpoint(save: PlayerSave, floor: FloorDefinition): PlayerSave {
   return {
     ...save,
     isDead: false,
     currentFloorState: emptyFloorProgress(floor.id, floor.entrance),
     character: {
       ...save.character,
-      currentHp: computeMaxHp(save.character, powerupCatalog),
+      currentHp: computeMaxHp(save.character),
     },
   };
 }

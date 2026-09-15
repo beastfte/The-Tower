@@ -34,7 +34,6 @@ export class WinScreenScene extends Phaser.Scene {
         `Floors reached: ${floorsReached} of ${totalFloors}`,
         `Currency collected: ${character.currency}`,
         `Loot items collected: ${character.inventory.length}`,
-        `Powerups collected: ${character.powerupIds.length}`,
       ].join("\n"),
       { x: DESIGN_WIDTH / 2, y: DESIGN_HEIGHT / 2, fontSize: 9, color: "#e0c9a6", align: "center" },
     );

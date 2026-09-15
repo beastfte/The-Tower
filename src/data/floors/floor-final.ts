@@ -8,7 +8,9 @@ import { rowFromPattern } from "./gridHelpers";
  * other row, so it remains the only opening between the two rooms and no route to the exit
  * can bypass it (floor-data-contract invariant 3, unchanged). One dead-end alcove holds a
  * weapon pickup; an armor pickup sits in the entry room (FR-012). Walkable area is 239 tiles
- * across a 20x20 grid (FR-015, ≥15x15).
+ * across a 20x20 grid (FR-015, ≥15x15). 005 adds a health potion and a treasure chest
+ * (currency reward) to the exit-side room, reachable without affecting the boss chokepoint
+ * (FR-009).
  */
 export const FLOOR_FINAL: FloorDefinition = {
   id: "floor-final",
@@ -59,6 +61,18 @@ export const FLOOR_FINAL: FloorDefinition = {
       position: { x: 2, y: 8 },
       kind: "armor",
       payload: "mail",
+    },
+    {
+      id: "floor-final-potion",
+      position: { x: 15, y: 6 },
+      kind: "potion",
+      payload: undefined,
+    },
+    {
+      id: "floor-final-chest",
+      position: { x: 15, y: 13 },
+      kind: "chest",
+      payload: { kind: "currency", amount: 30 },
     },
   ],
   keyedDoors: [],

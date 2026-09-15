@@ -43,7 +43,7 @@ export class DeathScreenScene extends Phaser.Scene {
 
   private resume(): void {
     const ctx = this.registry.get("ctx") as GameContext;
-    ctx.save = resumeFromCheckpoint(ctx.save, ctx.currentFloor, ctx.powerupCatalog);
+    ctx.save = resumeFromCheckpoint(ctx.save, ctx.currentFloor);
     ctx.persist();
     this.scene.start("FloorScene");
   }

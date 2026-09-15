@@ -1,9 +1,8 @@
 import type { PlayerSave } from "../domain/character/save";
-import type { ArmorTierDefinition, ArmorTierId, PowerupDefinition, WeaponDefinition, WeaponId } from "../domain/character/types";
+import type { ArmorTierDefinition, ArmorTierId, WeaponDefinition, WeaponId } from "../domain/character/types";
 import type { FloorDefinition, MonsterSpecies, MonsterSpeciesId } from "../domain/floor/types";
 import type { Tower } from "../domain/floor/tower";
 import type { PersistenceService } from "../persistence/PersistenceService";
-import { buildPowerupCatalog } from "../data/catalog";
 import { MONSTER_SPECIES } from "../data/monsterSpecies";
 import { WEAPONS } from "../data/weapons";
 import { ARMOR_TIERS } from "../data/armorTiers";
@@ -16,7 +15,6 @@ import { formatCombatEntry, formatPickupEntry } from "./eventLog/formatEntry";
  * single browser tab — one instance for the whole app is sufficient.
  */
 export class GameContext {
-  public readonly powerupCatalog: ReadonlyMap<string, PowerupDefinition>;
   public readonly monsterSpeciesCatalog: ReadonlyMap<MonsterSpeciesId, MonsterSpecies> = new Map(
     Object.entries(MONSTER_SPECIES) as [MonsterSpeciesId, MonsterSpecies][],
   );
@@ -34,9 +32,7 @@ export class GameContext {
     public readonly tower: Tower,
     public readonly persistence: PersistenceService,
     public save: PlayerSave,
-  ) {
-    this.powerupCatalog = buildPowerupCatalog(tower);
-  }
+  ) {}
 
   get currentFloor(): FloorDefinition {
     const floor = this.tower.floors.find((f) => f.id === this.save.currentFloorId);
@@ -55,8 +51,9 @@ export class GameContext {
     this.eventLog.push(formatCombatEntry(enemyId, result));
   }
 
-  /** 002 FR-015: appends a key/powerup pickup entry to the session-only event log. */
-  logPickup(kind: "key" | "powerup", label: string): void {
+  /** 002 FR-015, 005 FR-006/FR-007: appends a key/potion/currency pickup entry to
+   * the session-only event log. */
+  logPickup(kind: "key" | "potion" | "currency", label: string): void {
     this.eventLog.push(formatPickupEntry(kind, label));
   }
 }

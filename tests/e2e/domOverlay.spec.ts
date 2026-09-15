@@ -63,7 +63,6 @@ test.describe("DOM UI overlay", () => {
         baseStats: { damage: 5, defence: 2, hp: 30 },
         currentHp: 1,
         inventory: [],
-        powerupIds: [],
         keyIds: [],
         currency: 0,
       },

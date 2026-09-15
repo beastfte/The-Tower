@@ -5,11 +5,10 @@ import { checkEngagementAllowed } from "../../src/domain/combat/blockingCheck";
 import { simulateEncounter } from "../../src/domain/combat/simulateEncounter";
 import { applyEnemyDefeat, updatePlayerPosition } from "../../src/domain/floor/floorState";
 import { applyItemPickup } from "../../src/domain/floor/itemCollection";
-import { computeEffectiveStats } from "../../src/domain/character/powerups";
+import { computeEffectiveStats } from "../../src/domain/character/combatStats";
 import { completeCurrentFloor } from "../../src/domain/progress/towerProgress";
 import { isWinningDefeat, triggerWin } from "../../src/domain/progress/winState";
 import { TOWER } from "../../src/data/floors";
-import { buildPowerupCatalog } from "../../src/data/catalog";
 import { WEAPONS } from "../../src/data/weapons";
 import { ARMOR_TIERS } from "../../src/data/armorTiers";
 import type { ArmorTierDefinition, ArmorTierId, WeaponDefinition, WeaponId } from "../../src/domain/character/types";
@@ -32,43 +31,18 @@ describe("gameplay integration", () => {
     expect(reloaded!.currentFloorState.playerPosition).toEqual({ x: 2, y: 2 });
   });
 
-  it("blocks an unwinnable engagement, then allows it after a powerup (FR-004b, FR-008)", () => {
-    const catalog = buildPowerupCatalog(TOWER);
+  it("blocks an engagement the player would lose (FR-004b)", () => {
     const floor = TOWER.floors[0]!;
-    let save = createInitialPlayerSave(floor.id, floor.entrance);
-
-    const optionalEnemy = floor.enemies.find((e) => e.placement === "optional")!;
-    const compulsoryEnemy = floor.enemies.find((e) => e.placement === "compulsory")!;
+    const save = createInitialPlayerSave(floor.id, floor.entrance);
 
     // Make the compulsory enemy artificially unbeatable to prove blocking works.
     const unbeatable = { damage: 100, defence: 100, hp: 1000 };
-    const blocked = checkEngagementAllowed(save.character, catalog, weaponCatalog, armorTierCatalog, unbeatable);
+    const blocked = checkEngagementAllowed(save.character, weaponCatalog, armorTierCatalog, unbeatable);
     expect(blocked.allowed).toBe(false);
 
-    // Defeat the (beatable) optional enemy to collect its powerup.
-    const beforeStats = computeEffectiveStats(save.character, catalog, weaponCatalog, armorTierCatalog);
-    const optionalResult = checkEngagementAllowed(save.character, catalog, weaponCatalog, armorTierCatalog, optionalEnemy.stats);
-    expect(optionalResult.allowed).toBe(true);
-    const afterOptionalDefeat = applyEnemyDefeat(
-      save.currentFloorState,
-      save.character,
-      optionalEnemy,
-    );
-    save.currentFloorState = afterOptionalDefeat.floorProgress;
-    save.character = afterOptionalDefeat.character;
-
-    const afterStats = computeEffectiveStats(save.character, catalog, weaponCatalog, armorTierCatalog);
-    expect(afterStats.damage).toBeGreaterThan(beforeStats.damage);
-
-    // The compulsory enemy should still be beatable with the improved stats.
-    const compulsoryResult = checkEngagementAllowed(
-      save.character,
-      catalog,
-      weaponCatalog,
-      armorTierCatalog,
-      compulsoryEnemy.stats,
-    );
-    expect(compulsoryResult.allowed).toBe(true);
+    const compulsoryEnemy = floor.enemies.find((e) => e.placement === "compulsory")!;
+    const allowed = checkEngagementAllowed(save.character, weaponCatalog, armorTierCatalog, compulsoryEnemy.stats);
+    expect(allowed.allowed).toBe(true);
   });
 
   it("permanently removes a defeated enemy and allows advancing (FR-009, FR-010a)", () => {
@@ -100,16 +74,15 @@ describe("gameplay integration", () => {
 
   it("equipping a weapon/armor pickup changes effective stats, and a second pickup replaces rather than stacks (FR-005, FR-008, FR-010)", () => {
     const floor = TOWER.floors[0]!;
-    const catalog = buildPowerupCatalog(TOWER);
     let save = createInitialPlayerSave(floor.id, floor.entrance);
 
-    const baseline = computeEffectiveStats(save.character, catalog, weaponCatalog, armorTierCatalog);
+    const baseline = computeEffectiveStats(save.character, weaponCatalog, armorTierCatalog);
 
     const swordItem = floor.items.find((i) => i.kind === "weapon")!;
     save.character = applyItemPickup(save.character, swordItem);
     expect(save.character.equippedWeaponId).toBe(swordItem.payload);
 
-    const afterSword = computeEffectiveStats(save.character, catalog, weaponCatalog, armorTierCatalog);
+    const afterSword = computeEffectiveStats(save.character, weaponCatalog, armorTierCatalog);
     expect(afterSword.damage).toBe(weaponCatalog.get(swordItem.payload as WeaponId)!.attackValue);
     expect(afterSword.damage).not.toBe(baseline.damage);
 
@@ -117,14 +90,14 @@ describe("gameplay integration", () => {
     const axeItem = { id: "test-axe", position: floor.entrance, kind: "weapon" as const, payload: "axe" as WeaponId };
     save.character = applyItemPickup(save.character, axeItem);
     expect(save.character.equippedWeaponId).toBe("axe");
-    const afterAxe = computeEffectiveStats(save.character, catalog, weaponCatalog, armorTierCatalog);
+    const afterAxe = computeEffectiveStats(save.character, weaponCatalog, armorTierCatalog);
     expect(afterAxe.damage).toBe(weaponCatalog.get("axe")!.attackValue);
 
     const leatherItem = floor.items.find((i) => i.kind === "armor")!;
     save.character = applyItemPickup(save.character, leatherItem);
     expect(save.character.equippedArmorTier).toBe(leatherItem.payload);
 
-    const afterLeather = computeEffectiveStats(save.character, catalog, weaponCatalog, armorTierCatalog);
+    const afterLeather = computeEffectiveStats(save.character, weaponCatalog, armorTierCatalog);
     expect(afterLeather.defence).toBe(
       baseline.defence + armorTierCatalog.get(leatherItem.payload as ArmorTierId)!.defenceBonus,
     );
@@ -133,7 +106,7 @@ describe("gameplay integration", () => {
     const mailItem = { id: "test-mail", position: floor.entrance, kind: "armor" as const, payload: "mail" as ArmorTierId };
     save.character = applyItemPickup(save.character, mailItem);
     expect(save.character.equippedArmorTier).toBe("mail");
-    const afterMail = computeEffectiveStats(save.character, catalog, weaponCatalog, armorTierCatalog);
+    const afterMail = computeEffectiveStats(save.character, weaponCatalog, armorTierCatalog);
     expect(afterMail.defence).toBe(baseline.defence + armorTierCatalog.get("mail")!.defenceBonus);
   });
 

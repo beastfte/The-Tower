@@ -39,17 +39,15 @@ test("scenario 10: movement is cardinal-only, one tile per keypress (FR-016)", a
   expect(save.currentFloorState.playerPosition).toEqual({ x: 1, y: 10 });
 });
 
-test("scenarios 4 & 5: an under-leveled attempt is blocked, and a collected powerup enables it (FR-004b, FR-008, SC-006)", async ({ page }) => {
-  // Deliberately weak stats: this character loses to floor01-goblin (dmg4/def1/hp12) as-is,
-  // but wins to the optional floor01-rat (dmg3/def0/hp10) and, after the rat's power-glove
-  // drop (+5 damage), wins to the goblin too.
+test("scenario 4: an under-leveled attempt is blocked (FR-004b)", async ({ page }) => {
+  // 006: this scenario previously continued into "scenario 5" (a collected powerup raising
+  // damage enough to unlock the same engagement) — the powerup mechanic was removed entirely
+  // per that feature's spec, so this test now only covers the still-true blocking half.
+  // Deliberately weak stats: this character loses to floor01-goblin (dmg4/def1/hp12) as-is.
   const weakSave: PlayerSave = {
     ...createInitialPlayerSave(firstFloor.id, firstFloor.entrance),
     character: {
       ...createInitialPlayerSave(firstFloor.id, firstFloor.entrance).character,
-      // damage:3/defence:0/hp:15 loses to floor01-goblin (dmg4/def1/hp12) as-is, wins to
-      // floor01-rat (dmg3/def0/hp10, ending around 6 HP), and — with the rat's +5 damage
-      // power-glove — wins to the goblin from that remaining HP.
       baseStats: { damage: 3, defence: 0, hp: 15 },
       currentHp: 15,
     },
@@ -63,35 +61,14 @@ test("scenarios 4 & 5: an under-leveled attempt is blocked, and a collected powe
   await pressAndWait(page, "ArrowRight"); // (0,10) -> (1,10)
   await pressAndWait(page, "ArrowRight"); // (1,10) -> (2,10)
 
-  // Scenario 4: engaging the goblin now would lose the simulated encounter — blocked
-  // before it starts, no combat animation, HP untouched.
+  // Engaging the goblin now would lose the simulated encounter — blocked before it
+  // starts, no combat animation, HP untouched.
   await pressAndWait(page, "ArrowRight");
   expect(await isSceneActive(page, "CombatOverlay")).toBe(false);
   expect(await isSceneActive(page, "FloorScene")).toBe(true);
-  let save = await getCtxSave(page);
+  const save = await getCtxSave(page);
   expect(save.character.currentHp).toBe(15);
   expect(save.currentFloorState.playerPosition).toEqual({ x: 2, y: 10 }); // never moved
-
-  // Detour to the optional rat's alcove at (1,11) — this character wins that fight.
-  await pressAndWait(page, "ArrowLeft"); // (2,10) -> (1,10)
-  await page.keyboard.press("ArrowDown"); // engage the rat at (1,11)
-  await waitForActiveScene(page, "CombatOverlay");
-  await waitForActiveScene(page, "PickupModalScene", 10_000); // the rat's power-glove drop
-  await page.keyboard.press("Enter"); // dismiss
-  await waitForActiveScene(page, "FloorScene");
-
-  save = await getCtxSave(page);
-  expect(save.character.powerupIds).toContain("power-glove");
-
-  // Scenario 5: the same goblin engagement is now allowed with the powerup's +5 damage.
-  await pressAndWait(page, "ArrowRight"); // (1,10) -> (2,10)
-  await page.keyboard.press("ArrowRight"); // engage the goblin, now winnable
-  await waitForActiveScene(page, "CombatOverlay");
-  await waitForActiveScene(page, "FloorScene", 10_000); // goblin's drop is currency only, no modal
-
-  save = await getCtxSave(page);
-  expect(save.currentFloorState.defeatedEnemyIds).toContain("floor01-goblin");
-  expect(save.character.currentHp).toBeGreaterThan(0);
 });
 
 test("scenario 6: quit and resume mid-floor (FR-010)", async ({ page }) => {

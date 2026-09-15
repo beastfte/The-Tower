@@ -1,7 +1,7 @@
 import type { Position } from "../types";
 import { emptyFloorProgress, type PlayerSave } from "./save";
 
-/** Base combat stats for a brand-new playable character, before any powerups. */
+/** Base combat stats for a brand-new playable character. */
 const BASE_PLAYER_STATS = {
   damage: 10,
   defence: 2,
@@ -18,7 +18,6 @@ export function createInitialPlayerSave(firstFloorId: string, entrance: Position
     character: {
       baseStats: { ...BASE_PLAYER_STATS },
       currentHp: BASE_PLAYER_STATS.hp,
-      powerupIds: [],
       inventory: [],
       currency: 0,
       keyIds: [],

@@ -7,7 +7,7 @@ const MAX_VISIBLE_LINES = 4;
 
 /**
  * 002 FR-015–FR-017: an always-visible, dedicated-area log of combat outcomes and
- * key/powerup pickups, in chronological order, for the current browser session only.
+ * key pickups, in chronological order, for the current browser session only.
  * Shows the most recent entries (scrolled to the bottom) since the log is not capped.
  */
 export class EventLogScene extends Phaser.Scene {

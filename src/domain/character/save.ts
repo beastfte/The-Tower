@@ -12,7 +12,6 @@ export interface FloorProgress {
 export interface PlayerCharacterState {
   baseStats: CombatStats;
   currentHp: number;
-  powerupIds: string[];
   inventory: string[];
   currency: number;
   /** Held key *types* (KeyDefinition.keyType values) — a KeyedDoorDefinition is passable
