@@ -7,6 +7,9 @@ export interface FloorProgress {
   defeatedEnemyIds: string[];
   collectedItemIds: string[];
   playerPosition: Position;
+  /** 007 US3: levers permanently toggled this floor attempt (FR-011); resets with the rest
+   * of FloorProgress on checkpoint restart. */
+  toggledLeverIds: string[];
 }
 
 export interface PlayerCharacterState {
@@ -39,5 +42,6 @@ export function emptyFloorProgress(floorId: string, playerPosition: Position): F
     defeatedEnemyIds: [],
     collectedItemIds: [],
     playerPosition,
+    toggledLeverIds: [],
   };
 }

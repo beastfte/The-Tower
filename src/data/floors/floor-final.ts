@@ -77,4 +77,8 @@ export const FLOOR_FINAL: FloorDefinition = {
   ],
   keyedDoors: [],
   hazardTiles: [],
+  spikePits: [],
+  lavaTiles: [],
+  levers: [],
+  waterTiles: [],
 };

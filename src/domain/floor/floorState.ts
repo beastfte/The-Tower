@@ -2,7 +2,7 @@ import type { PlayerCharacterState } from "../character/save";
 import { applyDropTable } from "../character/inventory";
 import type { FloorProgress } from "../character/save";
 import type { Position } from "../types";
-import type { EnemyDefinition } from "./types";
+import type { EnemyDefinition, LeverDefinition } from "./types";
 
 export interface FloorStateUpdate {
   floorProgress: FloorProgress;
@@ -40,4 +40,14 @@ export function updatePlayerPosition(
 export function markItemCollected(floorProgress: FloorProgress, itemId: string): FloorProgress {
   if (floorProgress.collectedItemIds.includes(itemId)) return floorProgress;
   return { ...floorProgress, collectedItemIds: [...floorProgress.collectedItemIds, itemId] };
+}
+
+/** 007 US3 (FR-008): records a lever as permanently toggled for this floor attempt.
+ * Idempotent — toggling an already-toggled lever is a no-op, mirroring markItemCollected. */
+export function applyLeverToggle(
+  floorProgress: FloorProgress,
+  lever: LeverDefinition,
+): FloorProgress {
+  if (floorProgress.toggledLeverIds.includes(lever.id)) return floorProgress;
+  return { ...floorProgress, toggledLeverIds: [...floorProgress.toggledLeverIds, lever.id] };
 }

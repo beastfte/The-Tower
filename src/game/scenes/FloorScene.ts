@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { GameContext } from "../GameContext";
-import type { Position } from "../../domain/types";
+import { positionsEqual, type Position } from "../../domain/types";
 import { stepInDirection, type CardinalDirection } from "../../domain/floor/movement";
 import { findLivingEnemyAt } from "../../domain/floor/enemyEngagement";
 import { findAvailableItemAt, applyItemPickup } from "../../domain/floor/itemCollection";
@@ -8,10 +8,14 @@ import {
   markItemCollected,
   updatePlayerPosition,
   applyEnemyDefeat,
+  applyLeverToggle,
 } from "../../domain/floor/floorState";
 import { hasReachedExit } from "../../domain/floor/floorCompletion";
 import { findKeyedDoorAt, isDoorPassable } from "../../domain/hazard/keyedDoor";
 import { findHazardAt, applyHazardDamage } from "../../domain/hazard/hazardDamage";
+import { findSpikePitAt } from "../../domain/hazard/spikePit";
+import { findLavaTileAt } from "../../domain/hazard/lavaTile";
+import { findLeverAt, resolveLeverEffects } from "../../domain/hazard/lever";
 import { hasDiedFromHazard, markDead } from "../../domain/hazard/death";
 import { checkEngagementAllowed } from "../../domain/combat/blockingCheck";
 import { isWinningDefeat, triggerWin } from "../../domain/progress/winState";
@@ -21,7 +25,14 @@ import type { PickupModalData } from "./PickupModalScene";
 import type { PauseMenuData } from "./PauseMenuScene";
 import { resumeFromCheckpoint, returnToMainMenu } from "../../domain/hazard/recovery";
 import type { EncounterResult } from "../../domain/combat/simulateEncounter";
-import type { ChestReward, DropTable, EnemyDefinition, ItemDefinition } from "../../domain/floor/types";
+import type {
+  ChestReward,
+  DropTable,
+  EnemyDefinition,
+  ItemDefinition,
+  LavaTileDefinition,
+  SpikePitDefinition,
+} from "../../domain/floor/types";
 import type { ArmorTierId, KeyDefinition, LootItem, WeaponId } from "../../domain/character/types";
 import { keyTypeDescriptions, potionDescription } from "../uiContent/itemDescriptions";
 import { PLAY_AREA, DESIGN_PLAY_AREA } from "../gameConfig";
@@ -29,8 +40,17 @@ import { createUiText, getUiRoot } from "../ui/domOverlay";
 import { scalePx } from "../scaleConfig";
 import { computeTileSize, computeTileLayerOrigin } from "../floorLayout";
 import { computeBobOffset, computeItemPhase } from "../itemAnimation";
+import {
+  computeLavaFrame,
+  computeSpikePitSegment,
+  isSpikePitArmed,
+  type SpikePitSegment,
+} from "../trapAnimation";
 
 const MOVE_COOLDOWN_MS = 160;
+/** 007: shared cadence for "damage while standing" checks (spike pit, lava), decoupled
+ * from the spike pit's own visual arm/retract cycle (research.md #3). */
+const TRAP_TICK_MS = 1000;
 
 /** 004: species/weapon/player-armor-tier art baked to public/icons/*.svg (research.md #1). */
 const SPECIES_TEXTURE_KEYS = ["goblin", "ogre", "wizard"] as const;
@@ -41,6 +61,26 @@ const PLAYER_TEXTURE_KEYS = ["player-none", "player-leather", "player-mail", "pl
 const ITEM_TEXTURE_KEYS = ["potion", "coin", "chest", "torch", "key-bronze"] as const;
 /** 006 FR-010/FR-011: keyed-door and floor entrance/exit ("stairs") board-tile art. */
 const PROP_TEXTURE_KEYS = ["door-closed", "door-open", "stairs-up", "stairs-down"] as const;
+/** 007: spike-pit's three cycle-segment sprites (FR-001, FR-012), lava's base/glow
+ * frame-swap sprites (FR-004), the lever's two toggle-state sprites (FR-006), and water's
+ * static sprite (FR-015). */
+const TRAP_TEXTURE_KEYS = [
+  "spike-off",
+  "spike-half",
+  "spike-on",
+  "lava",
+  "lava-glow",
+  "lever-off",
+  "lever-on",
+  "water",
+] as const;
+
+const SPIKE_SEGMENT_TEXTURE: Record<SpikePitSegment, string> = {
+  retracted: "spike-off",
+  rising: "spike-half",
+  armed: "spike-on",
+  falling: "spike-half",
+};
 
 /** 006 FR-009: maps a LootItem id to its baked texture key. A loot id with no entry here
  * falls back to the plain colored marker (COLORS.loot) rather than fabricating new art. */
@@ -81,6 +121,11 @@ export class FloorScene extends Phaser.Scene {
     baseY: number;
     phase: number;
   }[] = [];
+  /** 007 US1: spike-pit markers currently cycling (rebuilt every redraw()); update()
+   * swaps each one's texture based on its current cycle segment. */
+  private spikePitMarkers: { gameObject: Phaser.GameObjects.Image; pit: SpikePitDefinition }[] = [];
+  /** 007 US2: lava markers currently cycling base/glow (rebuilt every redraw()). */
+  private lavaMarkers: { gameObject: Phaser.GameObjects.Image; lava: LavaTileDefinition }[] = [];
 
   constructor() {
     super("FloorScene");
@@ -93,7 +138,7 @@ export class FloorScene extends Phaser.Scene {
     for (const key of WEAPON_TEXTURE_KEYS) {
       if (!this.textures.exists(key)) this.load.svg(key, `/icons/${key}.svg`, { width: 64, height: 64 });
     }
-    for (const key of [...ITEM_TEXTURE_KEYS, ...PROP_TEXTURE_KEYS]) {
+    for (const key of [...ITEM_TEXTURE_KEYS, ...PROP_TEXTURE_KEYS, ...TRAP_TEXTURE_KEYS]) {
       if (!this.textures.exists(key)) this.load.svg(key, `/icons/${key}.svg`, { width: 64, height: 64 });
     }
   }
@@ -122,6 +167,11 @@ export class FloorScene extends Phaser.Scene {
 
     this.redraw();
     this.setupInput();
+    this.time.addEvent({
+      delay: TRAP_TICK_MS,
+      loop: true,
+      callback: () => this.applyStandingTrapDamage(),
+    });
 
     if (!this.scene.isActive("SidePanelScene")) {
       this.scene.launch("SidePanelScene");
@@ -305,10 +355,14 @@ export class FloorScene extends Phaser.Scene {
     const progress = ctx.save.currentFloorState;
     const from = progress.playerPosition;
     const target = stepInDirection(from, direction);
+    // 007 US3: recomputed fresh from the current toggle state so a lever's effect (door
+    // unlock, revealed pathway) is visible to this same move the instant it's toggled (FR-010).
+    const leverEffects = resolveLeverEffects(floor, progress.toggledLeverIds);
 
     const row = floor.grid[target.y];
     const baseWalkable =
-      row !== undefined && row[target.x] !== undefined && row[target.x]!.walkable;
+      (row !== undefined && row[target.x] !== undefined && row[target.x]!.walkable) ||
+      leverEffects.revealedPathwayPositions.some((p) => positionsEqual(p, target));
     if (!baseWalkable) return;
 
     const defeated = new Set(progress.defeatedEnemyIds);
@@ -319,13 +373,24 @@ export class FloorScene extends Phaser.Scene {
     }
 
     const door = findKeyedDoorAt(floor, target);
-    if (door && !isDoorPassable(door, new Set(ctx.save.character.keyIds))) {
+    if (door && !isDoorPassable(door, new Set(ctx.save.character.keyIds), leverEffects.unlockedDoorIds)) {
       this.setMessage(`Locked (needs ${door.doorType} key)`);
       return;
     }
 
     // Movement is allowed.
     ctx.save.currentFloorState = updatePlayerPosition(progress, target);
+
+    // 007 US3 (FR-007, FR-008): toggling a lever is a one-time, permanent effect of walking
+    // onto its tile — re-derive leverEffects after this so the hazard checks below already
+    // see any trap this same move just deactivated (FR-010's "even mid-linger" edge case).
+    const lever = findLeverAt(floor, target);
+    if (lever) {
+      ctx.save.currentFloorState = applyLeverToggle(ctx.save.currentFloorState, lever);
+    }
+    const currentLeverEffects = lever
+      ? resolveLeverEffects(floor, ctx.save.currentFloorState.toggledLeverIds)
+      : leverEffects;
 
     const collected = new Set(ctx.save.currentFloorState.collectedItemIds);
     const item = findAvailableItemAt(floor, target, collected);
@@ -343,21 +408,20 @@ export class FloorScene extends Phaser.Scene {
         ctx.save.character.baseStats.defence,
         ctx.save.character.currentHp,
       );
-      ctx.save.character = { ...ctx.save.character, currentHp: newHp };
-      if (hasDiedFromHazard(newHp)) {
-        ctx.save = markDead(ctx.save);
-        ctx.persist();
-        // The side panel/event log are launched independently of FloorScene (create()'s
-        // isActive guard below) and, unlike the old canvas-only rendering, their DOM text
-        // (ui/domOverlay.ts) isn't hidden by DeathScreenScene's own dim overlay — it sits in
-        // a layer above the whole canvas regardless of Phaser scene depth. Stop them
-        // explicitly so they don't linger on top of the death screen; FloorScene's create()
-        // relaunches both the next time play resumes.
-        this.scene.stop("SidePanelScene");
-        this.scene.stop("EventLogScene");
-        this.scene.start("DeathScreenScene");
-        return;
-      }
+      if (this.applyPlayerDamage(newHp)) return;
+    }
+
+    // 007 US2 (FR-005): lava damages once immediately on entry; the standing-trap-damage
+    // timer (applyStandingTrapDamage) covers repeat damage while the player remains. 007
+    // US3 (FR-010): a lever toggled by this very move can already have deactivated it.
+    const lava = findLavaTileAt(floor, target);
+    if (lava && !currentLeverEffects.deactivatedTrapIds.has(lava.id)) {
+      const newHp = applyHazardDamage(
+        lava,
+        ctx.save.character.baseStats.defence,
+        ctx.save.character.currentHp,
+      );
+      if (this.applyPlayerDamage(newHp)) return;
     }
 
     ctx.persist();
@@ -372,6 +436,48 @@ export class FloorScene extends Phaser.Scene {
     } else {
       this.checkFloorCompletion(target);
     }
+  }
+
+  /** Applies a computed newHp to the player and, if it's fatal, persists and transitions to
+   * DeathScreenScene exactly like attemptMove's hazard-death branch used to inline. Returns
+   * true if the player died (caller should stop, no further work). */
+  private applyPlayerDamage(newHp: number): boolean {
+    const ctx = this.ctx;
+    ctx.save.character = { ...ctx.save.character, currentHp: newHp };
+    if (hasDiedFromHazard(newHp)) {
+      ctx.save = markDead(ctx.save);
+      ctx.persist();
+      this.scene.stop("SidePanelScene");
+      this.scene.stop("EventLogScene");
+      this.scene.start("DeathScreenScene");
+      return true;
+    }
+    return false;
+  }
+
+  /** 007 US1/US2: fires every TRAP_TICK_MS (research.md #3) — re-checks the player's current
+   * tile for a spike pit that's armed *right now* or a lava tile they're lingering on, and
+   * applies damage, independent of attemptMove's keypress-driven checks (FR-002/FR-005's
+   * "repeatedly if they remain"). */
+  private applyStandingTrapDamage(): void {
+    const ctx = this.ctx;
+    if (ctx.save.hasWon || ctx.save.isDead) return;
+    const floor = ctx.currentFloor;
+    const progress = ctx.save.currentFloorState;
+    const position = progress.playerPosition;
+    const deactivatedTrapIds = resolveLeverEffects(floor, progress.toggledLeverIds).deactivatedTrapIds;
+
+    const pit = findSpikePitAt(floor, position);
+    const lava = findLavaTileAt(floor, position);
+    const armedPit = pit && !deactivatedTrapIds.has(pit.id) && isSpikePitArmed(pit, this.time.now) ? pit : undefined;
+    const activeLava = lava && !deactivatedTrapIds.has(lava.id) ? lava : undefined;
+    const trap = armedPit ?? activeLava;
+    if (!trap) return;
+
+    const newHp = applyHazardDamage(trap, ctx.save.character.baseStats.defence, ctx.save.character.currentHp);
+    if (this.applyPlayerDamage(newHp)) return;
+    ctx.persist();
+    this.redraw();
   }
 
   private engage(enemy: EnemyDefinition): void {
@@ -447,9 +553,12 @@ export class FloorScene extends Phaser.Scene {
     const defeated = new Set(progress.defeatedEnemyIds);
     const collected = new Set(progress.collectedItemIds);
     const heldKeys = new Set(ctx.save.character.keyIds);
+    const leverEffects = resolveLeverEffects(floor, progress.toggledLeverIds);
 
     this.tileLayer.removeAll(true);
     this.animatedMarkers = [];
+    this.spikePitMarkers = [];
+    this.lavaMarkers = [];
 
     for (let y = 0; y < floor.grid.length; y++) {
       const row = floor.grid[y]!;
@@ -466,12 +575,31 @@ export class FloorScene extends Phaser.Scene {
     this.addTextureMarker(floor.exit, "stairs-up", 1);
 
     for (const door of floor.keyedDoors) {
-      const open = isDoorPassable(door, heldKeys);
+      const open = isDoorPassable(door, heldKeys, leverEffects.unlockedDoorIds);
       this.addTextureMarker(door.position, open ? "door-open" : "door-closed", 1);
+    }
+
+    for (const lever of floor.levers) {
+      const toggled = progress.toggledLeverIds.includes(lever.id);
+      this.addTextureMarker(lever.position, toggled ? "lever-on" : "lever-off", 1);
+    }
+
+    for (const water of floor.waterTiles) {
+      this.addTextureMarker(water.position, "water", 1);
     }
 
     for (const hazard of floor.hazardTiles) {
       this.addTile(hazard.position.x, hazard.position.y, COLORS.hazard);
+    }
+
+    for (const pit of floor.spikePits) {
+      const marker = this.addTextureMarker(pit.position, "spike-off", 1);
+      this.spikePitMarkers.push({ gameObject: marker, pit });
+    }
+
+    for (const lava of floor.lavaTiles) {
+      const marker = this.addTextureMarker(lava.position, "lava", 1);
+      this.lavaMarkers.push({ gameObject: marker, lava });
     }
 
     for (const item of floor.items) {
@@ -568,10 +696,21 @@ export class FloorScene extends Phaser.Scene {
     return image;
   }
 
-  /** 006 US1: applies the shared idle bob to every tracked floor-item marker each frame. */
+  /** 006 US1: applies the shared idle bob to every tracked floor-item marker each frame.
+   * 007 US1: swaps each spike pit's texture to match its current cycle segment.
+   * 007 US2: swaps each lava tile's texture between its base and glow frames. */
   override update(time: number): void {
     for (const { gameObject, baseY, phase } of this.animatedMarkers) {
       gameObject.y = baseY + computeBobOffset(time, phase);
+    }
+    for (const { gameObject, pit } of this.spikePitMarkers) {
+      const segment = computeSpikePitSegment(pit, time);
+      const textureKey = SPIKE_SEGMENT_TEXTURE[segment];
+      if (gameObject.texture.key !== textureKey) gameObject.setTexture(textureKey);
+    }
+    for (const { gameObject, lava } of this.lavaMarkers) {
+      const textureKey = computeLavaFrame(lava, time);
+      if (gameObject.texture.key !== textureKey) gameObject.setTexture(textureKey);
     }
   }
 

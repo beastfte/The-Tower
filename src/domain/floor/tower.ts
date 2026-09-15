@@ -24,7 +24,8 @@ export function nextFloor(tower: Tower, currentFloorId: string): FloorDefinition
 /**
  * Validates tower-wide invariants from contracts/floor-data-contract.md:
  * floor-id uniqueness (invariant 4), exactly one compulsory end boss on the final floor
- * (invariant 5), and every keyed door having an obtainable matching key (invariant 7).
+ * (invariant 5), and every keyed door having an obtainable matching key (invariant 7) unless
+ * it's lever-unlocked instead (contracts/trap-mechanics-contract.md invariant 13).
  */
 export function validateTower(tower: Tower): ValidationResult {
   const errors: string[] = [];
@@ -65,8 +66,18 @@ export function validateTower(tower: Tower): ValidationResult {
       if (enemy.drops?.key) obtainableKeyTypes.add(enemy.drops.key.keyType);
     }
   }
+  // 007 US3 (contract invariant 13): a door targeted by some lever's `unlockDoor` effect
+  // legitimately needs no key at all — exempt it from the key-obtainability check below.
+  const leverUnlockedDoorIds = new Set(
+    tower.floors.flatMap((floor) =>
+      floor.levers
+        .filter((lever) => lever.effect.kind === "unlockDoor")
+        .map((lever) => (lever.effect as { kind: "unlockDoor"; doorId: string }).doorId),
+    ),
+  );
   for (const floor of tower.floors) {
     for (const door of floor.keyedDoors) {
+      if (leverUnlockedDoorIds.has(door.id)) continue;
       if (!obtainableKeyTypes.has(door.doorType)) {
         errors.push(
           `Tower: keyed door "${door.id}" on floor "${floor.id}" has no obtainable key of type "${door.doorType}" (invariant 7)`,

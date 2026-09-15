@@ -16,12 +16,47 @@ function tileWalkable(floor: FloorDefinition, p: Position): boolean {
   return inBounds(floor, p) && floor.grid[p.y]![p.x]!.walkable;
 }
 
-/** BFS from entrance to exit assuming every compulsory enemy is defeated and every keyed door open. */
+/** Every position a `revealPathway` lever effect would open up, keyed for BFS lookups. */
+function allRevealedPathwayPositions(floor: FloorDefinition, excludeLeverId?: string): Set<string> {
+  const positions = new Set<string>();
+  for (const lever of floor.levers) {
+    if (lever.id === excludeLeverId) continue;
+    if (lever.effect.kind === "revealPathway") positions.add(positionKey(lever.effect.position));
+  }
+  return positions;
+}
+
+/** BFS from entrance to exit assuming every compulsory enemy is defeated, every keyed door
+ * open, and every lever-revealed pathway open (007 US3, contract invariant 14 — a fully
+ * progressed player can pass every optional gate, levers included). */
 function fullyClearedPathExists(floor: FloorDefinition): boolean {
   const optionalBlocked = new Set(
     floor.enemies.filter((e) => e.placement === "optional").map((e) => positionKey(e.position)),
   );
-  return bfsReaches(floor, floor.entrance, floor.exit, optionalBlocked);
+  return bfsReaches(floor, floor.entrance, floor.exit, optionalBlocked, allRevealedPathwayPositions(floor));
+}
+
+/** 007 US3 (contract invariant 12): no lever may be the sole means of reaching itself.
+ * Returns the ids of any lever unreachable from the entrance once every *other* lever's
+ * pathway is assumed open (its own pathway is excluded, so a lever can't bootstrap its own
+ * access), matching invariant 2's "fully progressed player" baseline (optional enemies
+ * cleared, doors keyed — neither is a self-referential dependency). */
+function leverIdsWithSelfCycle(floor: FloorDefinition): string[] {
+  const optionalBlocked = new Set(
+    floor.enemies.filter((e) => e.placement === "optional").map((e) => positionKey(e.position)),
+  );
+  const badIds: string[] = [];
+  for (const lever of floor.levers) {
+    const reachable = bfsReaches(
+      floor,
+      floor.entrance,
+      lever.position,
+      optionalBlocked,
+      allRevealedPathwayPositions(floor, lever.id),
+    );
+    if (!reachable) badIds.push(lever.id);
+  }
+  return badIds;
 }
 
 /** BFS treating only compulsory-enemy tiles and keyed-door tiles as blocked — the gates
@@ -42,6 +77,7 @@ function bfsReaches(
   start: Position,
   goal: Position,
   extraBlocked: Set<string>,
+  extraWalkable: Set<string> = new Set(),
 ): boolean {
   const visited = new Set<string>([positionKey(start)]);
   const queue: Position[] = [start];
@@ -59,7 +95,7 @@ function bfsReaches(
       const key = positionKey(next);
       if (visited.has(key)) continue;
       if (!inBounds(floor, next)) continue;
-      if (!tileWalkable(floor, next)) continue;
+      if (!tileWalkable(floor, next) && !extraWalkable.has(key)) continue;
       if (extraBlocked.has(key)) continue;
       visited.add(key);
       queue.push(next);
@@ -68,7 +104,51 @@ function bfsReaches(
   return false;
 }
 
-/** Validates a single FloorDefinition against invariants 1-4, 6, and 8 of contracts/floor-data-contract.md. */
+/** 007 US3 (contract invariant 11): validates every lever's effect references something that
+ * actually exists on this floor, and that a `revealPathway` target is a non-walkable,
+ * unclaimed tile. `occupied` is the same claim-map `validateFloorDefinition` builds for
+ * invariant 6, reused here since a pathway target must not collide with placed content. */
+function validateLeverEffects(
+  floor: FloorDefinition,
+  occupied: Map<string, string>,
+  errors: string[],
+): void {
+  const doorIds = new Set(floor.keyedDoors.map((d) => d.id));
+  const trapIds = new Set([...floor.spikePits.map((p) => p.id), ...floor.lavaTiles.map((l) => l.id)]);
+
+  for (const lever of floor.levers) {
+    const effect = lever.effect;
+    if (effect.kind === "unlockDoor") {
+      if (!doorIds.has(effect.doorId)) {
+        errors.push(
+          `Floor "${floor.id}": lever "${lever.id}" targets unknown door "${effect.doorId}" (invariant 11)`,
+        );
+      }
+    } else if (effect.kind === "deactivateTraps") {
+      for (const targetId of effect.targetIds) {
+        if (!trapIds.has(targetId)) {
+          errors.push(
+            `Floor "${floor.id}": lever "${lever.id}" targets unknown spike pit/lava tile "${targetId}" (invariant 11)`,
+          );
+        }
+      }
+    } else {
+      if (tileWalkable(floor, effect.position)) {
+        errors.push(
+          `Floor "${floor.id}": lever "${lever.id}"'s revealed pathway at ${positionKey(effect.position)} is already walkable (invariant 11)`,
+        );
+      }
+      if (occupied.has(positionKey(effect.position))) {
+        errors.push(
+          `Floor "${floor.id}": lever "${lever.id}"'s revealed pathway at ${positionKey(effect.position)} coincides with other placed content (invariant 11)`,
+        );
+      }
+    }
+  }
+}
+
+/** Validates a single FloorDefinition against invariants 1-4, 6, 8-9, and 11-12 of
+ * contracts/floor-data-contract.md and contracts/trap-mechanics-contract.md. */
 export function validateFloorDefinition(floor: FloorDefinition): ValidationResult {
   const errors: string[] = [];
 
@@ -97,6 +177,10 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
   for (const item of floor.items) claim(item.position, `item "${item.id}"`);
   for (const door of floor.keyedDoors) claim(door.position, `keyed door "${door.id}"`);
   for (const hazard of floor.hazardTiles) claim(hazard.position, `hazard "${hazard.id}"`);
+  for (const pit of floor.spikePits) claim(pit.position, `spike pit "${pit.id}"`);
+  for (const lava of floor.lavaTiles) claim(lava.position, `lava tile "${lava.id}"`);
+  for (const lever of floor.levers) claim(lever.position, `lever "${lever.id}"`);
+  for (const water of floor.waterTiles) claim(water.position, `water tile "${water.id}"`);
 
   if (occupied.has(positionKey(floor.entrance))) {
     errors.push(`Floor "${floor.id}": entrance tile coincides with occupied content (invariant 1)`);
@@ -131,6 +215,35 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
     floor.hazardTiles.map((h) => h.id),
     "hazard",
   );
+  checkUnique(
+    floor.spikePits.map((p) => p.id),
+    "spike pit",
+  );
+  checkUnique(
+    floor.lavaTiles.map((l) => l.id),
+    "lava tile",
+  );
+  checkUnique(
+    floor.levers.map((l) => l.id),
+    "lever",
+  );
+  checkUnique(
+    floor.waterTiles.map((w) => w.id),
+    "water tile",
+  );
+
+  // 007 US4 (contract invariant 10): a water tile's grid cell must be non-walkable — its
+  // only gameplay behavior is blocking, which the grid already expresses (research.md #8).
+  for (const water of floor.waterTiles) {
+    if (tileWalkable(floor, water.position)) {
+      errors.push(
+        `Floor "${floor.id}": water tile "${water.id}" at ${positionKey(water.position)} must be on a non-walkable grid cell (invariant 10)`,
+      );
+    }
+  }
+
+  // 007 US3 (contract invariant 11): every LeverEffect reference must resolve on this floor.
+  validateLeverEffects(floor, occupied, errors);
 
   // Invariant 2: the fully-cleared, fully-keyed floor is always completable.
   if (!fullyClearedPathExists(floor)) {
@@ -143,6 +256,13 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
   if (bypassesEveryGate(floor)) {
     errors.push(
       `Floor "${floor.id}": a path to the exit exists that bypasses every compulsory enemy and keyed door (invariant 3)`,
+    );
+  }
+
+  // 007 US3 (contract invariant 12): no lever may gate the only route to itself.
+  for (const leverId of leverIdsWithSelfCycle(floor)) {
+    errors.push(
+      `Floor "${floor.id}": lever "${leverId}" is not reachable without its own effect (invariant 12)`,
     );
   }
 

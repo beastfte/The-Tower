@@ -25,6 +25,10 @@ describe("death and recovery", () => {
     items: [],
     keyedDoors: [],
     hazardTiles: [],
+    spikePits: [],
+    lavaTiles: [],
+    levers: [],
+    waterTiles: [],
   };
 
   function buildSave(): PlayerSave {

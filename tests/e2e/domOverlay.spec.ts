@@ -72,6 +72,7 @@ test.describe("DOM UI overlay", () => {
         playerPosition: { x: 3, y: 10 }, // one tile short of floor01-lava at (4, 10)
         defeatedEnemyIds: ["floor01-goblin"],
         collectedItemIds: [],
+        toggledLeverIds: [],
       },
       completedFloorIds: [],
       completedFloorStates: {},

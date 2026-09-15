@@ -54,6 +54,34 @@ export interface HazardTileDefinition {
   damage: number;
 }
 
+export interface SpikePitDefinition {
+  id: string;
+  position: Position;
+  damage: number;
+}
+
+export interface LavaTileDefinition {
+  id: string;
+  position: Position;
+  damage: number;
+}
+
+export type LeverEffect =
+  | { kind: "unlockDoor"; doorId: string }
+  | { kind: "revealPathway"; position: Position }
+  | { kind: "deactivateTraps"; targetIds: string[] };
+
+export interface LeverDefinition {
+  id: string;
+  position: Position;
+  effect: LeverEffect;
+}
+
+export interface WaterTileDefinition {
+  id: string;
+  position: Position;
+}
+
 export interface FloorDefinition {
   id: string;
   grid: Tile[][];
@@ -63,4 +91,8 @@ export interface FloorDefinition {
   items: ItemDefinition[];
   keyedDoors: KeyedDoorDefinition[];
   hazardTiles: HazardTileDefinition[];
+  spikePits: SpikePitDefinition[];
+  lavaTiles: LavaTileDefinition[];
+  levers: LeverDefinition[];
+  waterTiles: WaterTileDefinition[];
 }

@@ -15,7 +15,11 @@ import { rowFromPattern } from "./gridHelpers";
  * potion in the wizard's dead-end room and a treasure chest (currency reward) in the
  * bottom-left room, both reachable without affecting the critical path (FR-009). 006
  * removed the powerup mechanic entirely (see spec.md) — the rat's drop and the chest's
- * reward, both formerly powerups, now grant currency instead.
+ * reward, both formerly powerups, now grant currency instead. 007 retires the old
+ * damage-once hazard tile at (4,10) in favor of a real lava tile at the same spot, and adds
+ * one spike pit + a lever that deactivates it (both in the ogre's optional side room) plus
+ * one water tile (a re-skinned wall cell in the top-left room) — none of this feature's new
+ * content touches the critical path, so floor-01 remains completable exactly as before.
  */
 export const FLOOR_01: FloorDefinition = {
   id: "floor-01",
@@ -122,5 +126,20 @@ export const FLOOR_01: FloorDefinition = {
     },
   ],
   keyedDoors: [{ id: "floor01-door-bronze", position: { x: 6, y: 10 }, doorType: "bronze" }],
-  hazardTiles: [{ id: "floor01-lava", position: { x: 4, y: 10 }, damage: 8 }],
+  // 007: the old instant, damage-once-on-entry hazard tile that used to sit here is retired —
+  // this spot is now a real animated lava tile (entry damage + repeat damage while lingering,
+  // same id/position/damage for continuity). The spike pit and its deactivating lever live in
+  // the ogre's side room (optional, off the critical path); the water tile re-skins an
+  // already-solid wall cell in the top-left room, so no grid/reachability changes are needed.
+  hazardTiles: [],
+  spikePits: [{ id: "floor01-spike", position: { x: 10, y: 15 }, damage: 5 }],
+  lavaTiles: [{ id: "floor01-lava", position: { x: 4, y: 10 }, damage: 8 }],
+  levers: [
+    {
+      id: "floor01-lever",
+      position: { x: 13, y: 16 },
+      effect: { kind: "deactivateTraps", targetIds: ["floor01-spike"] },
+    },
+  ],
+  waterTiles: [{ id: "floor01-water", position: { x: 7, y: 1 } }],
 };
