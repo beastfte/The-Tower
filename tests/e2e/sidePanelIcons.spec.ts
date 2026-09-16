@@ -14,7 +14,8 @@ test.describe("Side panel icons", () => {
         keyIds: ["bronze"],
         currency: 42,
         equippedWeaponId: "sword",
-        equippedArmorTier: "leather",
+        equippedArmor: { chest: "leather" },
+        bonusDamage: 0,
       },
       currentFloorId: "floor-01",
       currentFloorState: {
@@ -43,10 +44,15 @@ test.describe("Side panel icons", () => {
     await expect(weaponImg).toHaveCount(1);
     await expect(weaponImg.locator("xpath=..")).toHaveAttribute("title", /Sword/);
 
-    // Armor icon.
-    const armorImg = rows.locator('img[src="/icons/player-leather.svg"]');
+    // Equipment: a single grouped icon grid (011 FR-013), one icon per slot; only Chest is
+    // equipped (Leather), the other 3 slots render as empty placeholders.
+    await expect(rows).toContainText("Equipment:");
+    const armorImg = rows.locator('img[src="/icons/armor-leather-chest.svg"]');
     await expect(armorImg).toHaveCount(1);
-    await expect(armorImg.locator("xpath=..")).toHaveAttribute("title", /Leather Armor/);
+    await expect(armorImg.locator("xpath=..")).toHaveAttribute("title", /Leather Chest/);
+    await expect(rows.locator('[title^="Helm: (none)"]')).toHaveCount(1);
+    await expect(rows.locator('[title^="Legs: (none)"]')).toHaveCount(1);
+    await expect(rows.locator('[title^="Boots: (none)"]')).toHaveCount(1);
 
     // Gold: coin icon with the amount as a bottom-right badge (same style as item badges,
     // but always visible — 2026-09-16 clarification, unlike item badges' ≥2 threshold).
@@ -87,6 +93,8 @@ test.describe("Side panel icons", () => {
         inventory: [],
         keyIds: [],
         currency: 0,
+        equippedArmor: {},
+        bonusDamage: 0,
       },
       currentFloorId: "floor-01",
       currentFloorState: {
@@ -110,7 +118,11 @@ test.describe("Side panel icons", () => {
 
     const rows = page.locator('[data-testid="side-panel-rows"]');
     await expect(rows).toContainText("Weapon: (unarmed)");
-    await expect(rows).toContainText("Armor: (none)");
+    await expect(rows).toContainText("Equipment:");
+    await expect(rows.locator('[title^="Helm: (none)"]')).toHaveCount(1);
+    await expect(rows.locator('[title^="Chest: (none)"]')).toHaveCount(1);
+    await expect(rows.locator('[title^="Legs: (none)"]')).toHaveCount(1);
+    await expect(rows.locator('[title^="Boots: (none)"]')).toHaveCount(1);
     await expect(rows).toContainText("(none)"); // Items:/Keys: empty state
 
     // Gold badge stays visible even at 0 — unlike an item badge, which would be hidden below 2.

@@ -14,6 +14,8 @@ function makeCharacter(keyIds: string[]): PlayerCharacterState {
     inventory: [],
     currency: 0,
     keyIds,
+    equippedArmor: {},
+    bonusDamage: 0,
   };
 }
 

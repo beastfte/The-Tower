@@ -17,12 +17,21 @@ export interface WeaponDefinition {
   textureKey: string;
 }
 
-export type ArmorTierId = "leather" | "mail" | "plate";
+export type ArmorSlotId = "helm" | "chest" | "legs" | "boots";
+export type ArmorMaterialId = "cloth" | "leather" | "mail" | "plate";
 
-export interface ArmorTierDefinition {
-  id: ArmorTierId;
+/** Ordinal rank for the "strictly higher tier only" pickup rule (FR-004) — independent of slot. */
+export const ARMOR_MATERIAL_ORDER: Record<ArmorMaterialId, number> = {
+  cloth: 0,
+  leather: 1,
+  mail: 2,
+  plate: 3,
+};
+
+export interface ArmorPieceDefinition {
+  material: ArmorMaterialId;
+  slot: ArmorSlotId;
   name: string;
   defenceBonus: number;
-  order: number;
   textureKey: string;
 }

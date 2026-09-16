@@ -27,6 +27,7 @@ import type { PauseMenuData } from "./PauseMenuScene";
 import { resumeFromCheckpoint, returnToMainMenu } from "../../domain/hazard/recovery";
 import type { EncounterResult } from "../../domain/combat/simulateEncounter";
 import type {
+  ArmorPickupPayload,
   ChestReward,
   DropTable,
   EnemyDefinition,
@@ -34,8 +35,13 @@ import type {
   LavaTileDefinition,
   SpikePitDefinition,
 } from "../../domain/floor/types";
-import type { ArmorTierId, KeyDefinition, LootItem, WeaponId } from "../../domain/character/types";
-import { keyTypeDescriptions, potionDescription } from "../uiContent/itemDescriptions";
+import type { KeyDefinition, LootItem, WeaponId } from "../../domain/character/types";
+import {
+  keyTypeDescriptions,
+  potionDescription,
+  attackPotionDescription,
+  defensePotionDescription,
+} from "../uiContent/itemDescriptions";
 import { PLAY_AREA, DESIGN_PLAY_AREA } from "../gameConfig";
 import { createUiText, getUiRoot } from "../ui/domOverlay";
 import { scalePx } from "../scaleConfig";
@@ -53,12 +59,35 @@ const MOVE_COOLDOWN_MS = 160;
  * from the spike pit's own visual arm/retract cycle (research.md #3). */
 const TRAP_TICK_MS = 1000;
 
-/** 004: species/weapon/player-armor-tier art baked to public/icons/*.svg (research.md #1). */
+/** 004: species/weapon art baked to public/icons/*.svg (research.md #1).
+ * 011: the player's body is now always "player-none" — per-slot armor overlays replace the old
+ * whole-body tier swap (player-leather/mail/plate.svg are left on disk, unreferenced). */
 const SPECIES_TEXTURE_KEYS = ["goblin", "ogre", "wizard"] as const;
 const WEAPON_TEXTURE_KEYS = ["sword", "axe", "mace", "bow", "staff"] as const;
-const PLAYER_TEXTURE_KEYS = ["player-none", "player-leather", "player-mail", "player-plate"] as const;
+const PLAYER_TEXTURE_KEYS = ["player-none"] as const;
+/** 011: one overlay texture per material/slot combination (data/armorPieces.ts), layered onto
+ * the base player sprite in drawPlayer(). */
+const ARMOR_TEXTURE_KEYS = [
+  "armor-cloth-helm",
+  "armor-cloth-chest",
+  "armor-cloth-legs",
+  "armor-cloth-boots",
+  "armor-leather-helm",
+  "armor-leather-chest",
+  "armor-leather-legs",
+  "armor-leather-boots",
+  "armor-mail-helm",
+  "armor-mail-chest",
+  "armor-mail-legs",
+  "armor-mail-boots",
+  "armor-plate-helm",
+  "armor-plate-chest",
+  "armor-plate-legs",
+  "armor-plate-boots",
+] as const;
 /** 005: potion (US1), coin (US3), chest (US2) — item/prop art baked to public/icons/*.svg.
- * 006: torch (a loot item) and key-bronze (US1's real key art, FR-008/FR-009) added. */
+ * 006: torch (a loot item) and key-bronze (US1's real key art, FR-008/FR-009) added.
+ * 011: potion-attack/potion-defense (new permanent-stat-boost potions) added. */
 const ITEM_TEXTURE_KEYS = [
   "potion",
   "coin",
@@ -69,6 +98,8 @@ const ITEM_TEXTURE_KEYS = [
   "key-gold",
   "door-closed-silver",
   "door-closed-gold",
+  "potion-attack",
+  "potion-defense",
 ] as const;
 /** 006 FR-010/FR-011: keyed-door and floor entrance/exit ("stairs") board-tile art.
  * 010 US2: "door-open" removed — an open door now renders nothing (FR-007), so that texture
@@ -142,6 +173,9 @@ export class FloorScene extends Phaser.Scene {
   private ctx!: GameContext;
   private canMove = true;
   private playerSprite!: Phaser.GameObjects.Image;
+  /** 011 US2: one overlay per currently-equipped armor slot, layered on top of playerSprite;
+   * destroyed and rebuilt every drawPlayer() call alongside the base sprite. */
+  private playerArmorSprites: Phaser.GameObjects.Image[] = [];
   private tileLayer!: Phaser.GameObjects.Container;
   private messageText!: HTMLDivElement;
   /** Computed per floor (create()) from that floor's grid size against PLAY_AREA, so the
@@ -169,7 +203,10 @@ export class FloorScene extends Phaser.Scene {
   }
 
   preload(): void {
-    for (const key of [...SPECIES_TEXTURE_KEYS, ...PLAYER_TEXTURE_KEYS]) {
+    // 011: armor overlays share the same 128x128 canvas/anchor as the base player sprite (so
+    // drawPlayer can layer them at the same position/size with no separate anchor math) — loaded
+    // alongside PLAYER_TEXTURE_KEYS rather than the smaller 64x64 item icons.
+    for (const key of [...SPECIES_TEXTURE_KEYS, ...PLAYER_TEXTURE_KEYS, ...ARMOR_TEXTURE_KEYS]) {
       if (!this.textures.exists(key)) this.load.svg(key, `/icons/${key}.svg`, { width: 128, height: 128 });
     }
     for (const key of WEAPON_TEXTURE_KEYS) {
@@ -311,6 +348,12 @@ export class FloorScene extends Phaser.Scene {
     }
     if (item.kind === "potion") {
       return { kind: "potion", label: "Health Potion", description: potionDescription };
+    }
+    if (item.kind === "potionAttack") {
+      return { kind: "potion", label: "Attack Potion", description: attackPotionDescription };
+    }
+    if (item.kind === "potionDefense") {
+      return { kind: "potion", label: "Defense Potion", description: defensePotionDescription };
     }
     if (item.kind === "chest") {
       return this.describeChestReward(item.payload as ChestReward);
@@ -535,7 +578,7 @@ export class FloorScene extends Phaser.Scene {
 
   private engage(enemy: EnemyDefinition): void {
     const ctx = this.ctx;
-    const result = checkEngagementAllowed(ctx.save.character, ctx.weaponCatalog, ctx.armorTierCatalog, enemy.stats);
+    const result = checkEngagementAllowed(ctx.save.character, ctx.weaponCatalog, ctx.armorCatalog, enemy.stats);
     if (!result.allowed) {
       this.setMessage("Too weak to fight this enemy");
       return;
@@ -668,12 +711,17 @@ export class FloorScene extends Phaser.Scene {
         const weapon = ctx.weaponCatalog.get(item.payload as WeaponId);
         if (weapon) marker = this.addTextureMarker(item.position, weapon.textureKey, 0.6);
       } else if (item.kind === "armor") {
-        const armor = ctx.armorTierCatalog.get(item.payload as ArmorTierId);
+        const pickup = item.payload as ArmorPickupPayload;
+        const armor = ctx.armorCatalog.get(`${pickup.material}:${pickup.slot}`);
         if (armor) marker = this.addTextureMarker(item.position, armor.textureKey, 0.6);
       } else if (item.kind === "currency") {
         marker = this.addTextureMarker(item.position, "coin", 0.6);
       } else if (item.kind === "potion") {
         marker = this.addTextureMarker(item.position, "potion", 0.6);
+      } else if (item.kind === "potionAttack") {
+        marker = this.addTextureMarker(item.position, "potion-attack", 0.6);
+      } else if (item.kind === "potionDefense") {
+        marker = this.addTextureMarker(item.position, "potion-defense", 0.6);
       } else if (item.kind === "chest") {
         marker = this.addTextureMarker(item.position, "chest", 0.8);
       } else if (item.kind === "key") {
@@ -772,19 +820,33 @@ export class FloorScene extends Phaser.Scene {
     }
   }
 
+  /** 011 US2 (FR-005/FR-006): base "player-none" body, then one overlay image per equipped
+   * armor slot (drawn after the base so it layers on top) — each overlay is authored at the
+   * same 128x128 canvas/anchor as the base sprite, so no separate positioning math is needed
+   * (research.md #3): every layer uses the exact same position/size as the base. */
   private drawPlayer(position: Position): void {
     if (this.playerSprite) this.playerSprite.destroy();
+    for (const sprite of this.playerArmorSprites) sprite.destroy();
+    this.playerArmorSprites = [];
+
     const size = this.tileSize;
-    const armorTier = this.ctx.save.character.equippedArmorTier;
-    const textureKey = armorTier
-      ? (this.ctx.armorTierCatalog.get(armorTier)?.textureKey ?? "player-none")
-      : "player-none";
-    this.playerSprite = this.add.image(
-      position.x * size + size / 2,
-      position.y * size + size / 2,
-      textureKey,
-    );
-    this.playerSprite.setDisplaySize(size - scalePx(4), size - scalePx(4));
+    const displaySize = size - scalePx(4);
+    const px = position.x * size + size / 2;
+    const py = position.y * size + size / 2;
+
+    this.playerSprite = this.add.image(px, py, "player-none");
+    this.playerSprite.setDisplaySize(displaySize, displaySize);
     this.tileLayer.add(this.playerSprite);
+
+    const { equippedArmor } = this.ctx.save.character;
+    for (const [slot, material] of Object.entries(equippedArmor)) {
+      if (!material) continue;
+      const piece = this.ctx.armorCatalog.get(`${material}:${slot}`);
+      if (!piece) continue;
+      const overlay = this.add.image(px, py, piece.textureKey);
+      overlay.setDisplaySize(displaySize, displaySize);
+      this.tileLayer.add(overlay);
+      this.playerArmorSprites.push(overlay);
+    }
   }
 }

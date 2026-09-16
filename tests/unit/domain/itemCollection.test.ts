@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { applyItemPickup } from "../../../src/domain/floor/itemCollection";
-import { computeMaxHp } from "../../../src/domain/character/combatStats";
+import { computeMaxHp, computeEffectiveStats } from "../../../src/domain/character/combatStats";
 import { createInitialPlayerSave } from "../../../src/domain/character/initialState";
+import { ARMOR_PIECES } from "../../../src/data/armorPieces";
+import { WEAPONS } from "../../../src/data/weapons";
 import type { ItemDefinition, ChestReward } from "../../../src/domain/floor/types";
+import type { ArmorPieceDefinition, WeaponId } from "../../../src/domain/character/types";
 
 const position = { x: 0, y: 0 };
 
@@ -30,6 +33,46 @@ describe("potion pickup (005 FR-001/FR-002, contract invariant 17)", () => {
 
     expect(result.currentHp).toBe(computeMaxHp(save.character));
     expect(result.currentHp).toBe(save.character.currentHp);
+  });
+});
+
+describe("attack/defense potion pickups (011 FR-007/FR-008)", () => {
+  const armorCatalog: ReadonlyMap<string, ArmorPieceDefinition> = new Map(Object.entries(ARMOR_PIECES));
+  const weaponCatalog = new Map(Object.entries(WEAPONS) as [WeaponId, (typeof WEAPONS)[WeaponId]][]);
+
+  it("attack potion permanently adds 5 to bonusDamage, cumulative across repeated pickups", () => {
+    const save = createInitialPlayerSave("floor-01", position);
+    const potion: ItemDefinition = { id: "test-atk-potion", position, kind: "potionAttack", payload: undefined };
+
+    let character = applyItemPickup(save.character, potion);
+    expect(character.bonusDamage).toBe(5);
+    character = applyItemPickup(character, potion);
+    expect(character.bonusDamage).toBe(10);
+  });
+
+  it("defense potion permanently adds 2 to baseStats.defence, cumulative across repeated pickups", () => {
+    const save = createInitialPlayerSave("floor-01", position);
+    const potion: ItemDefinition = { id: "test-def-potion", position, kind: "potionDefense", payload: undefined };
+    const startingDefence = save.character.baseStats.defence;
+
+    let character = applyItemPickup(save.character, potion);
+    expect(character.baseStats.defence).toBe(startingDefence + 2);
+    character = applyItemPickup(character, potion);
+    expect(character.baseStats.defence).toBe(startingDefence + 4);
+  });
+
+  it("attack potion bonus stays visible even while a weapon is equipped (weapon replaces base damage)", () => {
+    const save = createInitialPlayerSave("floor-01", position);
+    const swordItem: ItemDefinition = { id: "test-sword", position, kind: "weapon", payload: "sword" };
+    const potion: ItemDefinition = { id: "test-atk-potion", position, kind: "potionAttack", payload: undefined };
+
+    let character = applyItemPickup(save.character, swordItem);
+    const beforePotion = computeEffectiveStats(character, weaponCatalog, armorCatalog);
+
+    character = applyItemPickup(character, potion);
+    const afterPotion = computeEffectiveStats(character, weaponCatalog, armorCatalog);
+
+    expect(afterPotion.damage).toBe(beforePotion.damage + 5);
   });
 });
 

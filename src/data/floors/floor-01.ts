@@ -24,6 +24,10 @@ import { rowFromPattern } from "./gridHelpers";
  * two optional side rooms: silver in the ogre's room (bottom, x9-15/y12-19), gold in the
  * wizard's room (top-right, x15-19/y2-8) — both rooms are fully open interior space, so
  * neither new door actually gates anything, they're only there to be walked onto and tested.
+ * 011 adds one cloth-tier armor piece per slot (helm/chest/legs/boots) in the top-middle room
+ * (x8-13/y2-8, alongside the existing migrated leather-chest piece) and one Attack Potion +
+ * one Defense Potion in the bottom-left room (x0-4/y12-19, alongside the existing chest) — all
+ * six for manual testing (FR-010), none on the critical path.
  */
 export const FLOOR_01: FloorDefinition = {
   id: "floor-01",
@@ -114,7 +118,9 @@ export const FLOOR_01: FloorDefinition = {
       id: "floor01-armor-leather",
       position: { x: 10, y: 4 },
       kind: "armor",
-      payload: "leather",
+      // 011: migrated from the old whole-character "leather" tier payload to a per-slot pickup
+      // (research.md #7) — chest chosen as the closest analogue to a former whole-body piece.
+      payload: { material: "leather", slot: "chest" },
     },
     {
       id: "floor01-potion",
@@ -139,6 +145,42 @@ export const FLOOR_01: FloorDefinition = {
       position: { x: 19, y: 2 },
       kind: "key",
       payload: { id: "key-gold", keyType: "gold" },
+    },
+    {
+      id: "floor01-armor-cloth-helm",
+      position: { x: 9, y: 3 },
+      kind: "armor",
+      payload: { material: "cloth", slot: "helm" },
+    },
+    {
+      id: "floor01-armor-cloth-chest",
+      position: { x: 12, y: 2 },
+      kind: "armor",
+      payload: { material: "cloth", slot: "chest" },
+    },
+    {
+      id: "floor01-armor-cloth-legs",
+      position: { x: 9, y: 6 },
+      kind: "armor",
+      payload: { material: "cloth", slot: "legs" },
+    },
+    {
+      id: "floor01-armor-cloth-boots",
+      position: { x: 12, y: 7 },
+      kind: "armor",
+      payload: { material: "cloth", slot: "boots" },
+    },
+    {
+      id: "floor01-potion-attack",
+      position: { x: 2, y: 13 },
+      kind: "potionAttack",
+      payload: undefined,
+    },
+    {
+      id: "floor01-potion-defense",
+      position: { x: 4, y: 17 },
+      kind: "potionDefense",
+      payload: undefined,
     },
   ],
   keyedDoors: [

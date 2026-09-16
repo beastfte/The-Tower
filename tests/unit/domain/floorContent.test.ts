@@ -3,9 +3,10 @@ import { validateFloorDefinition } from "../../../src/domain/floor/validator";
 import { validateTower } from "../../../src/domain/floor/tower";
 import { TOWER } from "../../../src/data/floors";
 import { WEAPONS } from "../../../src/data/weapons";
-import { ARMOR_TIERS } from "../../../src/data/armorTiers";
-import type { ArmorTierId, WeaponId } from "../../../src/domain/character/types";
-import type { ChestReward } from "../../../src/domain/floor/types";
+import { ARMOR_PIECES, armorPieceKey } from "../../../src/data/armorPieces";
+import { ARMOR_MATERIAL_ORDER } from "../../../src/domain/character/types";
+import type { ArmorMaterialId, ArmorSlotId, WeaponId } from "../../../src/domain/character/types";
+import type { ArmorPickupPayload, ChestReward } from "../../../src/domain/floor/types";
 
 describe("authored floor content", () => {
   it.each(TOWER.floors)("floor $id satisfies the floor-data contract invariants", (floor) => {
@@ -28,16 +29,23 @@ describe("authored floor content", () => {
         expect(WEAPONS[item.payload as WeaponId]).toBeDefined();
       }
       if (item.kind === "armor") {
-        expect(ARMOR_TIERS[item.payload as ArmorTierId]).toBeDefined();
+        const pickup = item.payload as ArmorPickupPayload;
+        expect(ARMOR_PIECES[armorPieceKey(pickup.material, pickup.slot)]).toBeDefined();
       }
     }
   });
 
-  // 004 contract invariant 11: armor tiers strictly increase in defence with order.
-  it("armor tiers are strictly increasing in defence bonus with order", () => {
-    const tiers = Object.values(ARMOR_TIERS).sort((a, b) => a.order - b.order);
-    for (let i = 1; i < tiers.length; i++) {
-      expect(tiers[i]!.defenceBonus).toBeGreaterThan(tiers[i - 1]!.defenceBonus);
+  // 011 FR-002: each slot's defence bonus strictly doubles from one tier to the next.
+  it("armor pieces are strictly increasing in defence bonus with tier, per slot", () => {
+    const slots: ArmorSlotId[] = ["helm", "chest", "legs", "boots"];
+    const materials = (Object.keys(ARMOR_MATERIAL_ORDER) as ArmorMaterialId[]).sort(
+      (a, b) => ARMOR_MATERIAL_ORDER[a] - ARMOR_MATERIAL_ORDER[b],
+    );
+    for (const slot of slots) {
+      const bonuses = materials.map((material) => ARMOR_PIECES[armorPieceKey(material, slot)]!.defenceBonus);
+      for (let i = 1; i < bonuses.length; i++) {
+        expect(bonuses[i]).toBeGreaterThan(bonuses[i - 1]!);
+      }
     }
   });
 

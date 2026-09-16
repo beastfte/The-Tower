@@ -1,5 +1,5 @@
 import type { CombatStats, Position } from "../types";
-import type { ArmorTierId, WeaponId } from "./types";
+import type { ArmorMaterialId, ArmorSlotId, WeaponId } from "./types";
 
 /** Per-floor player progress for the floor currently being attempted, or a frozen completed floor. */
 export interface FloorProgress {
@@ -24,9 +24,16 @@ export interface PlayerCharacterState {
   /** Held key *types* (KeyDefinition.keyType values) — a KeyedDoorDefinition is passable
    * once its doorType appears here (FR-013a). */
   keyIds: string[];
-  /** Absent = unarmed / unarmoured (FR-010's Edge Cases baseline). */
+  /** Absent = unarmed (FR-010's Edge Cases baseline). */
   equippedWeaponId?: WeaponId;
-  equippedArmorTier?: ArmorTierId;
+  /** 011 FR-001/FR-003/FR-004: independent per-slot equip state. An absent key means that slot
+   * is unequipped. New saves start with `{}` — no migration from the old single-tier system
+   * (011 spec Clarifications). */
+  equippedArmor: Partial<Record<ArmorSlotId, ArmorMaterialId>>;
+  /** 011 FR-007/FR-008: Attack Potion's permanent bonus, tracked separately from
+   * `baseStats.damage` because an equipped weapon *replaces* base damage rather than adding to
+   * it (see computeEffectiveStats) — this field is always additive regardless of weapon state. */
+  bonusDamage: number;
 }
 
 /** The single object persisted to localStorage (FR-010/FR-010a). */

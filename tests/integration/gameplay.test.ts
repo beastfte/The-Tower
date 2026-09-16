@@ -10,13 +10,12 @@ import { completeCurrentFloor } from "../../src/domain/progress/towerProgress";
 import { isWinningDefeat, triggerWin } from "../../src/domain/progress/winState";
 import { TOWER } from "../../src/data/floors";
 import { WEAPONS } from "../../src/data/weapons";
-import { ARMOR_TIERS } from "../../src/data/armorTiers";
-import type { ArmorTierDefinition, ArmorTierId, WeaponDefinition, WeaponId } from "../../src/domain/character/types";
+import { ARMOR_PIECES } from "../../src/data/armorPieces";
+import type { ArmorPickupPayload } from "../../src/domain/floor/types";
+import type { ArmorPieceDefinition, WeaponDefinition, WeaponId } from "../../src/domain/character/types";
 
 const weaponCatalog: ReadonlyMap<WeaponId, WeaponDefinition> = new Map(Object.entries(WEAPONS) as [WeaponId, WeaponDefinition][]);
-const armorTierCatalog: ReadonlyMap<ArmorTierId, ArmorTierDefinition> = new Map(
-  Object.entries(ARMOR_TIERS) as [ArmorTierId, ArmorTierDefinition][],
-);
+const armorCatalog: ReadonlyMap<string, ArmorPieceDefinition> = new Map(Object.entries(ARMOR_PIECES));
 
 describe("gameplay integration", () => {
   it("persists and resumes mid-floor exactly as left (FR-010)", () => {
@@ -37,11 +36,11 @@ describe("gameplay integration", () => {
 
     // Make the compulsory enemy artificially unbeatable to prove blocking works.
     const unbeatable = { damage: 100, defence: 100, hp: 1000 };
-    const blocked = checkEngagementAllowed(save.character, weaponCatalog, armorTierCatalog, unbeatable);
+    const blocked = checkEngagementAllowed(save.character, weaponCatalog, armorCatalog, unbeatable);
     expect(blocked.allowed).toBe(false);
 
     const compulsoryEnemy = floor.enemies.find((e) => e.placement === "compulsory")!;
-    const allowed = checkEngagementAllowed(save.character, weaponCatalog, armorTierCatalog, compulsoryEnemy.stats);
+    const allowed = checkEngagementAllowed(save.character, weaponCatalog, armorCatalog, compulsoryEnemy.stats);
     expect(allowed.allowed).toBe(true);
   });
 
@@ -76,13 +75,13 @@ describe("gameplay integration", () => {
     const floor = TOWER.floors[0]!;
     let save = createInitialPlayerSave(floor.id, floor.entrance);
 
-    const baseline = computeEffectiveStats(save.character, weaponCatalog, armorTierCatalog);
+    const baseline = computeEffectiveStats(save.character, weaponCatalog, armorCatalog);
 
     const swordItem = floor.items.find((i) => i.kind === "weapon")!;
     save.character = applyItemPickup(save.character, swordItem);
     expect(save.character.equippedWeaponId).toBe(swordItem.payload);
 
-    const afterSword = computeEffectiveStats(save.character, weaponCatalog, armorTierCatalog);
+    const afterSword = computeEffectiveStats(save.character, weaponCatalog, armorCatalog);
     expect(afterSword.damage).toBe(weaponCatalog.get(swordItem.payload as WeaponId)!.attackValue);
     expect(afterSword.damage).not.toBe(baseline.damage);
 
@@ -90,24 +89,29 @@ describe("gameplay integration", () => {
     const axeItem = { id: "test-axe", position: floor.entrance, kind: "weapon" as const, payload: "axe" as WeaponId };
     save.character = applyItemPickup(save.character, axeItem);
     expect(save.character.equippedWeaponId).toBe("axe");
-    const afterAxe = computeEffectiveStats(save.character, weaponCatalog, armorTierCatalog);
+    const afterAxe = computeEffectiveStats(save.character, weaponCatalog, armorCatalog);
     expect(afterAxe.damage).toBe(weaponCatalog.get("axe")!.attackValue);
 
+    // 011: armor is now tracked per slot (chest), not as one whole-character tier.
     const leatherItem = floor.items.find((i) => i.kind === "armor")!;
+    const leatherPayload = leatherItem.payload as ArmorPickupPayload;
     save.character = applyItemPickup(save.character, leatherItem);
-    expect(save.character.equippedArmorTier).toBe(leatherItem.payload);
+    expect(save.character.equippedArmor[leatherPayload.slot]).toBe(leatherPayload.material);
 
-    const afterLeather = computeEffectiveStats(save.character, weaponCatalog, armorTierCatalog);
+    const afterLeather = computeEffectiveStats(save.character, weaponCatalog, armorCatalog);
     expect(afterLeather.defence).toBe(
-      baseline.defence + armorTierCatalog.get(leatherItem.payload as ArmorTierId)!.defenceBonus,
+      baseline.defence + armorCatalog.get(`${leatherPayload.material}:${leatherPayload.slot}`)!.defenceBonus,
     );
 
-    // A higher tier replaces the lower one (FR-010) rather than stacking.
-    const mailItem = { id: "test-mail", position: floor.entrance, kind: "armor" as const, payload: "mail" as ArmorTierId };
+    // A higher tier for the same slot replaces the lower one (FR-004) rather than stacking.
+    const mailPayload: ArmorPickupPayload = { material: "mail", slot: leatherPayload.slot };
+    const mailItem = { id: "test-mail", position: floor.entrance, kind: "armor" as const, payload: mailPayload };
     save.character = applyItemPickup(save.character, mailItem);
-    expect(save.character.equippedArmorTier).toBe("mail");
-    const afterMail = computeEffectiveStats(save.character, weaponCatalog, armorTierCatalog);
-    expect(afterMail.defence).toBe(baseline.defence + armorTierCatalog.get("mail")!.defenceBonus);
+    expect(save.character.equippedArmor[leatherPayload.slot]).toBe("mail");
+    const afterMail = computeEffectiveStats(save.character, weaponCatalog, armorCatalog);
+    expect(afterMail.defence).toBe(
+      baseline.defence + armorCatalog.get(`mail:${leatherPayload.slot}`)!.defenceBonus,
+    );
   });
 
   it("deterministic pre-check outcome matches the actual encounter outcome", () => {

@@ -60,7 +60,9 @@ export const FLOOR_FINAL: FloorDefinition = {
       id: "floor-final-armor-mail",
       position: { x: 2, y: 8 },
       kind: "armor",
-      payload: "mail",
+      // 011: migrated from the old whole-character "mail" tier payload to a per-slot pickup
+      // (research.md #7) — chest chosen as the closest analogue to a former whole-body piece.
+      payload: { material: "mail", slot: "chest" },
     },
     {
       id: "floor-final-potion",

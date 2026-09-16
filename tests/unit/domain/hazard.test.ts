@@ -47,6 +47,8 @@ describe("death and recovery", () => {
         inventory: [],
         currency: 0,
         keyIds: [],
+        equippedArmor: {},
+        bonusDamage: 0,
       },
       hasWon: false,
       isDead: false,

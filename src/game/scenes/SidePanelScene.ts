@@ -5,8 +5,10 @@ import { isLowHp } from "../sidePanel/hpState";
 import {
   lootDescriptions,
   keyTypeDescriptions,
+  armorSlotDescriptions,
   buildLootNameCatalog,
 } from "../uiContent/itemDescriptions";
+import type { ArmorSlotId } from "../../domain/character/types";
 import { SIDE_PANEL_AREA, DESIGN_SIDE_PANEL_AREA } from "../gameConfig";
 import { getUiRoot, px } from "../ui/domOverlay";
 import type { FloorScene } from "./FloorScene";
@@ -115,7 +117,7 @@ export class SidePanelScene extends Phaser.Scene {
 
   private computeSignature(): string {
     const { character } = this.ctx.save;
-    const stats = computeEffectiveStats(character, this.ctx.weaponCatalog, this.ctx.armorTierCatalog);
+    const stats = computeEffectiveStats(character, this.ctx.weaponCatalog, this.ctx.armorCatalog);
     return JSON.stringify([
       character.currentHp,
       stats.damage,
@@ -124,7 +126,8 @@ export class SidePanelScene extends Phaser.Scene {
       character.inventory,
       character.keyIds,
       character.equippedWeaponId,
-      character.equippedArmorTier,
+      character.equippedArmor,
+      character.bonusDamage,
     ]);
   }
 
@@ -226,13 +229,10 @@ export class SidePanelScene extends Phaser.Scene {
     this.rows.replaceChildren();
 
     const { character } = this.ctx.save;
-    const stats = computeEffectiveStats(character, this.ctx.weaponCatalog, this.ctx.armorTierCatalog);
+    const stats = computeEffectiveStats(character, this.ctx.weaponCatalog, this.ctx.armorCatalog);
     const maxHp = computeMaxHp(character);
     const low = isLowHp(character.currentHp, maxHp);
     const weapon = character.equippedWeaponId ? this.ctx.weaponCatalog.get(character.equippedWeaponId) : undefined;
-    const armorTier = character.equippedArmorTier
-      ? this.ctx.armorTierCatalog.get(character.equippedArmorTier)
-      : undefined;
 
     this.addRow("Player", "Your character.", "#8ecae6");
     this.addRow(
@@ -247,14 +247,30 @@ export class SidePanelScene extends Phaser.Scene {
     } else {
       this.addRow("Weapon: (unarmed)", "Determines damage dealt in combat.");
     }
-    if (armorTier) {
-      this.addIconRow(
-        { src: `/icons/${armorTier.textureKey}.svg` },
-        `${armorTier.name}: Determines defence and on-screen appearance.`,
-      );
-    } else {
-      this.addRow("Armor: (none)", "Determines defence and on-screen appearance.");
-    }
+    const ARMOR_SLOT_LABELS: Record<ArmorSlotId, string> = {
+      helm: "Helm",
+      chest: "Chest",
+      legs: "Legs",
+      boots: "Boots",
+    };
+    this.addRow("Equipment:", "Armor equipped per slot: Helm, Chest, Legs, Boots.", "#8ecae6");
+    this.addIconGrid(
+      (Object.keys(ARMOR_SLOT_LABELS) as ArmorSlotId[]).map((slot) => {
+        const material = character.equippedArmor[slot];
+        const piece = material ? this.ctx.armorCatalog.get(`${material}:${slot}`) : undefined;
+        return piece
+          ? {
+              icon: { src: `/icons/${piece.textureKey}.svg` },
+              tooltipText: `${piece.name}: ${armorSlotDescriptions[slot]}`,
+              count: 1,
+            }
+          : {
+              icon: { fallbackColor: "#3a3040" },
+              tooltipText: `${ARMOR_SLOT_LABELS[slot]}: (none) — ${armorSlotDescriptions[slot]}`,
+              count: 1,
+            };
+      }),
+    );
     this.addIconRow(
       { src: "/icons/coin.svg" },
       `${character.currency} gold: Currency collected so far this playthrough.`,

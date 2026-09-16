@@ -1,6 +1,6 @@
 import type { CombatStats } from "../types";
 import type { PlayerCharacterState } from "../character/save";
-import type { ArmorTierDefinition, ArmorTierId, WeaponDefinition, WeaponId } from "../character/types";
+import type { ArmorPieceDefinition, WeaponDefinition, WeaponId } from "../character/types";
 import { computeEffectiveStats } from "../character/combatStats";
 import { simulateEncounter, type EncounterResult } from "./simulateEncounter";
 
@@ -18,10 +18,10 @@ export interface BlockingCheckResult {
 export function checkEngagementAllowed(
   character: PlayerCharacterState,
   weaponCatalog: ReadonlyMap<WeaponId, WeaponDefinition>,
-  armorTierCatalog: ReadonlyMap<ArmorTierId, ArmorTierDefinition>,
+  armorCatalog: ReadonlyMap<string, ArmorPieceDefinition>,
   enemyStats: CombatStats,
 ): BlockingCheckResult {
-  const playerStats = computeEffectiveStats(character, weaponCatalog, armorTierCatalog);
+  const playerStats = computeEffectiveStats(character, weaponCatalog, armorCatalog);
   const encounter = simulateEncounter(playerStats, enemyStats);
   return { allowed: encounter.winner === "player", encounter };
 }

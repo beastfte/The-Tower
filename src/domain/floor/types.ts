@@ -1,5 +1,5 @@
 import type { CombatStats, Position, Tile } from "../types";
-import type { ArmorTierId, KeyDefinition, LootItem, WeaponId } from "../character/types";
+import type { ArmorMaterialId, ArmorSlotId, KeyDefinition, LootItem, WeaponId } from "../character/types";
 
 export type EnemyPlacement = "compulsory" | "optional";
 
@@ -28,12 +28,35 @@ export interface EnemyDefinition {
   drops?: DropTable;
 }
 
-export type ItemKind = "loot" | "currency" | "key" | "weapon" | "armor" | "potion" | "chest";
+export type ItemKind =
+  | "loot"
+  | "currency"
+  | "key"
+  | "weapon"
+  | "armor"
+  | "potion"
+  | "chest"
+  | "potionAttack"
+  | "potionDefense";
 
 /** A chest's one predetermined reward, fixed at authoring time (005 spec Assumptions). */
 export type ChestReward = { kind: "currency"; amount: number } | { kind: "potion" };
 
-export type ItemPayload = LootItem | number | KeyDefinition | WeaponId | ArmorTierId | ChestReward | undefined;
+/** 011 FR-001/FR-004: an armor pickup targets exactly one slot, replacing the old bare
+ * whole-character ArmorTierId payload. */
+export interface ArmorPickupPayload {
+  material: ArmorMaterialId;
+  slot: ArmorSlotId;
+}
+
+export type ItemPayload =
+  | LootItem
+  | number
+  | KeyDefinition
+  | WeaponId
+  | ArmorPickupPayload
+  | ChestReward
+  | undefined;
 
 export interface ItemDefinition {
   id: string;

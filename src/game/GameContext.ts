@@ -1,11 +1,11 @@
 import type { PlayerSave } from "../domain/character/save";
-import type { ArmorTierDefinition, ArmorTierId, WeaponDefinition, WeaponId } from "../domain/character/types";
+import type { ArmorPieceDefinition, WeaponDefinition, WeaponId } from "../domain/character/types";
 import type { FloorDefinition, MonsterSpecies, MonsterSpeciesId } from "../domain/floor/types";
 import type { Tower } from "../domain/floor/tower";
 import type { PersistenceService } from "../persistence/PersistenceService";
 import { MONSTER_SPECIES } from "../data/monsterSpecies";
 import { WEAPONS } from "../data/weapons";
-import { ARMOR_TIERS } from "../data/armorTiers";
+import { ARMOR_PIECES } from "../data/armorPieces";
 import type { EncounterResult } from "../domain/combat/simulateEncounter";
 import type { EventLogEntry } from "./eventLog/types";
 import { formatCombatEntry, formatPickupEntry } from "./eventLog/formatEntry";
@@ -21,8 +21,9 @@ export class GameContext {
   public readonly weaponCatalog: ReadonlyMap<WeaponId, WeaponDefinition> = new Map(
     Object.entries(WEAPONS) as [WeaponId, WeaponDefinition][],
   );
-  public readonly armorTierCatalog: ReadonlyMap<ArmorTierId, ArmorTierDefinition> = new Map(
-    Object.entries(ARMOR_TIERS) as [ArmorTierId, ArmorTierDefinition][],
+  /** 011: keyed by `${material}:${slot}` (see data/armorPieces.ts's armorPieceKey helper). */
+  public readonly armorCatalog: ReadonlyMap<string, ArmorPieceDefinition> = new Map(
+    Object.entries(ARMOR_PIECES),
   );
 
   /** 002 FR-015/FR-017: in-memory only, never written to PlayerSave/localStorage — cleared on reload. */

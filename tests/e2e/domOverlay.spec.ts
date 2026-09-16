@@ -65,6 +65,8 @@ test.describe("DOM UI overlay", () => {
         inventory: [],
         keyIds: [],
         currency: 0,
+        equippedArmor: {},
+        bonusDamage: 0,
       },
       currentFloorId: "floor-01",
       currentFloorState: {
