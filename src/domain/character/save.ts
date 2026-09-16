@@ -10,6 +10,10 @@ export interface FloorProgress {
   /** 007 US3: levers permanently toggled this floor attempt (FR-011); resets with the rest
    * of FloorProgress on checkpoint restart. */
   toggledLeverIds: string[];
+  /** 010 US1: keyed doors permanently opened this floor attempt, independent of whether the
+   * key that opened them is still held (it's consumed on open); resets with the rest of
+   * FloorProgress on checkpoint restart, mirroring toggledLeverIds. */
+  openedDoorIds: string[];
 }
 
 export interface PlayerCharacterState {
@@ -43,5 +47,6 @@ export function emptyFloorProgress(floorId: string, playerPosition: Position): F
     collectedItemIds: [],
     playerPosition,
     toggledLeverIds: [],
+    openedDoorIds: [],
   };
 }

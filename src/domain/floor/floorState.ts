@@ -2,7 +2,7 @@ import type { PlayerCharacterState } from "../character/save";
 import { applyDropTable } from "../character/inventory";
 import type { FloorProgress } from "../character/save";
 import type { Position } from "../types";
-import type { EnemyDefinition, LeverDefinition } from "./types";
+import type { EnemyDefinition, KeyedDoorDefinition, LeverDefinition } from "./types";
 
 export interface FloorStateUpdate {
   floorProgress: FloorProgress;
@@ -50,4 +50,29 @@ export function applyLeverToggle(
 ): FloorProgress {
   if (floorProgress.toggledLeverIds.includes(lever.id)) return floorProgress;
   return { ...floorProgress, toggledLeverIds: [...floorProgress.toggledLeverIds, lever.id] };
+}
+
+/** 010 US1 (FR-001): the first time a player passes through a keyed door they hold a matching
+ * key for, that key is consumed and the door is permanently marked open for this floor attempt.
+ * Idempotent (a no-op once the door is already open) and defensive (a no-op if no matching key
+ * is held), mirroring applyLeverToggle's shape. `keyIds` holds one entry per held key (not a
+ * count, per save.ts), so consuming one removes a single matching entry, not all of them. */
+export function applyDoorOpen(
+  floorProgress: FloorProgress,
+  character: PlayerCharacterState,
+  door: KeyedDoorDefinition,
+): FloorStateUpdate {
+  if (floorProgress.openedDoorIds.includes(door.id)) {
+    return { floorProgress, character };
+  }
+  const keyIndex = character.keyIds.indexOf(door.doorType);
+  if (keyIndex === -1) {
+    return { floorProgress, character };
+  }
+  const nextKeyIds = [...character.keyIds];
+  nextKeyIds.splice(keyIndex, 1);
+  return {
+    floorProgress: { ...floorProgress, openedDoorIds: [...floorProgress.openedDoorIds, door.id] },
+    character: { ...character, keyIds: nextKeyIds },
+  };
 }

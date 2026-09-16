@@ -3,7 +3,7 @@ import type { GameContext } from "../GameContext";
 import type { EncounterResult } from "../../domain/combat/simulateEncounter";
 import type { EnemyDefinition } from "../../domain/floor/types";
 import { PLAY_AREA, DESIGN_PLAY_AREA } from "../gameConfig";
-import { createUiText, getUiRoot } from "../ui/domOverlay";
+import { createUiText, getUiRoot, px } from "../ui/domOverlay";
 import { scalePx } from "../scaleConfig";
 
 export interface CombatOverlayData {
@@ -65,6 +65,12 @@ export class CombatOverlay extends Phaser.Scene {
       align: "center",
       maxWidth: DESIGN_PLAY_AREA.width - 40,
     });
+    this.logText.dataset.testid = "combat-log";
+    /** 010 US3: fixed height + native overflow scroll — top margin clears the encounter
+     * label, bottom margin reserves outcomeText's space — so the log can never grow tall
+     * enough to overlap outcomeText or spill past the combat screen's own background rect. */
+    this.logText.style.height = px(DESIGN_PLAY_AREA.height - 26 - 40);
+    this.logText.style.overflowY = "auto";
 
     this.outcomeText = createUiText("", {
       x: dcx,
@@ -108,6 +114,7 @@ export class CombatOverlay extends Phaser.Scene {
     const line = `${attackerLabel} attack for ${turn.damageDealt} dmg — You: ${playerHp} HP | ${this.data_.enemy.id}: ${enemyHp} HP\n`;
     const nextLog = logSoFar + line;
     this.logText.textContent = nextLog;
+    this.logText.scrollTop = this.logText.scrollHeight;
     this.time.delayedCall(TURN_DELAY_MS, () => this.playTurns(index + 1, playerHp, enemyHp, nextLog));
   }
 

@@ -17,6 +17,8 @@ export const lootDescriptions: Record<string, string> = {
 
 export const keyTypeDescriptions: Record<string, string> = {
   bronze: "A tarnished bronze key. Opens bronze-marked doors.",
+  silver: "A polished silver key. Opens silver-marked doors.",
+  gold: "A gleaming gold key. Opens gold-marked doors.",
 };
 
 /** 005 FR-002/FR-007: every potion is identical, so this is a single fixed string

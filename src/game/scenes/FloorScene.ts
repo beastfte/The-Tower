@@ -9,6 +9,7 @@ import {
   updatePlayerPosition,
   applyEnemyDefeat,
   applyLeverToggle,
+  applyDoorOpen,
 } from "../../domain/floor/floorState";
 import { hasReachedExit } from "../../domain/floor/floorCompletion";
 import { findKeyedDoorAt, isDoorPassable } from "../../domain/hazard/keyedDoor";
@@ -58,9 +59,21 @@ const WEAPON_TEXTURE_KEYS = ["sword", "axe", "mace", "bow", "staff"] as const;
 const PLAYER_TEXTURE_KEYS = ["player-none", "player-leather", "player-mail", "player-plate"] as const;
 /** 005: potion (US1), coin (US3), chest (US2) — item/prop art baked to public/icons/*.svg.
  * 006: torch (a loot item) and key-bronze (US1's real key art, FR-008/FR-009) added. */
-const ITEM_TEXTURE_KEYS = ["potion", "coin", "chest", "torch", "key-bronze"] as const;
-/** 006 FR-010/FR-011: keyed-door and floor entrance/exit ("stairs") board-tile art. */
-const PROP_TEXTURE_KEYS = ["door-closed", "door-open", "stairs-up", "stairs-down"] as const;
+const ITEM_TEXTURE_KEYS = [
+  "potion",
+  "coin",
+  "chest",
+  "torch",
+  "key-bronze",
+  "key-silver",
+  "key-gold",
+  "door-closed-silver",
+  "door-closed-gold",
+] as const;
+/** 006 FR-010/FR-011: keyed-door and floor entrance/exit ("stairs") board-tile art.
+ * 010 US2: "door-open" removed — an open door now renders nothing (FR-007), so that texture
+ * is no longer referenced anywhere; door-open.svg itself is left in public/icons/ untouched. */
+const PROP_TEXTURE_KEYS = ["door-closed", "stairs-up", "stairs-down"] as const;
 /** 007: spike-pit's three cycle-segment sprites (FR-001, FR-012), lava's base/glow
  * frame-swap sprites (FR-004), the lever's two toggle-state sprites (FR-006), and water's
  * static sprite (FR-015). */
@@ -83,12 +96,33 @@ const SPIKE_SEGMENT_TEXTURE: Record<SpikePitSegment, string> = {
 };
 
 /** 006 FR-009: maps a LootItem id to its baked texture key. A loot id with no entry here
- * falls back to the plain colored marker (COLORS.loot) rather than fabricating new art. */
-const LOOT_TEXTURE_KEYS: Record<string, string> = {
+ * falls back to the plain colored marker (COLORS.loot) rather than fabricating new art.
+ * Exported (009) so SidePanelScene can render the same icon instead of duplicating this list. */
+export const LOOT_TEXTURE_KEYS: Record<string, string> = {
   "loot-torch": "torch",
 };
 
-const COLORS = {
+/** 009: maps a key type to its baked texture key, same "no entry → fallback" contract as
+ * LOOT_TEXTURE_KEYS above. Replaces the previous `this.textures.exists(\`key-${keyType}\`)`
+ * runtime check (research.md #2 addendum for 009) — that check only ever reflected this same
+ * static allow-list, so a real key.keyType->textureKey map is the single authoritative source,
+ * reusable by SidePanelScene (a DOM-only scene with no Phaser texture manager to query). */
+export const KEY_TEXTURE_KEYS: Record<string, string> = {
+  bronze: "key-bronze",
+  silver: "key-silver",
+  gold: "key-gold",
+};
+
+/** 010 US1 (FR-005): maps a door's doorType to its baked closed-door texture key, same
+ * "no entry → fallback" contract as KEY_TEXTURE_KEYS/LOOT_TEXTURE_KEYS above — the first
+ * per-type door art this project has had (every door type previously shared "door-closed"). */
+export const DOOR_TEXTURE_KEYS: Record<string, string> = {
+  bronze: "door-closed",
+  silver: "door-closed-silver",
+  gold: "door-closed-gold",
+};
+
+export const COLORS = {
   floor: 0x2b2430,
   wall: 0x0d0a0f,
   enemyCompulsory: 0x8c2f39,
@@ -376,7 +410,15 @@ export class FloorScene extends Phaser.Scene {
     }
 
     const door = findKeyedDoorAt(floor, target);
-    if (door && !isDoorPassable(door, new Set(ctx.save.character.keyIds), leverEffects.unlockedDoorIds)) {
+    if (
+      door &&
+      !isDoorPassable(
+        door,
+        new Set(ctx.save.character.keyIds),
+        leverEffects.unlockedDoorIds,
+        new Set(progress.openedDoorIds),
+      )
+    ) {
       this.setMessage(`Locked (needs ${door.doorType} key)`);
       return;
     }
@@ -390,6 +432,14 @@ export class FloorScene extends Phaser.Scene {
     const lever = findLeverAt(floor, target);
     if (lever) {
       ctx.save.currentFloorState = applyLeverToggle(ctx.save.currentFloorState, lever);
+    }
+
+    // 010 US1 (FR-001): a first-time visit through a matching-type key was already confirmed
+    // passable by the door gate above; applyDoorOpen is idempotent, mirroring applyLeverToggle.
+    if (door) {
+      const update = applyDoorOpen(ctx.save.currentFloorState, ctx.save.character, door);
+      ctx.save.currentFloorState = update.floorProgress;
+      ctx.save.character = update.character;
     }
     const currentLeverEffects = lever
       ? resolveLeverEffects(floor, ctx.save.currentFloorState.toggledLeverIds)
@@ -555,7 +605,6 @@ export class FloorScene extends Phaser.Scene {
     const progress = ctx.save.currentFloorState;
     const defeated = new Set(progress.defeatedEnemyIds);
     const collected = new Set(progress.collectedItemIds);
-    const heldKeys = new Set(ctx.save.character.keyIds);
     const leverEffects = resolveLeverEffects(floor, progress.toggledLeverIds);
 
     this.tileLayer.removeAll(true);
@@ -578,8 +627,15 @@ export class FloorScene extends Phaser.Scene {
     this.addTextureMarker(floor.exit, "stairs-up", 1);
 
     for (const door of floor.keyedDoors) {
-      const open = isDoorPassable(door, heldKeys, leverEffects.unlockedDoorIds);
-      this.addTextureMarker(door.position, open ? "door-open" : "door-closed", 1);
+      // 010 US2 (FR-007) fix: rendering "open" must reflect that the door was actually
+      // interacted with (openedDoorIds) or permanently unlocked via lever — NOT merely that a
+      // matching key is currently held. isDoorPassable intentionally treats a held key as
+      // passable so the first step through the door is allowed; reusing it here made doors
+      // vanish the instant a matching key was picked up, before the player ever reached them.
+      const open = progress.openedDoorIds.includes(door.id) || leverEffects.unlockedDoorIds.has(door.id);
+      if (!open) {
+        this.addTextureMarker(door.position, DOOR_TEXTURE_KEYS[door.doorType] ?? "door-closed", 1);
+      }
     }
 
     for (const lever of floor.levers) {
@@ -621,11 +677,11 @@ export class FloorScene extends Phaser.Scene {
       } else if (item.kind === "chest") {
         marker = this.addTextureMarker(item.position, "chest", 0.8);
       } else if (item.kind === "key") {
-        // 006 FR-008: real key art, keyed by tier; a tier with no baked icon yet falls
-        // back to the plain colored marker rather than fabricating new art (FR-007).
+        // 006 FR-008: real key art, keyed by tier (via KEY_TEXTURE_KEYS); a tier with no baked
+        // icon yet falls back to the plain colored marker rather than fabricating new art (FR-007).
         const key = item.payload as KeyDefinition;
-        const textureKey = `key-${key.keyType}`;
-        marker = this.textures.exists(textureKey)
+        const textureKey = KEY_TEXTURE_KEYS[key.keyType];
+        marker = textureKey
           ? this.addTextureMarker(item.position, textureKey, 0.6)
           : this.addMarker(item.position, COLORS.key, 0.5);
       } else {

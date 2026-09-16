@@ -19,7 +19,11 @@ import { rowFromPattern } from "./gridHelpers";
  * damage-once hazard tile at (4,10) in favor of a real lava tile at the same spot, and adds
  * one spike pit + a lever that deactivates it (both in the ogre's optional side room) plus
  * one water tile (a re-skinned wall cell in the top-left room) — none of this feature's new
- * content touches the critical path, so floor-01 remains completable exactly as before.
+ * content touches the critical path, so floor-01 remains completable exactly as before. 010
+ * US1 adds a silver and a gold key/door pair for manual testing (FR-006), placed in the same
+ * two optional side rooms: silver in the ogre's room (bottom, x9-15/y12-19), gold in the
+ * wizard's room (top-right, x15-19/y2-8) — both rooms are fully open interior space, so
+ * neither new door actually gates anything, they're only there to be walked onto and tested.
  */
 export const FLOOR_01: FloorDefinition = {
   id: "floor-01",
@@ -124,8 +128,24 @@ export const FLOOR_01: FloorDefinition = {
       kind: "chest",
       payload: { kind: "currency", amount: 30 },
     },
+    {
+      id: "floor01-key-silver",
+      position: { x: 9, y: 12 },
+      kind: "key",
+      payload: { id: "key-silver", keyType: "silver" },
+    },
+    {
+      id: "floor01-key-gold",
+      position: { x: 19, y: 2 },
+      kind: "key",
+      payload: { id: "key-gold", keyType: "gold" },
+    },
   ],
-  keyedDoors: [{ id: "floor01-door-bronze", position: { x: 6, y: 10 }, doorType: "bronze" }],
+  keyedDoors: [
+    { id: "floor01-door-bronze", position: { x: 6, y: 10 }, doorType: "bronze" },
+    { id: "floor01-door-silver", position: { x: 9, y: 13 }, doorType: "silver" },
+    { id: "floor01-door-gold", position: { x: 19, y: 3 }, doorType: "gold" },
+  ],
   // 007: the old instant, damage-once-on-entry hazard tile that used to sit here is retired —
   // this spot is now a real animated lava tile (entry damage + repeat damage while lingering,
   // same id/position/damage for continuity). The spike pit and its deactivating lever live in

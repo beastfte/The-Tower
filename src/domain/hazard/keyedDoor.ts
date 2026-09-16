@@ -14,11 +14,18 @@ export function findKeyedDoorAt(
  * `heldKeyTypes` holds the key *types* the player currently has (see save.ts `keyIds`).
  * 007 US3 (FR-009): also passable once a lever's `unlockDoor` effect has permanently
  * targeted this door — `unlockedDoorIds` comes from `resolveLeverEffects`.
+ * 010 US1 (FR-002): also passable once the door has been permanently opened
+ * (`openedDoorIds`, from `FloorProgress`) — independent of whether the key that opened it
+ * is still held, since opening a door consumes its key (`applyDoorOpen`). This is what keeps
+ * a door passable on a second visit after its key is gone: the *first* visit is passable via
+ * `heldKeyTypes`, which is what lets the caller (FloorScene's attemptMove) allow the step and
+ * then call `applyDoorOpen`; every visit after that is passable via `openedDoorIds` alone.
  */
 export function isDoorPassable(
   door: KeyedDoorDefinition,
   heldKeyTypes: ReadonlySet<string>,
   unlockedDoorIds: ReadonlySet<string> = new Set(),
+  openedDoorIds: ReadonlySet<string> = new Set(),
 ): boolean {
-  return heldKeyTypes.has(door.doorType) || unlockedDoorIds.has(door.id);
+  return openedDoorIds.has(door.id) || heldKeyTypes.has(door.doorType) || unlockedDoorIds.has(door.id);
 }
