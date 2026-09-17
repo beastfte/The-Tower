@@ -13,42 +13,41 @@ test("collecting a cloth armor piece raises defence and shows in the side panel"
   const baseline = await getCtxSave(page);
   const baseDefence = baseline.character.baseStats.defence;
 
-  // Entrance (0,10) -> compulsory goblin at (3,10) -> lava at (4,10) -> bronze key at (5,9) ->
-  // bronze door at (6,10) -> gold pile at (7,10) -> torch at (8,9) -> up into the top-middle
-  // room -> cloth legs at (9,6). Mirrors the critical-path route used by floorPlay.spec.ts /
-  // keyedDoorOpen.spec.ts.
-  await pressAndWait(page, "ArrowRight"); // (0,10) -> (1,10)
-  await pressAndWait(page, "ArrowRight"); // (1,10) -> (2,10)
-  await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,10)
+  // Entrance (0,7) -> compulsory goblin at (3,7) -> lava at (4,7) -> bronze key at (5,6) ->
+  // bronze door at (6,7) -> gold pile at (7,7) -> right into the post-door area -> up into
+  // the upper pocket -> cloth helm at (9,4). Mirrors the critical-path route used by
+  // floorPlay.spec.ts / keyedDoorOpen.spec.ts.
+  await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
+  await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
+  await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
   await waitForActiveScene(page, "CombatOverlay");
   await waitForActiveScene(page, "FloorScene", 10_000);
 
-  await pressAndWait(page, "ArrowRight"); // (2,10) -> (3,10)
-  await pressAndWait(page, "ArrowRight"); // (3,10) -> (4,10), lava entry damage
-  await pressAndWait(page, "ArrowRight"); // (4,10) -> (5,10)
-  await pressAndWait(page, "ArrowUp"); // (5,10) -> (5,9), bronze key
+  await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7)
+  await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava entry damage
+  await pressAndWait(page, "ArrowRight"); // (4,7) -> (5,7), safe
+  await pressAndWait(page, "ArrowUp"); // (5,7) -> (5,6), bronze key
   await waitForActiveScene(page, "PickupModalScene");
   await page.keyboard.press("Enter");
   await waitForActiveScene(page, "FloorScene");
-  await pressAndWait(page, "ArrowDown"); // (5,9) -> (5,10)
-  await pressAndWait(page, "ArrowRight"); // (5,10) -> (6,10), opens the bronze door
-  await pressAndWait(page, "ArrowRight"); // (6,10) -> (7,10), gold pile
-  await pressAndWait(page, "ArrowRight"); // (7,10) -> (8,10)
-  await pressAndWait(page, "ArrowUp"); // (8,10) -> (8,9), loot torch (no modal — not key/potion/chest)
-  await pressAndWait(page, "ArrowUp"); // (8,9) -> (8,8), into the top-middle room
-  await pressAndWait(page, "ArrowUp"); // (8,8) -> (8,7)
+  await pressAndWait(page, "ArrowDown"); // (5,6) -> (5,7)
+  await pressAndWait(page, "ArrowRight"); // (5,7) -> (6,7), opens the bronze door
+  await pressAndWait(page, "ArrowRight"); // (6,7) -> (7,7), gold pile
+  await pressAndWait(page, "ArrowRight"); // (7,7) -> (8,7)
   await pressAndWait(page, "ArrowRight"); // (8,7) -> (9,7)
-  await pressAndWait(page, "ArrowUp"); // (9,7) -> (9,6), cloth legs
+  await pressAndWait(page, "ArrowUp"); // (9,7) -> (9,6)
+  await pressAndWait(page, "ArrowUp"); // (9,6) -> (9,5)
+  await pressAndWait(page, "ArrowUp"); // (9,5) -> (9,4), cloth helm
 
   const save = await getCtxSave(page);
-  expect(save.character.equippedArmor.legs).toBe("cloth");
+  expect(save.character.equippedArmor.helm).toBe("cloth");
   expect(save.character.baseStats.defence).toBe(baseDefence); // baseStats itself is unchanged...
-  // ...the +2 shows up in effective defence via the side panel instead.
+  // ...the +3 shows up in effective defence via the side panel instead.
   const rows = page.locator('[data-testid="side-panel-rows"]');
-  await expect(rows).toContainText("Def: 4");
-  const legsImg = rows.locator('img[src="/icons/armor-cloth-legs.svg"]');
-  await expect(legsImg).toHaveCount(1);
-  await expect(legsImg.locator("xpath=..")).toHaveAttribute("title", /Cloth Legs/);
+  await expect(rows).toContainText("Def: 5");
+  const helmImg = rows.locator('img[src="/icons/armor-cloth-helm.svg"]');
+  await expect(helmImg).toHaveCount(1);
+  await expect(helmImg.locator("xpath=..")).toHaveAttribute("title", /Cloth Helm/);
 });
 
 /** 011 US3: Attack/Defense potions apply a permanent, immediately-visible bonus and persist
@@ -63,17 +62,47 @@ test("attack and defense potions permanently raise stats and persist across relo
   await page.keyboard.press("KeyN");
   await waitForActiveScene(page, "FloorScene");
 
-  // Entrance (0,10) -> right into the optional rat at (1,11) -> down into the bottom-left room
-  // -> attack potion at (2,13) -> defense potion at (4,17).
-  await pressAndWait(page, "ArrowRight"); // (0,10) -> (1,10)
-  await page.keyboard.press("ArrowDown"); // engage the optional rat at (1,11)
+  // Entrance (0,7) -> right into the optional rat at (1,10) -> back to the corridor -> through
+  // the compulsory goblin/lava/bronze-key/bronze-door gate -> the existing floor01-chest at
+  // (7,12) -> attack potion at (8,13) -> defense potion at (10,13).
+  await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
+  await pressAndWait(page, "ArrowDown"); // (1,7) -> (1,8)
+  await pressAndWait(page, "ArrowDown"); // (1,8) -> (1,9)
+  await page.keyboard.press("ArrowDown"); // engage the optional rat at (1,10)
   await waitForActiveScene(page, "CombatOverlay");
   await waitForActiveScene(page, "FloorScene", 10_000);
 
-  await pressAndWait(page, "ArrowDown"); // (1,10) -> (1,11), rat gone
-  await pressAndWait(page, "ArrowDown"); // (1,11) -> (1,12)
-  await pressAndWait(page, "ArrowRight"); // (1,12) -> (2,12)
-  await pressAndWait(page, "ArrowDown"); // (2,12) -> (2,13), attack potion
+  await pressAndWait(page, "ArrowDown"); // (1,9) -> (1,10), rat gone
+  await pressAndWait(page, "ArrowUp"); // (1,10) -> (1,9)
+  await pressAndWait(page, "ArrowUp"); // (1,9) -> (1,8)
+  await pressAndWait(page, "ArrowUp"); // (1,8) -> (1,7), back to the corridor
+  await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
+  await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
+  await waitForActiveScene(page, "CombatOverlay");
+  await waitForActiveScene(page, "FloorScene", 10_000);
+
+  await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7)
+  await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava entry damage
+  await pressAndWait(page, "ArrowRight"); // (4,7) -> (5,7), safe
+  await pressAndWait(page, "ArrowUp"); // (5,7) -> (5,6), bronze key
+  await waitForActiveScene(page, "PickupModalScene");
+  await page.keyboard.press("Enter");
+  await waitForActiveScene(page, "FloorScene");
+  await pressAndWait(page, "ArrowDown"); // (5,6) -> (5,7)
+  await pressAndWait(page, "ArrowRight"); // (5,7) -> (6,7), opens the bronze door
+  await pressAndWait(page, "ArrowRight"); // (6,7) -> (7,7), gold pile
+
+  await pressAndWait(page, "ArrowDown"); // (7,7) -> (7,8)
+  await pressAndWait(page, "ArrowDown"); // (7,8) -> (7,9)
+  await pressAndWait(page, "ArrowDown"); // (7,9) -> (7,10)
+  await pressAndWait(page, "ArrowDown"); // (7,10) -> (7,11)
+  await pressAndWait(page, "ArrowDown"); // (7,11) -> (7,12), the existing floor01-chest (currency)
+  await waitForActiveScene(page, "PickupModalScene");
+  await page.keyboard.press("Enter");
+  await waitForActiveScene(page, "FloorScene");
+
+  await pressAndWait(page, "ArrowDown"); // (7,12) -> (7,13)
+  await pressAndWait(page, "ArrowRight"); // (7,13) -> (8,13), attack potion
   await waitForActiveScene(page, "PickupModalScene");
   await page.keyboard.press("Enter");
   await waitForActiveScene(page, "FloorScene");
@@ -83,15 +112,8 @@ test("attack and defense potions permanently raise stats and persist across relo
   const rows = page.locator('[data-testid="side-panel-rows"]');
   await expect(rows).toContainText("Dmg: 15");
 
-  await pressAndWait(page, "ArrowDown"); // (2,13) -> (2,14)
-  await pressAndWait(page, "ArrowDown"); // (2,14) -> (2,15), the existing floor01-chest (currency)
-  await waitForActiveScene(page, "PickupModalScene");
-  await page.keyboard.press("Enter");
-  await waitForActiveScene(page, "FloorScene");
-  await pressAndWait(page, "ArrowDown"); // (2,15) -> (2,16)
-  await pressAndWait(page, "ArrowDown"); // (2,16) -> (2,17)
-  await pressAndWait(page, "ArrowRight"); // (2,17) -> (3,17)
-  await pressAndWait(page, "ArrowRight"); // (3,17) -> (4,17), defense potion
+  await pressAndWait(page, "ArrowRight"); // (8,13) -> (9,13)
+  await pressAndWait(page, "ArrowRight"); // (9,13) -> (10,13), defense potion
   await waitForActiveScene(page, "PickupModalScene");
   await page.keyboard.press("Enter");
   await waitForActiveScene(page, "FloorScene");

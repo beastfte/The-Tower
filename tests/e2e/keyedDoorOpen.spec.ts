@@ -29,19 +29,19 @@ test("opening the bronze door on floor-01 consumes the key and makes the door di
   // floor-01 has 3 keyed doors (bronze, silver, gold), all still locked at the start.
   expect(await countDoorMarkers()).toBe(3);
 
-  // Walk the real critical path to the bronze key/door: entrance (0,10) -> goblin at (3,10) ->
-  // key at (5,9) -> door at (6,10). Mirrors tests/e2e/floorPlay.spec.ts's route.
-  await pressAndWait(page, "ArrowRight"); // (0,10) -> (1,10)
-  await pressAndWait(page, "ArrowRight"); // (1,10) -> (2,10)
-  await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,10)
+  // Walk the real critical path to the bronze key/door: entrance (0,7) -> goblin at (3,7) ->
+  // key at (5,6) -> door at (6,7). Mirrors tests/e2e/floorPlay.spec.ts's route.
+  await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
+  await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
+  await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
   await waitForActiveScene(page, "CombatOverlay");
   await waitForActiveScene(page, "FloorScene", 10_000);
 
-  await pressAndWait(page, "ArrowRight"); // (2,10) -> (3,10)
-  await pressAndWait(page, "ArrowRight"); // (3,10) -> (4,10), lava entry damage
-  await pressAndWait(page, "ArrowRight"); // (4,10) -> (5,10)
+  await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7)
+  await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava entry damage
+  await pressAndWait(page, "ArrowRight"); // (4,7) -> (5,7), safe
 
-  await page.keyboard.press("ArrowUp"); // (5,10) -> (5,9), the bronze key
+  await page.keyboard.press("ArrowUp"); // (5,7) -> (5,6), the bronze key
   await waitForActiveScene(page, "PickupModalScene");
   await page.keyboard.press("Enter");
   await waitForActiveScene(page, "FloorScene");
@@ -56,8 +56,8 @@ test("opening the bronze door on floor-01 consumes the key and makes the door di
   // the player actually walks into it (regression guard for the pickup-triggered vanish bug).
   expect(await countDoorMarkers()).toBe(3);
 
-  await pressAndWait(page, "ArrowDown"); // (5,9) -> (5,10)
-  await pressAndWait(page, "ArrowRight"); // (5,10) -> (6,10): opens the bronze door, consumes the key
+  await pressAndWait(page, "ArrowDown"); // (5,6) -> (5,7)
+  await pressAndWait(page, "ArrowRight"); // (5,7) -> (6,7): opens the bronze door, consumes the key
 
   save = await page.evaluate(() => {
     const win = window as unknown as { __game: { registry: { get: (k: string) => { save: { character: { keyIds: string[] } } } } } };
@@ -69,7 +69,7 @@ test("opening the bronze door on floor-01 consumes the key and makes the door di
   expect(await countDoorMarkers()).toBe(2);
 
   // Walking back over the opened door doesn't re-lock it or consume another key.
-  await pressAndWait(page, "ArrowLeft"); // (6,10) -> (5,10)
-  await pressAndWait(page, "ArrowRight"); // (5,10) -> (6,10) again
+  await pressAndWait(page, "ArrowLeft"); // (6,7) -> (5,7)
+  await pressAndWait(page, "ArrowRight"); // (5,7) -> (6,7) again
   expect(await countDoorMarkers()).toBe(2);
 });

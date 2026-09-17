@@ -49,10 +49,15 @@ describe("authored floor content", () => {
     }
   });
 
-  // 004 contract invariant 12: both floors have a walkable area of at least 15x15 (225 tiles).
-  it.each(TOWER.floors)("floor $id has a walkable area of at least 225 tiles", (floor) => {
+  // 004 contract invariant 12, revised by 014 research.md #7: the grid itself is now capped at
+  // exactly 225 tiles (15x15, invariant 8), so the old "≥225 walkable" bound is mathematically
+  // unsatisfiable unless every tile were walkable (no walls at all). floor-01 has 171 walkable
+  // tiles and floor-final has 183 — this threshold is set comfortably below both with margin,
+  // rather than pinned to today's exact counts, so a small future content tweak to either floor
+  // doesn't trip this check over a few tiles.
+  it.each(TOWER.floors)("floor $id has a meaningfully large walkable area", (floor) => {
     const walkableCount = floor.grid.flat().filter((tile) => tile.walkable).length;
-    expect(walkableCount).toBeGreaterThanOrEqual(225);
+    expect(walkableCount).toBeGreaterThanOrEqual(150);
   });
 
   // 005 contract invariant 18: each floor places at least one potion and one chest (FR-009).

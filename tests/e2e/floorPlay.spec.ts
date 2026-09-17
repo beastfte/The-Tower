@@ -2,21 +2,20 @@ import { test, expect } from "@playwright/test";
 import { clearSave, waitForActiveScene, isSceneActive, getEventLog, getCtxSave, pressAndWait } from "./helpers";
 
 /**
- * Plays a deterministic path through `floor-01` (src/data/floors/floor-01.ts) to exercise,
- * with real gameplay rather than seeded state:
+ * Plays a deterministic path through `floor-01` (src/data/floors/floor-01.ts, resized to
+ * 15x15 by feature 014) to exercise, with real gameplay rather than seeded state:
  *  - US3 (FR-012/FR-013): the compulsory goblin fight, and the side panel (US1/FR-007)
  *    staying visible throughout.
  *  - US4 (FR-018/FR-019): a blocking pickup modal for the bronze key (not for the plain
- *    currency pile or loot torch, which must NOT trigger one).
+ *    currency pile, which must NOT trigger one).
  *  - US5 (FR-015-FR-017): the event log gets exactly one "combat" entry and one "pickup"
- *    entry, in that order, and no entries for the loot/currency pickups.
+ *    entry, in that order, and no entries for the currency pickup.
  *
- * Path: (0,2) start -> right x2 -> engage goblin at (3,2) -> right through the (4,2) hazard
- * -> right to (5,2) -> up to collect the bronze key at (5,1) -> down -> right through the
- * now-unlocked bronze door at (6,2) -> right over the gold pile at (7,2). Deliberately stops
- * short of the exit to avoid floor completion/restart, which is out of this test's scope.
- * 013 removed the loot torch that used to sit one tile further on (retired — torches are no
- * longer a collectible pickup), so this walkthrough no longer continues past the gold pile.
+ * Path: (0,7) start -> right x2 -> engage goblin at (3,7) -> right through the (4,7) lava
+ * tile -> right to the safe (5,7) tile -> up to collect the bronze key at (5,6) -> down ->
+ * right through the now-unlocked bronze door at (6,7) -> right over the gold pile at (7,7).
+ * Deliberately stops short of the exit to avoid floor completion/restart, which is out of
+ * this test's scope.
  */
 test("floor-01 walkthrough: combat, blocking pickup modal, and event log population", async ({ page }) => {
   await clearSave(page);
@@ -25,10 +24,10 @@ test("floor-01 walkthrough: combat, blocking pickup modal, and event log populat
   await page.keyboard.press("KeyN");
   await waitForActiveScene(page, "FloorScene");
 
-  await pressAndWait(page, "ArrowRight"); // (0,2) -> (1,2)
-  await pressAndWait(page, "ArrowRight"); // (1,2) -> (2,2)
+  await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
+  await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
 
-  // (2,2) -> (3,2) is blocked by the compulsory goblin: engaging launches CombatOverlay.
+  // (2,7) -> (3,7) is blocked by the compulsory goblin: engaging launches CombatOverlay.
   await page.keyboard.press("ArrowRight");
   await waitForActiveScene(page, "CombatOverlay");
 
@@ -44,11 +43,11 @@ test("floor-01 walkthrough: combat, blocking pickup modal, and event log populat
   expect(log).toHaveLength(1);
   expect(log[0]!.kind).toBe("combat");
 
-  await pressAndWait(page, "ArrowRight"); // (2,2) -> (3,2), goblin defeated
-  await pressAndWait(page, "ArrowRight"); // (3,2) -> (4,2), hazard damage (survivable)
-  await pressAndWait(page, "ArrowRight"); // (4,2) -> (5,2)
+  await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7), goblin defeated
+  await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava damage (survivable)
+  await pressAndWait(page, "ArrowRight"); // (4,7) -> (5,7), safe
 
-  // (5,2) -> (5,1): the bronze key. A blocking pickup modal must appear before play resumes.
+  // (5,7) -> (5,6): the bronze key. A blocking pickup modal must appear before play resumes.
   await page.keyboard.press("ArrowUp");
   await waitForActiveScene(page, "PickupModalScene");
   expect(await isSceneActive(page, "FloorScene")).toBe(false); // FR-019: blocked until dismissed
@@ -63,9 +62,9 @@ test("floor-01 walkthrough: combat, blocking pickup modal, and event log populat
   let save = await getCtxSave(page);
   expect(save.character.keyIds).toContain("bronze");
 
-  await pressAndWait(page, "ArrowDown"); // (5,1) -> (5,2)
-  await pressAndWait(page, "ArrowRight"); // (5,2) -> (6,2), bronze door now unlocked
-  await pressAndWait(page, "ArrowRight"); // (6,2) -> (7,2), plain currency pile (no modal)
+  await pressAndWait(page, "ArrowDown"); // (5,6) -> (5,7)
+  await pressAndWait(page, "ArrowRight"); // (5,7) -> (6,7), bronze door now unlocked
+  await pressAndWait(page, "ArrowRight"); // (6,7) -> (7,7), plain currency pile (no modal)
 
   // FR-018: no modal, and no new log entry, for the plain currency pickup.
   expect(await isSceneActive(page, "FloorScene")).toBe(true);
@@ -76,5 +75,5 @@ test("floor-01 walkthrough: combat, blocking pickup modal, and event log populat
   save = await getCtxSave(page);
   expect(save.character.currency).toBe(25); // 15 (goblin drop) + 10 (gold pile)
   expect(save.character.currentHp).toBeGreaterThan(0);
-  expect(save.character.currentHp).toBeLessThan(30); // took hazard (and possibly combat) damage
+  expect(save.character.currentHp).toBeLessThan(30); // took lava (and possibly combat) damage
 });

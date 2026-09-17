@@ -10,6 +10,9 @@ export interface MonsterSpecies {
   name: string;
   baselineStats: CombatStats;
   textureKey: string;
+  /** Fraction of a tile's size (0-1) this species' sprite renders at (014 FR-010) — "large"
+   * monsters read ~0.85-0.95, "small/medium" ones ~0.5-0.65. */
+  spriteScale: number;
 }
 
 export interface DropTable {

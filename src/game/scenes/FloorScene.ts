@@ -46,10 +46,10 @@ import {
   attackPotionDescription,
   defensePotionDescription,
 } from "../uiContent/itemDescriptions";
-import { PLAY_AREA, DESIGN_PLAY_AREA } from "../gameConfig";
+import { PLAY_AREA, DESIGN_PLAY_AREA, TILE_SIZE } from "../gameConfig";
 import { createUiText, getUiRoot } from "../ui/domOverlay";
 import { scalePx } from "../scaleConfig";
-import { computeTileSize, computeTileLayerOrigin } from "../floorLayout";
+import { computeTileLayerOrigin } from "../floorLayout";
 import { computeBobOffset, computePositionPhase } from "../livingAnimation";
 import {
   computeLavaFrame,
@@ -204,9 +204,10 @@ export class FloorScene extends Phaser.Scene {
   private playerArmorSprites: Phaser.GameObjects.Image[] = [];
   private tileLayer!: Phaser.GameObjects.Container;
   private messageText!: HTMLDivElement;
-  /** Computed per floor (create()) from that floor's grid size against PLAY_AREA, so the
-   * whole grid always fits inside the play area instead of overflowing behind the side
-   * panel/event log (002 FR-007/FR-016). */
+  /** Set from the fixed `TILE_SIZE` constant in `create()` (014 FR-004/FR-005) — no longer
+   * computed per floor. `PLAY_AREA` is sized to exactly fit a 15x15 grid of `TILE_SIZE` tiles
+   * (research.md #2), so the whole grid still always fits inside the play area instead of
+   * overflowing behind the side panel/event log (002 FR-007/FR-016). */
   private tileSize!: number;
   /** 008: markers for every "living" floor entity currently bobbing (rebuilt every redraw()).
    * Monsters are pushed here; the player character is deliberately excluded (008 follow-up —
@@ -250,7 +251,7 @@ export class FloorScene extends Phaser.Scene {
     const grid = this.ctx.currentFloor.grid;
     const rows = grid.length;
     const cols = grid[0]?.length ?? 1;
-    this.tileSize = computeTileSize(cols, rows, PLAY_AREA);
+    this.tileSize = TILE_SIZE;
     const origin = computeTileLayerOrigin(cols, rows, this.tileSize, PLAY_AREA);
     this.tileLayer = this.add.container(origin.x, origin.y);
     this.messageText = createUiText("", {
@@ -767,20 +768,23 @@ export class FloorScene extends Phaser.Scene {
       if (collected.has(item.id)) continue;
       let marker: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image | undefined;
       if (item.kind === "weapon") {
+        // 014 FR-010: weapon/armor pickups render at ~55% of the tile (Assumptions —
+        // weapons follow armor's ratio, since both are equipment rather than small icons).
         const weapon = ctx.weaponCatalog.get(item.payload as WeaponId);
-        if (weapon) marker = this.addTextureMarker(item.position, weapon.textureKey, 0.6);
+        if (weapon) marker = this.addTextureMarker(item.position, weapon.textureKey, 0.55);
       } else if (item.kind === "armor") {
         const pickup = item.payload as ArmorPickupPayload;
         const armor = ctx.armorCatalog.get(`${pickup.material}:${pickup.slot}`);
-        if (armor) marker = this.addTextureMarker(item.position, armor.textureKey, 0.6);
+        if (armor) marker = this.addTextureMarker(item.position, armor.textureKey, 0.55);
       } else if (item.kind === "currency") {
-        marker = this.addTextureMarker(item.position, "coin", 0.6);
+        // 014 FR-010: currency/keys/potions render as small icons at ~35% of the tile.
+        marker = this.addTextureMarker(item.position, "coin", 0.35);
       } else if (item.kind === "potion") {
-        marker = this.addTextureMarker(item.position, "potion", 0.6);
+        marker = this.addTextureMarker(item.position, "potion", 0.35);
       } else if (item.kind === "potionAttack") {
-        marker = this.addTextureMarker(item.position, "potion-attack", 0.6);
+        marker = this.addTextureMarker(item.position, "potion-attack", 0.35);
       } else if (item.kind === "potionDefense") {
-        marker = this.addTextureMarker(item.position, "potion-defense", 0.6);
+        marker = this.addTextureMarker(item.position, "potion-defense", 0.35);
       } else if (item.kind === "chest") {
         marker = this.addTextureMarker(item.position, "chest", 0.8);
       } else if (item.kind === "key") {
@@ -789,7 +793,7 @@ export class FloorScene extends Phaser.Scene {
         const key = item.payload as KeyDefinition;
         const textureKey = KEY_TEXTURE_KEYS[key.keyType];
         marker = textureKey
-          ? this.addTextureMarker(item.position, textureKey, 0.6)
+          ? this.addTextureMarker(item.position, textureKey, 0.35) // 014 FR-010: small icon
           : this.addMarker(item.position, COLORS.key, 0.5);
       } else {
         // item.kind === "loot" (006 FR-009): real art for ids with a baked icon (LOOT_TEXTURE_KEYS),
@@ -806,7 +810,7 @@ export class FloorScene extends Phaser.Scene {
       if (defeated.has(enemy.id)) continue;
       const species = ctx.monsterSpeciesCatalog.get(enemy.species);
       const marker = species
-        ? this.addTextureMarker(enemy.position, species.textureKey, 0.85)
+        ? this.addTextureMarker(enemy.position, species.textureKey, species.spriteScale)
         : this.addMarker(
             enemy.position,
             enemy.placement === "compulsory" ? COLORS.enemyCompulsory : COLORS.enemyOptional,
@@ -841,10 +845,19 @@ export class FloorScene extends Phaser.Scene {
     const size = this.tileSize;
     const variant = (x * 7 + y * 13) % 9 === 0 ? lighten(color, 12) : color;
     this.addTile(x, y, variant);
-    const gridLine = this.add.rectangle(x * size + size / 2, y * size, size, scalePx(1), OUTLINE_COLOR, 0.45);
-    this.tileLayer.add(gridLine);
-    const gridLineLeft = this.add.rectangle(x * size, y * size + size / 2, scalePx(1), size, OUTLINE_COLOR, 0.45);
-    this.tileLayer.add(gridLineLeft);
+    // 014: a grid line marks the boundary with the *previous* row/column, so the outermost
+    // row/column (x/y === 0) skips its line — there's no adjacent tile on that side to
+    // separate from, and drawing it anyway would poke half its width past PLAY_AREA's own
+    // edge (only ever masked before by leftover centering slack, which an exact-fit grid,
+    // 014 FR-006, no longer has).
+    if (y > 0) {
+      const gridLine = this.add.rectangle(x * size + size / 2, y * size, size, scalePx(1), OUTLINE_COLOR, 0.45);
+      this.tileLayer.add(gridLine);
+    }
+    if (x > 0) {
+      const gridLineLeft = this.add.rectangle(x * size, y * size + size / 2, scalePx(1), size, OUTLINE_COLOR, 0.45);
+      this.tileLayer.add(gridLineLeft);
+    }
   }
 
   /** 013 session 4: the real wallBlock/crackedWall pixel sprite lifted from the reference sheet

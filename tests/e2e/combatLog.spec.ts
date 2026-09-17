@@ -13,9 +13,9 @@ test("combat log has a fixed scrollable height and auto-follows the newest turn"
   await page.keyboard.press("KeyN");
   await waitForActiveScene(page, "FloorScene");
 
-  await pressAndWait(page, "ArrowRight"); // -> (1,10)
-  await pressAndWait(page, "ArrowRight"); // -> (2,10)
-  await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,10)
+  await pressAndWait(page, "ArrowRight"); // -> (1,7)
+  await pressAndWait(page, "ArrowRight"); // -> (2,7)
+  await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
   await waitForActiveScene(page, "CombatOverlay");
 
   const log = page.locator('[data-testid="combat-log"]');

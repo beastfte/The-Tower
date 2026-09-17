@@ -21,7 +21,7 @@ test.describe("Pause menu — open and close", () => {
     await page.keyboard.press("KeyN");
     await waitForActiveScene(page, "FloorScene");
 
-    await pressAndWait(page, "ArrowRight"); // (0,2) -> (1,2)
+    await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
     const before = await getCtxSave(page);
 
     await page.locator('[data-testid="pause-button"]').click();
@@ -88,9 +88,9 @@ test.describe("Pause menu — open and close", () => {
     await page.keyboard.press("KeyN");
     await waitForActiveScene(page, "FloorScene");
 
-    await pressAndWait(page, "ArrowRight"); // (0,2) -> (1,2)
-    await pressAndWait(page, "ArrowRight"); // (1,2) -> (2,2)
-    await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,2)
+    await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
+    await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
+    await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
     await waitForActiveScene(page, "CombatOverlay");
 
     await page.keyboard.press("Escape");
@@ -111,16 +111,16 @@ test.describe("Pause menu — open and close", () => {
     await page.keyboard.press("KeyN");
     await waitForActiveScene(page, "FloorScene");
 
-    await pressAndWait(page, "ArrowRight"); // (0,2) -> (1,2)
-    await pressAndWait(page, "ArrowRight"); // (1,2) -> (2,2)
-    await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,2)
+    await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
+    await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
+    await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
     await waitForActiveScene(page, "CombatOverlay");
     await waitForActiveScene(page, "FloorScene", 10_000);
 
-    await pressAndWait(page, "ArrowRight"); // (2,2) -> (3,2), goblin defeated
-    await pressAndWait(page, "ArrowRight"); // (3,2) -> (4,2), hazard damage
-    await pressAndWait(page, "ArrowRight"); // (4,2) -> (5,2)
-    await page.keyboard.press("ArrowUp"); // (5,2) -> (5,1), bronze key
+    await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7), goblin defeated
+    await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava damage
+    await pressAndWait(page, "ArrowRight"); // (4,7) -> (5,7), safe
+    await page.keyboard.press("ArrowUp"); // (5,7) -> (5,6), bronze key
     await waitForActiveScene(page, "PickupModalScene");
 
     await page.keyboard.press("Escape");
@@ -146,12 +146,12 @@ test.describe("Pause menu — restart at last checkpoint", () => {
     await page.keyboard.press("KeyN");
     await waitForActiveScene(page, "FloorScene");
 
-    await pressAndWait(page, "ArrowRight"); // (0,2) -> (1,2)
-    await pressAndWait(page, "ArrowRight"); // (1,2) -> (2,2)
-    await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,2)
+    await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
+    await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
+    await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
     await waitForActiveScene(page, "CombatOverlay");
     await waitForActiveScene(page, "FloorScene", 10_000);
-    await pressAndWait(page, "ArrowRight"); // (2,2) -> (3,2), goblin defeated
+    await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7), goblin defeated
 
     const beforeRestart = await getCtxSave(page);
     expect(beforeRestart.currentFloorState.defeatedEnemyIds.length).toBeGreaterThan(0);
@@ -163,7 +163,7 @@ test.describe("Pause menu — restart at last checkpoint", () => {
     await waitForActiveScene(page, "FloorScene");
 
     const afterRestart = await getCtxSave(page);
-    expect(afterRestart.currentFloorState.playerPosition).toEqual({ x: 0, y: 10 }); // floor-01's entrance
+    expect(afterRestart.currentFloorState.playerPosition).toEqual({ x: 0, y: 7 }); // floor-01's entrance
     expect(afterRestart.currentFloorState.defeatedEnemyIds).toHaveLength(0);
     expect(afterRestart.character.currentHp).toBe(30);
   });
@@ -176,15 +176,15 @@ test.describe("Pause menu — restart at last checkpoint", () => {
     await waitForActiveScene(page, "FloorScene");
 
     // Collect the bronze key (permanent character progress) before restarting.
-    await pressAndWait(page, "ArrowRight"); // (0,2) -> (1,2)
-    await pressAndWait(page, "ArrowRight"); // (1,2) -> (2,2)
-    await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,2)
+    await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
+    await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
+    await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
     await waitForActiveScene(page, "CombatOverlay");
     await waitForActiveScene(page, "FloorScene", 10_000);
-    await pressAndWait(page, "ArrowRight"); // (2,2) -> (3,2)
-    await pressAndWait(page, "ArrowRight"); // (3,2) -> (4,2), hazard
-    await pressAndWait(page, "ArrowRight"); // (4,2) -> (5,2)
-    await page.keyboard.press("ArrowUp"); // (5,2) -> (5,1), bronze key
+    await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7)
+    await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava
+    await pressAndWait(page, "ArrowRight"); // (4,7) -> (5,7), safe
+    await page.keyboard.press("ArrowUp"); // (5,7) -> (5,6), bronze key
     await waitForActiveScene(page, "PickupModalScene");
     await page.keyboard.press("Enter"); // dismiss
     await waitForActiveScene(page, "FloorScene");
@@ -211,7 +211,7 @@ test.describe("Pause menu — return to main menu", () => {
     await page.keyboard.press("KeyN");
     await waitForActiveScene(page, "FloorScene");
 
-    await pressAndWait(page, "ArrowRight"); // (0,2) -> (1,2)
+    await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
     const before = await getCtxSave(page);
 
     await page.keyboard.press("Escape");

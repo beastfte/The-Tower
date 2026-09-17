@@ -27,16 +27,16 @@ test("scenario 10: movement is cardinal-only, one tile per keypress (FR-016)", a
   await waitForActiveScene(page, "FloorScene");
 
   let save = await getCtxSave(page);
-  expect(save.currentFloorState.playerPosition).toEqual({ x: 0, y: 10 });
+  expect(save.currentFloorState.playerPosition).toEqual({ x: 0, y: 7 });
 
   await pressAndWait(page, "ArrowRight");
   save = await getCtxSave(page);
-  expect(save.currentFloorState.playerPosition).toEqual({ x: 1, y: 10 }); // exactly one tile, no diagonal
+  expect(save.currentFloorState.playerPosition).toEqual({ x: 1, y: 7 }); // exactly one tile, no diagonal
 
   // Unrecognized keys produce no movement at all.
   await pressAndWait(page, "KeyQ");
   save = await getCtxSave(page);
-  expect(save.currentFloorState.playerPosition).toEqual({ x: 1, y: 10 });
+  expect(save.currentFloorState.playerPosition).toEqual({ x: 1, y: 7 });
 });
 
 test("scenario 4: an under-leveled attempt is blocked (FR-004b)", async ({ page }) => {
@@ -58,8 +58,8 @@ test("scenario 4: an under-leveled attempt is blocked (FR-004b)", async ({ page 
   await page.keyboard.press("Enter"); // Continue with the seeded weak save
   await waitForActiveScene(page, "FloorScene");
 
-  await pressAndWait(page, "ArrowRight"); // (0,10) -> (1,10)
-  await pressAndWait(page, "ArrowRight"); // (1,10) -> (2,10)
+  await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
+  await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
 
   // Engaging the goblin now would lose the simulated encounter — blocked before it
   // starts, no combat animation, HP untouched.
@@ -68,7 +68,7 @@ test("scenario 4: an under-leveled attempt is blocked (FR-004b)", async ({ page 
   expect(await isSceneActive(page, "FloorScene")).toBe(true);
   const save = await getCtxSave(page);
   expect(save.character.currentHp).toBe(15);
-  expect(save.currentFloorState.playerPosition).toEqual({ x: 2, y: 10 }); // never moved
+  expect(save.currentFloorState.playerPosition).toEqual({ x: 2, y: 7 }); // never moved
 });
 
 test("scenario 6: quit and resume mid-floor (FR-010)", async ({ page }) => {
@@ -81,18 +81,18 @@ test("scenario 6: quit and resume mid-floor (FR-010)", async ({ page }) => {
   await page.keyboard.press("KeyN");
   await waitForActiveScene(page, "FloorScene");
 
-  await pressAndWait(page, "ArrowRight"); // (0,10) -> (1,10)
-  await pressAndWait(page, "ArrowRight"); // (1,10) -> (2,10)
+  await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
+  await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
   await page.keyboard.press("ArrowRight"); // engage and defeat the goblin (base stats win easily)
   await waitForActiveScene(page, "CombatOverlay");
   await waitForActiveScene(page, "FloorScene", 10_000);
-  await pressAndWait(page, "ArrowRight"); // (2,10) -> (3,10), goblin gone
-  await pressAndWait(page, "ArrowRight"); // (3,10) -> (4,10), hazard damage (survivable)
+  await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7), goblin gone
+  await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava damage (survivable)
 
   const beforeReload = await readSave(page);
   expect(beforeReload).not.toBeNull();
   expect(beforeReload!.currentFloorState.defeatedEnemyIds).toContain("floor01-goblin");
-  expect(beforeReload!.currentFloorState.playerPosition).toEqual({ x: 4, y: 10 });
+  expect(beforeReload!.currentFloorState.playerPosition).toEqual({ x: 4, y: 7 });
   expect(beforeReload!.character.currentHp).toBeLessThan(30);
 
   await page.reload();
@@ -115,27 +115,27 @@ test("scenario 9: organic hazard death, checkpoint-resume, then a second death r
   await waitForActiveScene(page, "FloorScene");
 
   // Defeat the goblin, collect the bronze key, then oscillate across the lava hazard
-  // (floor01-lava at (4,10), 8 damage - 2 defence = 6 net) until HP reaches 0.
-  await pressAndWait(page, "ArrowRight"); // (0,10) -> (1,10)
-  await pressAndWait(page, "ArrowRight"); // (1,10) -> (2,10)
+  // (floor01-lava at (4,7), 8 damage - 2 defence = 6 net) until HP reaches 0.
+  await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
+  await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
   await page.keyboard.press("ArrowRight"); // engage goblin: HP 30 -> 28
   await waitForActiveScene(page, "CombatOverlay");
   await waitForActiveScene(page, "FloorScene", 10_000);
-  await pressAndWait(page, "ArrowRight"); // (2,10) -> (3,10)
-  await pressAndWait(page, "ArrowRight"); // (3,10) -> (4,10), hazard: HP 28 -> 22
-  await pressAndWait(page, "ArrowRight"); // (4,10) -> (5,10)
-  await page.keyboard.press("ArrowUp"); // collect the bronze key at (5,9)
+  await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7)
+  await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), hazard: HP 28 -> 22
+  await pressAndWait(page, "ArrowRight"); // (4,7) -> (5,7)
+  await page.keyboard.press("ArrowUp"); // collect the bronze key at (5,6)
   await waitForActiveScene(page, "PickupModalScene");
   await page.keyboard.press("Enter");
   await waitForActiveScene(page, "FloorScene");
-  await pressAndWait(page, "ArrowDown"); // (5,9) -> (5,10)
-  await pressAndWait(page, "ArrowLeft"); // (5,10) -> (4,10), hazard: HP 22 -> 16
-  await pressAndWait(page, "ArrowLeft"); // (4,10) -> (3,10)
-  await pressAndWait(page, "ArrowRight"); // (3,10) -> (4,10), hazard: HP 16 -> 10
-  await pressAndWait(page, "ArrowLeft"); // (4,10) -> (3,10)
-  await pressAndWait(page, "ArrowRight"); // (3,10) -> (4,10), hazard: HP 10 -> 4
-  await pressAndWait(page, "ArrowLeft"); // (4,10) -> (3,10)
-  await page.keyboard.press("ArrowRight"); // (3,10) -> (4,10), hazard: HP 4 -> 0, dies
+  await pressAndWait(page, "ArrowDown"); // (5,6) -> (5,7)
+  await pressAndWait(page, "ArrowLeft"); // (5,7) -> (4,7), hazard: HP 22 -> 16
+  await pressAndWait(page, "ArrowLeft"); // (4,7) -> (3,7)
+  await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), hazard: HP 16 -> 10
+  await pressAndWait(page, "ArrowLeft"); // (4,7) -> (3,7)
+  await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), hazard: HP 10 -> 4
+  await pressAndWait(page, "ArrowLeft"); // (4,7) -> (3,7)
+  await page.keyboard.press("ArrowRight"); // (3,7) -> (4,7), hazard: HP 4 -> 0, dies
   await waitForActiveScene(page, "DeathScreenScene");
 
   const preDeath = await readSave(page);
@@ -181,14 +181,14 @@ test("scenario 9: organic hazard death, checkpoint-resume, then a second death r
   save = await getCtxSave(page);
   expect(save.isDead).toBe(false);
   expect(save.currentFloorState.defeatedEnemyIds).toContain("floor01-goblin"); // frozen at death, not reset
-  expect(save.currentFloorState.playerPosition).toEqual({ x: 4, y: 10 });
+  expect(save.currentFloorState.playerPosition).toEqual({ x: 4, y: 7 });
   expect(save.character.currentHp).toBe(0); // "without modifying the save at all"
 
   // Continuing from the menu resumes exactly where the player was just before death.
   await page.keyboard.press("Enter");
   await waitForActiveScene(page, "FloorScene");
   save = await getCtxSave(page);
-  expect(save.currentFloorState.playerPosition).toEqual({ x: 4, y: 10 });
+  expect(save.currentFloorState.playerPosition).toEqual({ x: 4, y: 7 });
   expect(save.character.currentHp).toBe(0);
 });
 
@@ -200,38 +200,35 @@ test("scenario 11: organically defeating the end boss triggers the win state (FR
   await page.keyboard.press("KeyN");
   await waitForActiveScene(page, "FloorScene");
 
-  // Clear floor-01 end to end: defeat the goblin, cross the hazard once, collect the
-  // bronze key, pass the now-unlocked door, collect the gold pile and loot torch, exit.
-  await pressAndWait(page, "ArrowRight"); // (0,10) -> (1,10)
-  await pressAndWait(page, "ArrowRight"); // (1,10) -> (2,10)
+  // Clear floor-01 end to end: defeat the goblin, cross the lava once, collect the
+  // bronze key, pass the now-unlocked door, collect the gold pile, exit.
+  await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
+  await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
   await page.keyboard.press("ArrowRight"); // engage goblin
   await waitForActiveScene(page, "CombatOverlay");
   await waitForActiveScene(page, "FloorScene", 10_000);
-  await pressAndWait(page, "ArrowRight"); // (2,10) -> (3,10)
-  await pressAndWait(page, "ArrowRight"); // (3,10) -> (4,10), hazard damage (survivable)
-  await pressAndWait(page, "ArrowRight"); // (4,10) -> (5,10)
-  await page.keyboard.press("ArrowUp"); // collect bronze key at (5,9)
+  await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7)
+  await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava damage (survivable)
+  await pressAndWait(page, "ArrowRight"); // (4,7) -> (5,7)
+  await page.keyboard.press("ArrowUp"); // collect bronze key at (5,6)
   await waitForActiveScene(page, "PickupModalScene");
   await page.keyboard.press("Enter");
   await waitForActiveScene(page, "FloorScene");
-  await pressAndWait(page, "ArrowDown"); // (5,9) -> (5,10)
-  await pressAndWait(page, "ArrowRight"); // (5,10) -> (6,10), bronze door now unlocked
-  await pressAndWait(page, "ArrowRight"); // (6,10) -> (7,10), gold pile
-  await pressAndWait(page, "ArrowRight"); // (7,10) -> (8,10)
-  await pressAndWait(page, "ArrowUp"); // collect loot torch at (8,9) — plain loot, no modal
-  await pressAndWait(page, "ArrowDown"); // (8,9) -> (8,10)
-  for (let x = 8; x < 19; x++) {
-    await pressAndWait(page, "ArrowRight"); // walk the rest of the corridor to the exit at (19,10)
+  await pressAndWait(page, "ArrowDown"); // (5,6) -> (5,7)
+  await pressAndWait(page, "ArrowRight"); // (5,7) -> (6,7), bronze door now unlocked
+  await pressAndWait(page, "ArrowRight"); // (6,7) -> (7,7), gold pile
+  for (let x = 7; x < 14; x++) {
+    await pressAndWait(page, "ArrowRight"); // walk the rest of the corridor to the exit at (14,7)
   }
 
   // Reaching the exit completes floor-01 and advances to floor-final.
   await waitForActiveScene(page, "FloorScene", 10_000);
   let save = await getCtxSave(page);
   expect(save.currentFloorId).toBe("floor-final");
-  expect(save.currentFloorState.playerPosition).toEqual({ x: 0, y: 10 });
+  expect(save.currentFloorState.playerPosition).toEqual({ x: 0, y: 7 });
 
-  // Walk to the end boss at (10,10) and defeat it.
-  for (let x = 0; x < 9; x++) {
+  // Walk to the end boss at (7,7) and defeat it.
+  for (let x = 0; x < 6; x++) {
     await pressAndWait(page, "ArrowRight");
   }
   await page.keyboard.press("ArrowRight"); // engage the end boss

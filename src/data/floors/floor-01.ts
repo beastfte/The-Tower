@@ -2,72 +2,49 @@ import type { FloorDefinition } from "../../domain/floor/types";
 import { rowFromPattern } from "./gridHelpers";
 
 /**
- * Floor 1 — the original single main corridor (y=10) is preserved exactly, including
- * every existing enemy/item/door/hazard position, so it remains the sole route from
- * entrance to exit (floor-data-contract invariant 3 — the goblin at (3,10) and the
- * bronze door at (6,10) are still the only way across). The three original 1-tile
- * alcoves (rat at (1,11), key at (5,9), torch at (8,9)) are widened into proper rooms
- * behind their same single-tile doorway, and two new dead-end rooms (ogre, wizard) are
- * added off previously-unused stretches of the corridor — scaling up the existing
- * "main corridor + alcoves" pattern (research.md #6) rather than replacing it. Walkable
- * area is 230 tiles across a 20x20 grid (FR-014, ≥15x15; FR-016's modest extra content:
- * one more monster species pairing plus a weapon and an armor pickup). 005 adds a health
- * potion in the wizard's dead-end room and a treasure chest (currency reward) in the
- * bottom-left room, both reachable without affecting the critical path (FR-009). 006
- * removed the powerup mechanic entirely (see spec.md) — the rat's drop and the chest's
- * reward, both formerly powerups, now grant currency instead. 007 retires the old
- * damage-once hazard tile at (4,10) in favor of a real lava tile at the same spot, and adds
- * one spike pit + a lever that deactivates it (both in the ogre's optional side room) plus
- * one water tile (a re-skinned wall cell in the top-left room) — none of this feature's new
- * content touches the critical path, so floor-01 remains completable exactly as before. 010
- * US1 adds a silver and a gold key/door pair for manual testing (FR-006), placed in the same
- * two optional side rooms: silver in the ogre's room (bottom, x9-15/y12-19), gold in the
- * wizard's room (top-right, x15-19/y2-8) — both rooms are fully open interior space, so
- * neither new door actually gates anything, they're only there to be walked onto and tested.
- * 011 adds one cloth-tier armor piece per slot (helm/chest/legs/boots) in the top-middle room
- * (x8-13/y2-8, alongside the existing migrated leather-chest piece) and one Attack Potion +
- * one Defense Potion in the bottom-left room (x0-4/y12-19, alongside the existing chest) — all
- * six for manual testing (FR-010), none on the critical path. 013 removes the "Rusty Torch"
- * loot pickup (torches are no longer collectible) and adds one cracked wall plus a co-located
- * decorative torch at the existing (14,9) corridor-divider wall cell, and one new plain wall
- * at (16,6) in the wizard's room — manual-test content (FR-014), none on the critical path.
- * 013 session 3 adds 5 more cracked walls and 10 wall-zone overrides along the top boundary
- * row (an already-solid `#` row) so all 12 wall variants (6 zones × normal/cracked) are visible
- * on this one floor for manual comparison — purely cosmetic, no grid or reachability changes.
+ * Floor 1, resized to the 15x15 baseline (014 FR-001) from the previous 20x20 grid. The main
+ * corridor (row 7) runs the full width, with two solid-walled columns (x=3, x=6) each open
+ * only at row 7 — mirroring floor-final's single-opening-column technique so the compulsory
+ * goblin (x=3) and the bronze door (x=6) each remain the sole way across their column, exactly
+ * as invariant 3 requires, without needing a maze of dedicated alcove walls. Everything else
+ * (the rat, the ogre + spike pit + lever, the wizard, the silver/gold key/door pairs, every
+ * item, the water tile, the cracked wall + torch, and three wallZoneOverrides) sits in the
+ * three resulting open pockets — before the goblin, between the two gates (the bronze key's
+ * alcove), and after the bronze door — none of it gates anything beyond the goblin/bronze-door
+ * pair, matching the original floor's own "optional rooms are fully open interior space"
+ * design. Per 014 FR-002/FR-009, empty tiles were trimmed first and only as much content as
+ * comfortably fits a 225-tile floor was kept (two of the original four cloth armor pieces, and
+ * 3 of the original 10 wallZoneOverride demo tiles, were dropped as redundant repeats of a
+ * mechanic already exercised elsewhere on this same floor) — every remaining mechanic (keys/
+ * doors of all 3 tiers, all 4 potion/currency pickup kinds, a weapon and an armor pickup, a
+ * spike pit + deactivating lever, a lava tile, a water tile, a cracked wall, a torch, and
+ * non-default wall zones) is still represented at least once.
  */
 export const FLOOR_01: FloorDefinition = {
   id: "floor-01",
   grid: [
-    rowFromPattern("####################"),
-    rowFromPattern("##.....#############"),
-    rowFromPattern("##.....#......#....."),
-    rowFromPattern("##.....#......#....."),
-    rowFromPattern("##.....#......#....."),
-    rowFromPattern("##.....#......#....."),
-    // 013 FR-014: one interior cell (16,6) converted to a new plain wall, purely for manual
-    // testing — the wizard's room (x15-19/y2-8) is large open interior space, so this doesn't
-    // affect reachability or the critical path.
-    rowFromPattern("##.....#......#.#..."),
-    rowFromPattern("##.....#......#....."),
-    rowFromPattern("##.....#......#....."),
-    rowFromPattern("#####.##.#######.###"),
-    rowFromPattern("...................."),
-    rowFromPattern("#.#########.########"),
-    rowFromPattern(".....####......#####"),
-    rowFromPattern(".....####......#####"),
-    rowFromPattern(".....####......#####"),
-    rowFromPattern(".....####......#####"),
-    rowFromPattern(".....####......#####"),
-    rowFromPattern(".....####......#####"),
-    rowFromPattern(".....####......#####"),
-    rowFromPattern(".....####......#####"),
+    rowFromPattern("###############"),
+    rowFromPattern("...#..#........"),
+    rowFromPattern("...#..#........"),
+    rowFromPattern("...#..#........"),
+    rowFromPattern("...#..#........"),
+    rowFromPattern("...#..#........"),
+    rowFromPattern("...#..#........"),
+    rowFromPattern("..............."),
+    rowFromPattern("...#..#........"),
+    rowFromPattern("...#..#........"),
+    rowFromPattern("...#..#........"),
+    rowFromPattern("...#..#........"),
+    rowFromPattern("...#..#........"),
+    rowFromPattern("...#..#........"),
+    rowFromPattern("###############"),
   ],
-  entrance: { x: 0, y: 10 },
-  exit: { x: 19, y: 10 },
+  entrance: { x: 0, y: 7 },
+  exit: { x: 14, y: 7 },
   enemies: [
     {
       id: "floor01-goblin",
-      position: { x: 3, y: 10 },
+      position: { x: 3, y: 7 },
       species: "goblin",
       stats: { damage: 4, defence: 1, hp: 12 },
       placement: "compulsory",
@@ -75,7 +52,7 @@ export const FLOOR_01: FloorDefinition = {
     },
     {
       id: "floor01-rat",
-      position: { x: 1, y: 11 },
+      position: { x: 1, y: 10 },
       species: "goblin",
       stats: { damage: 3, defence: 0, hp: 10 },
       placement: "optional",
@@ -83,7 +60,7 @@ export const FLOOR_01: FloorDefinition = {
     },
     {
       id: "floor01-ogre",
-      position: { x: 12, y: 15 },
+      position: { x: 9, y: 9 },
       species: "ogre",
       stats: { damage: 6, defence: 4, hp: 20 },
       placement: "optional",
@@ -91,7 +68,7 @@ export const FLOOR_01: FloorDefinition = {
     },
     {
       id: "floor01-wizard",
-      position: { x: 17, y: 5 },
+      position: { x: 13, y: 12 },
       species: "wizard",
       stats: { damage: 7, defence: 0, hp: 8 },
       placement: "optional",
@@ -101,142 +78,98 @@ export const FLOOR_01: FloorDefinition = {
   items: [
     {
       id: "floor01-key-bronze",
-      position: { x: 5, y: 9 },
+      position: { x: 5, y: 6 },
       kind: "key",
       payload: { id: "key-bronze", keyType: "bronze" },
     },
     {
       id: "floor01-gold-pile",
-      position: { x: 7, y: 10 },
+      position: { x: 7, y: 7 },
       kind: "currency",
       payload: 10,
     },
     {
       id: "floor01-weapon-sword",
-      position: { x: 3, y: 3 },
+      position: { x: 9, y: 2 },
       kind: "weapon",
       payload: "sword",
     },
     {
       id: "floor01-armor-leather",
-      position: { x: 10, y: 4 },
+      position: { x: 11, y: 2 },
       kind: "armor",
-      // 011: migrated from the old whole-character "leather" tier payload to a per-slot pickup
-      // (research.md #7) — chest chosen as the closest analogue to a former whole-body piece.
       payload: { material: "leather", slot: "chest" },
     },
     {
       id: "floor01-potion",
-      position: { x: 18, y: 3 },
+      position: { x: 13, y: 4 },
       kind: "potion",
       payload: undefined,
     },
     {
       id: "floor01-chest",
-      position: { x: 2, y: 15 },
+      position: { x: 7, y: 12 },
       kind: "chest",
       payload: { kind: "currency", amount: 30 },
     },
     {
       id: "floor01-key-silver",
-      position: { x: 9, y: 12 },
+      position: { x: 13, y: 9 },
       kind: "key",
       payload: { id: "key-silver", keyType: "silver" },
     },
     {
       id: "floor01-key-gold",
-      position: { x: 19, y: 2 },
+      position: { x: 9, y: 12 },
       kind: "key",
       payload: { id: "key-gold", keyType: "gold" },
     },
     {
       id: "floor01-armor-cloth-helm",
-      position: { x: 9, y: 3 },
+      position: { x: 9, y: 4 },
       kind: "armor",
       payload: { material: "cloth", slot: "helm" },
     },
     {
       id: "floor01-armor-cloth-chest",
-      position: { x: 12, y: 2 },
+      position: { x: 11, y: 4 },
       kind: "armor",
       payload: { material: "cloth", slot: "chest" },
     },
     {
-      id: "floor01-armor-cloth-legs",
-      position: { x: 9, y: 6 },
-      kind: "armor",
-      payload: { material: "cloth", slot: "legs" },
-    },
-    {
-      id: "floor01-armor-cloth-boots",
-      position: { x: 12, y: 7 },
-      kind: "armor",
-      payload: { material: "cloth", slot: "boots" },
-    },
-    {
       id: "floor01-potion-attack",
-      position: { x: 2, y: 13 },
+      position: { x: 8, y: 13 },
       kind: "potionAttack",
       payload: undefined,
     },
     {
       id: "floor01-potion-defense",
-      position: { x: 4, y: 17 },
+      position: { x: 10, y: 13 },
       kind: "potionDefense",
       payload: undefined,
     },
   ],
   keyedDoors: [
-    { id: "floor01-door-bronze", position: { x: 6, y: 10 }, doorType: "bronze" },
-    { id: "floor01-door-silver", position: { x: 9, y: 13 }, doorType: "silver" },
-    { id: "floor01-door-gold", position: { x: 19, y: 3 }, doorType: "gold" },
+    { id: "floor01-door-bronze", position: { x: 6, y: 7 }, doorType: "bronze" },
+    { id: "floor01-door-silver", position: { x: 12, y: 11 }, doorType: "silver" },
+    { id: "floor01-door-gold", position: { x: 11, y: 12 }, doorType: "gold" },
   ],
-  // 007: the old instant, damage-once-on-entry hazard tile that used to sit here is retired —
-  // this spot is now a real animated lava tile (entry damage + repeat damage while lingering,
-  // same id/position/damage for continuity). The spike pit and its deactivating lever live in
-  // the ogre's side room (optional, off the critical path); the water tile re-skins an
-  // already-solid wall cell in the top-left room, so no grid/reachability changes are needed.
   hazardTiles: [],
-  spikePits: [{ id: "floor01-spike", position: { x: 10, y: 15 }, damage: 5 }],
-  lavaTiles: [{ id: "floor01-lava", position: { x: 4, y: 10 }, damage: 8 }],
+  spikePits: [{ id: "floor01-spike", position: { x: 10, y: 10 }, damage: 5 }],
+  lavaTiles: [{ id: "floor01-lava", position: { x: 4, y: 7 }, damage: 8 }],
   levers: [
     {
       id: "floor01-lever",
-      position: { x: 13, y: 16 },
+      position: { x: 11, y: 10 },
       effect: { kind: "deactivateTraps", targetIds: ["floor01-spike"] },
     },
   ],
-  waterTiles: [{ id: "floor01-water", position: { x: 7, y: 1 } }],
-  // 013 FR-014: manual-test content, none on the critical path. The cracked wall reuses an
-  // existing corridor-divider wall cell between the middle and right rooms (both already
-  // reachable via the main corridor); the torch sits on that same cracked wall (FR-011).
-  // Session 3 adds 5 more cracked walls (one per remaining zone, at (14,9) doubling as the
-  // "stone" example since that's floor-01's default zone) along the top boundary row — an
-  // already-solid `#` row, so no grid changes or reachability impact.
-  crackedWalls: [
-    { id: "floor01-cracked-wall", position: { x: 14, y: 9 } },
-    { id: "floor01-cracked-wall-crypt", position: { x: 1, y: 0 } },
-    { id: "floor01-cracked-wall-cavern", position: { x: 3, y: 0 } },
-    { id: "floor01-cracked-wall-frost", position: { x: 5, y: 0 } },
-    { id: "floor01-cracked-wall-ember", position: { x: 7, y: 0 } },
-    { id: "floor01-cracked-wall-arcane", position: { x: 9, y: 0 } },
-  ],
-  torches: [{ id: "floor01-torch", position: { x: 14, y: 9 } }],
-  // Session 3 (FR-014 extension): demonstrates all 12 wall variants (6 zones × normal/cracked)
-  // on this one floor via per-tile zone overrides, purely cosmetic (research.md #10). The
-  // stone examples ((14,9) cracked, (0,0) normal) need no override — stone is floor-01's own
-  // default zone already. The other 5 cracked walls above, plus 5 new normal-wall positions
-  // along the same top boundary row, get an explicit override.
+  waterTiles: [{ id: "floor01-water", position: { x: 2, y: 0 } }],
+  crackedWalls: [{ id: "floor01-cracked-wall", position: { x: 3, y: 10 } }],
+  torches: [{ id: "floor01-torch", position: { x: 3, y: 10 } }],
   wallZoneOverrides: [
-    { position: { x: 1, y: 0 }, zone: "crypt" },
-    { position: { x: 3, y: 0 }, zone: "cavern" },
     { position: { x: 5, y: 0 }, zone: "frost" },
-    { position: { x: 7, y: 0 }, zone: "ember" },
-    { position: { x: 9, y: 0 }, zone: "arcane" },
-    { position: { x: 11, y: 0 }, zone: "crypt" },
-    { position: { x: 13, y: 0 }, zone: "cavern" },
-    { position: { x: 15, y: 0 }, zone: "frost" },
-    { position: { x: 17, y: 0 }, zone: "ember" },
-    { position: { x: 19, y: 0 }, zone: "arcane" },
+    { position: { x: 9, y: 0 }, zone: "ember" },
+    { position: { x: 13, y: 0 }, zone: "arcane" },
   ],
 };

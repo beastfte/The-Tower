@@ -26,6 +26,23 @@ function baseFloor(overrides: Partial<FloorDefinition> = {}): FloorDefinition {
   };
 }
 
+describe("validateFloorDefinition — grid size (014, invariant 8)", () => {
+  it("rejects a grid that isn't exactly 15x15", () => {
+    const floor = baseFloor(); // baseFloor() is 20x20
+    const result = validateFloorDefinition(floor);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("invariant 8"))).toBe(true);
+  });
+
+  it("accepts a grid that is exactly 15x15", () => {
+    const size = 15;
+    const grid = Array.from({ length: size }, () => Array.from({ length: size }, () => ({ walkable: true })));
+    const floor = baseFloor({ grid, entrance: { x: 0, y: 0 }, exit: { x: size - 1, y: size - 1 } });
+    const result = validateFloorDefinition(floor);
+    expect(result.errors.some((e) => e.includes("invariant 8"))).toBe(false);
+  });
+});
+
 describe("validateFloorDefinition — water tiles (007 US4, invariant 10)", () => {
   it("rejects a water tile authored on a walkable grid cell", () => {
     const floor = baseFloor({ waterTiles: [{ id: "w1", position: { x: 5, y: 5 } }] });

@@ -317,12 +317,13 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
     );
   }
 
-  // Invariant 8: grid is at least 20x20 tiles going forward (FR-002a).
+  // Invariant 8: grid measures exactly 15x15 tiles, the standing baseline for every authored
+  // floor going forward (014 FR-001/FR-008 — supersedes the old "at least 20x20" rule).
   const height = floor.grid.length;
   const width = floor.grid[0]?.length ?? 0;
-  if (height < 20 || width < 20) {
+  if (height !== 15 || width !== 15) {
     errors.push(
-      `Floor "${floor.id}": grid must be at least 20x20 tiles, got ${width}x${height} (invariant 8, FR-002a)`,
+      `Floor "${floor.id}": grid must measure exactly 15x15 tiles, got ${width}x${height} (invariant 8, FR-001)`,
     );
   }
 

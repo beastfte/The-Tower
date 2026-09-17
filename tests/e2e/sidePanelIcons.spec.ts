@@ -20,7 +20,7 @@ test.describe("Side panel icons", () => {
       currentFloorId: "floor-01",
       currentFloorState: {
         floorId: "floor-01",
-        playerPosition: { x: 0, y: 10 },
+        playerPosition: { x: 0, y: 7 },
         defeatedEnemyIds: [],
         collectedItemIds: [],
         toggledLeverIds: [],
@@ -99,7 +99,7 @@ test.describe("Side panel icons", () => {
       currentFloorId: "floor-01",
       currentFloorState: {
         floorId: "floor-01",
-        playerPosition: { x: 0, y: 10 },
+        playerPosition: { x: 0, y: 7 },
         defeatedEnemyIds: [],
         collectedItemIds: [],
         toggledLeverIds: [],

@@ -19,13 +19,14 @@ test.describe("Convergence fixes", () => {
     await page.keyboard.press("Enter");
     await waitForActiveScene(page, "FloorScene");
 
-    // Force overflow: far more inventory entries than fit in the panel's 280px height.
+    // Force overflow: far more inventory entries than fit in the panel's height (704 design
+    // px since 014 — grew from 280 — so 40 entries, enough before, no longer overflow it).
     await page.evaluate(() => {
       const win = window as unknown as {
         __game: { registry: { get: (k: string) => { save: PlayerSave } } };
       };
       const ctx = win.__game.registry.get("ctx");
-      for (let i = 0; i < 40; i++) ctx.save.character.inventory.push(`synthetic-loot-${i}`);
+      for (let i = 0; i < 200; i++) ctx.save.character.inventory.push(`synthetic-loot-${i}`);
     });
     await page.waitForTimeout(200); // let SidePanelScene's update() notice the signature change
 
@@ -33,7 +34,7 @@ test.describe("Convergence fixes", () => {
 
     expect(await rowsScrollTop()).toBe(0); // not scrolled yet
 
-    const { x, y } = await gameToPage(page, 300, 100); // hover over the side panel
+    const { x, y } = await gameToPage(page, 680, 300); // hover over the side panel (x640-736, y0-704)
     await page.mouse.move(x, y);
     await page.mouse.wheel(0, 400); // scroll down (toward later items)
     await page.waitForTimeout(100);
@@ -66,7 +67,7 @@ test.describe("Convergence fixes", () => {
     expect(before).toContain("Synthetic event 7"); // most recent, visible by default
     expect(before).not.toContain("Synthetic event 0"); // oldest, not yet visible
 
-    const { x, y } = await gameToPage(page, 100, 250); // hover over the event log area
+    const { x, y } = await gameToPage(page, 100, 660); // hover over the event log area (x0-640, y640-704)
     await page.mouse.move(x, y);
     await page.mouse.wheel(0, -400); // scroll up (toward older entries)
     await page.waitForTimeout(100);

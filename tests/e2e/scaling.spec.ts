@@ -3,10 +3,20 @@ import { test, expect } from "@playwright/test";
 // Deliberately not imported from src/game/gameConfig.ts: that module (and anything else under
 // src/game/) pulls in the `phaser` package, which assumes browser globals at module-load time
 // and crashes when evaluated in Playwright's Node-side test runner. Keep these in sync with
-// GAME_WIDTH/GAME_HEIGHT (360/280 design size * RENDER_SCALE) and the scale.max multiplier
-// in src/game/gameConfig.ts / scaleConfig.ts.
-const GAME_WIDTH = 360 * 1.5;
-const GAME_HEIGHT = 280 * 1.5;
+// GAME_WIDTH/GAME_HEIGHT (736/704 design size * RENDER_SCALE — 014 grew the design size to fit
+// the fixed 15x15/64px floor baseline) and the scale.max multiplier in
+// src/game/gameConfig.ts / scaleConfig.ts.
+const GAME_WIDTH = 736 * 1.5;
+const GAME_HEIGHT = 704 * 1.5;
+
+// 014 FR-011: Scale.FIT has no minimum at all — a fixed floor (first the native resolution,
+// then the smaller design resolution) forced the canvas to overflow the page (a page-level
+// scroll bar) whenever the real viewport was shorter than that floor, which real desktop
+// browsers at 100% zoom routinely are once the native resolution grew to fit the fixed
+// 15x15/64px floor baseline. RENDER_SCALE's whole purpose is to give the backing store more
+// detail for exactly this kind of shrink, not to raise a floor beneath it.
+const DESIGN_WIDTH = 736;
+const DESIGN_HEIGHT = 704;
 
 /**
  * 002 US6 / FR-021-023 (T035): the game must be comfortably readable at default browser
@@ -16,7 +26,11 @@ test.describe("Display scaling and crispness", () => {
   test("renders noticeably larger than the native resolution at a typical desktop window (FR-021)", async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 1280, height: 800 });
+    // 014: native resolution grew to 1104x1056 (from 540x420) to fit the fixed 15x15/64px
+    // floor baseline — a 1280x800 window (this test's viewport pre-014) can no longer render
+    // it "noticeably larger" at all (it barely fits), so a bigger, still-ordinary desktop
+    // viewport and a more modest "noticeably larger" margin are used instead.
+    await page.setViewportSize({ width: 1920, height: 1200 });
     await page.goto("/");
     await expect(page).toHaveTitle("The Tower");
 
@@ -24,8 +38,8 @@ test.describe("Display scaling and crispness", () => {
     await expect(canvas).toBeVisible();
     const box = await canvas.boundingBox();
     expect(box).not.toBeNull();
-    expect(box!.width).toBeGreaterThan(GAME_WIDTH * 1.5);
-    expect(box!.height).toBeGreaterThan(GAME_HEIGHT * 1.5);
+    expect(box!.width).toBeGreaterThan(GAME_WIDTH * 1.05);
+    expect(box!.height).toBeGreaterThan(GAME_HEIGHT * 1.05);
   });
 
   test("grows when the window grows, bounded by the configured maximum (FR-022)", async ({ page }) => {
@@ -43,7 +57,7 @@ test.describe("Display scaling and crispness", () => {
     expect(largeBox!.height).toBeLessThanOrEqual(GAME_HEIGHT * 4 + 1);
   });
 
-  test("shrinks when the window shrinks, bounded by the configured minimum (FR-022)", async ({ page }) => {
+  test("shrinks when the window shrinks, with no fixed minimum floor (014 FR-011)", async ({ page }) => {
     await page.setViewportSize({ width: 2000, height: 1200 });
     await page.goto("/");
     const largeBox = await page.locator("canvas").boundingBox();
@@ -53,8 +67,32 @@ test.describe("Display scaling and crispness", () => {
     const smallBox = await page.locator("canvas").boundingBox();
 
     expect(smallBox!.width).toBeLessThan(largeBox!.width);
-    expect(smallBox!.width).toBeGreaterThanOrEqual(GAME_WIDTH - 1);
-    expect(smallBox!.height).toBeGreaterThanOrEqual(GAME_HEIGHT - 1);
+    // No minimum bound: at a viewport smaller than the design resolution, the canvas shrinks
+    // past it too (not clamped to 736x704) — the exact opposite of the old behavior this test
+    // used to assert, and the whole point of FR-011 (no page-level scroll bar at any viewport).
+    expect(smallBox!.width).toBeLessThan(DESIGN_WIDTH);
+    expect(smallBox!.height).toBeLessThan(DESIGN_HEIGHT);
+    // And it still fits fully inside the viewport that was given to it.
+    expect(smallBox!.width).toBeLessThanOrEqual(500);
+    expect(smallBox!.height).toBeLessThanOrEqual(400);
+  });
+
+  test("never produces a page-level scroll bar, even at a viewport shorter than the design height (014 SC-007)", async ({
+    page,
+  }) => {
+    // A typical desktop width but shorter than DESIGN_HEIGHT (704) — representative of a
+    // maximized browser window whose visible viewport is reduced by tabs/address bar/etc.
+    await page.setViewportSize({ width: 1280, height: 650 });
+    await page.goto("/");
+    await expect(page.locator("canvas")).toBeVisible();
+
+    const hasScrollbar = await page.evaluate(() => {
+      return (
+        document.documentElement.scrollHeight > window.innerHeight ||
+        document.documentElement.scrollWidth > window.innerWidth
+      );
+    });
+    expect(hasScrollbar).toBe(false);
   });
 
   test("canvas stays pixelated (crisp, non-blurred) regardless of size (FR-023)", async ({ page }) => {

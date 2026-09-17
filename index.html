@@ -25,6 +25,11 @@
       }
       #game-root canvas {
         image-rendering: pixelated;
+        /* 014 FR-011: canvas defaults to display:inline, which reserves baseline/descender
+           whitespace below it (a few px) inside #game-root's block layout — enough on its
+           own, with no min bound left to mask it, to overflow the page and add a scroll
+           bar at a tight viewport. */
+        display: block;
       }
       /* specs/bugs/ui-text-dom-overlay: UI text lives here, not in the canvas, so it isn't
          subject to the canvas's `image-rendering: pixelated` nearest-neighbor magnification.

@@ -25,8 +25,15 @@ export function scalePx(value: number): number {
  * pixels" workaround in the first place (see specs/bugs/ui-text-dom-overlay). Kept here
  * rather than in gameConfig.ts, which imports the real `phaser` package, so ui/domOverlay.ts
  * — and its unit tests — don't pull that in solely to reach these four numbers. */
-export const DESIGN_WIDTH = 360;
-export const DESIGN_HEIGHT = 280;
+/** 014 FR-006/FR-007: solved by hand, not derived, so the real `PLAY_AREA` (gameConfig.ts,
+ * whose own formulas are otherwise unchanged) evaluates to exactly 960x960 — 15 tiles ×
+ * `TILE_SIZE` (64) on each axis. Deriving these from `GAME_WIDTH`/`GAME_HEIGHT` instead would
+ * force this module to import gameConfig.ts (→ `phaser`), breaking the Phaser-free isolation
+ * described above (research.md #2). If `TILE_SIZE`, the grid size, or the panel/log sizes ever
+ * change, redo this arithmetic: `DESIGN_WIDTH = (15 * TILE_SIZE) / RENDER_SCALE + DESIGN_SIDE_PANEL_WIDTH`,
+ * `DESIGN_HEIGHT = (15 * TILE_SIZE) / RENDER_SCALE + DESIGN_EVENT_LOG_HEIGHT`. */
+export const DESIGN_WIDTH = 736;
+export const DESIGN_HEIGHT = 704;
 export const DESIGN_SIDE_PANEL_WIDTH = 96;
 export const DESIGN_EVENT_LOG_HEIGHT = 64;
 

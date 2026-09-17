@@ -83,7 +83,16 @@ export async function getCtxSave(page: Page): Promise<PlayerSave> {
   });
 }
 
-/** Presses a key and waits long enough for FloorScene's MOVE_COOLDOWN_MS (160ms) to clear. */
+/** Presses a key and waits long enough for FloorScene's MOVE_COOLDOWN_MS (160ms) to clear.
+ * 014 grew every floor tile to a fixed, much larger 64px, and initially made this flaky under
+ * this sandbox's software-WebGL fallback (SwiftShader) — full-tile-layer redraws scaled with
+ * the bigger textures, occasionally delaying a keydown past the old 250ms default. Root-caused
+ * to the renderer, not the wait: `gameConfig.ts` now forces `Phaser.CANVAS` (the game uses no
+ * WebGL-only feature anywhere), which resolved it outright — confirmed reliable at the original
+ * 250ms across repeated runs once that landed. A polling alternative (wait for `FloorScene`'s
+ * own `canMove` to cycle false→true instead of a flat sleep) was tried and measured *less*
+ * reliable than this plain sleep, not more — likely extra overhead from firing many sequential
+ * `waitForFunction` polls back-to-back — so this stays a fixed sleep. */
 export async function pressAndWait(page: Page, key: string, ms = 250): Promise<void> {
   await page.keyboard.press(key);
   await page.waitForTimeout(ms);
@@ -93,17 +102,19 @@ export async function pressAndWait(page: Page, key: string, ms = 250): Promise<v
 // src/game/) pulls in the `phaser` package, which assumes browser globals (HTMLVideoElement,
 // etc.) at module-load time and crashes when evaluated in Playwright's Node-side test runner.
 //
-// Intentionally left at the original 360x280 design size, NOT gameConfig.ts's actual (RENDER_SCALE-
-// multiplied) GAME_WIDTH/GAME_HEIGHT: gameToPage() below only uses these as ratio denominators
-// (gx/GAME_WIDTH), and every call site passes coordinates in this same original 360x280 space
-// (e.g. 180 for a horizontal center). Since RENDER_SCALE scales the whole game uniformly, that
-// ratio is scale-invariant — changing these without also rescaling every call site would break it.
-const GAME_WIDTH = 360;
-const GAME_HEIGHT = 280;
+// Kept in sync with scaleConfig.ts's DESIGN_WIDTH/DESIGN_HEIGHT (736x704 since 014 grew the
+// design size to fit the fixed 15x15/64px floor baseline — was 360x280), NOT gameConfig.ts's
+// actual (RENDER_SCALE-multiplied) GAME_WIDTH/GAME_HEIGHT: gameToPage() below only uses these
+// as ratio denominators (gx/GAME_WIDTH), and every call site passes coordinates in this same
+// design-space (e.g. a horizontal center in DESIGN_WIDTH units). Since RENDER_SCALE scales the
+// whole game uniformly, that ratio is scale-invariant — changing these without also rescaling
+// every call site would break it.
+const GAME_WIDTH = 736;
+const GAME_HEIGHT = 704;
 
-/** Converts fixed 360x280 game-space coordinates (as used throughout src/game/scenes, before
- * gameConfig.ts's RENDER_SCALE multiplier) to real page pixel coordinates, accounting for
- * Phaser's Scale.FIT CSS scaling of the canvas. */
+/** Converts fixed design-space coordinates (DESIGN_WIDTH/DESIGN_HEIGHT units, as used
+ * throughout src/game/scenes, before gameConfig.ts's RENDER_SCALE multiplier) to real page
+ * pixel coordinates, accounting for Phaser's Scale.FIT CSS scaling of the canvas. */
 export async function gameToPage(page: Page, gx: number, gy: number): Promise<{ x: number; y: number }> {
   const box = await page.locator("canvas").boundingBox();
   if (!box) throw new Error("canvas not found");
