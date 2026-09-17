@@ -16,15 +16,14 @@ test("opening the bronze door on floor-01 consumes the key and makes the door di
         __game: {
           scene: {
             getScene: (k: string) => {
-              children: { list: { type: string; list?: { texture?: { key: string } }[] }[] };
+              children: { list: { type: string; list?: { name?: string }[] }[] };
             };
           };
         };
       };
       const scene = win.__game.scene.getScene("FloorScene");
       const tileLayer = scene.children.list.find((c) => c.type === "Container");
-      const doorKeys = new Set(["door-closed", "door-closed-silver", "door-closed-gold"]);
-      return (tileLayer?.list ?? []).filter((c) => c.texture && doorKeys.has(c.texture.key)).length;
+      return (tileLayer?.list ?? []).filter((c) => c.name === "door-marker").length;
     });
 
   // floor-01 has 3 keyed doors (bronze, silver, gold), all still locked at the start.

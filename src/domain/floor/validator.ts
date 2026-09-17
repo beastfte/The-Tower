@@ -148,7 +148,8 @@ function validateLeverEffects(
 }
 
 /** Validates a single FloorDefinition against invariants 1-4, 6, 8-9, and 11-12 of
- * contracts/floor-data-contract.md and contracts/trap-mechanics-contract.md. */
+ * contracts/floor-data-contract.md and contracts/trap-mechanics-contract.md, plus
+ * invariants 15-18 of contracts/wall-torch-contract.md. */
 export function validateFloorDefinition(floor: FloorDefinition): ValidationResult {
   const errors: string[] = [];
 
@@ -181,6 +182,10 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
   for (const lava of floor.lavaTiles) claim(lava.position, `lava tile "${lava.id}"`);
   for (const lever of floor.levers) claim(lever.position, `lever "${lever.id}"`);
   for (const water of floor.waterTiles) claim(water.position, `water tile "${water.id}"`);
+  // 013 (contract invariant 15): a torch's position is deliberately NOT claimed here — it may
+  // (and typically does) coincide with a crackedWalls position or an ordinary wall tile
+  // (FR-011), so it's exempt from the shared-claim check every other placed-content type uses.
+  for (const wall of floor.crackedWalls) claim(wall.position, `cracked wall "${wall.id}"`);
 
   if (occupied.has(positionKey(floor.entrance))) {
     errors.push(`Floor "${floor.id}": entrance tile coincides with occupied content (invariant 1)`);
@@ -231,6 +236,14 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
     floor.waterTiles.map((w) => w.id),
     "water tile",
   );
+  checkUnique(
+    floor.crackedWalls.map((w) => w.id),
+    "cracked wall",
+  );
+  checkUnique(
+    floor.torches.map((t) => t.id),
+    "torch",
+  );
 
   // 007 US4 (contract invariant 10): a water tile's grid cell must be non-walkable — its
   // only gameplay behavior is blocking, which the grid already expresses (research.md #8).
@@ -245,7 +258,45 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
   // 007 US3 (contract invariant 11): every LeverEffect reference must resolve on this floor.
   validateLeverEffects(floor, occupied, errors);
 
-  // Invariant 2: the fully-cleared, fully-keyed floor is always completable.
+  // 013 (contract invariant 16): both a cracked wall and a torch are anchored to an
+  // impassable tile — mirrors invariant 10's water-tile rule.
+  for (const wall of floor.crackedWalls) {
+    if (tileWalkable(floor, wall.position)) {
+      errors.push(
+        `Floor "${floor.id}": cracked wall "${wall.id}" at ${positionKey(wall.position)} must be on a non-walkable grid cell (invariant 16)`,
+      );
+    }
+  }
+  for (const torch of floor.torches) {
+    if (tileWalkable(floor, torch.position)) {
+      errors.push(
+        `Floor "${floor.id}": torch "${torch.id}" at ${positionKey(torch.position)} must be on a non-walkable grid cell (invariant 16)`,
+      );
+    }
+  }
+
+  // 013 session 3 (invariant 18): a wall zone override only makes sense on an actual wall
+  // tile, and each position may be overridden at most once (purely cosmetic — no id to claim,
+  // so this uses its own duplicate check rather than the shared `claim` map).
+  const overriddenPositions = new Set<string>();
+  for (const override of floor.wallZoneOverrides) {
+    const key = positionKey(override.position);
+    if (overriddenPositions.has(key)) {
+      errors.push(`Floor "${floor.id}": wall zone override at ${key} is duplicated (invariant 18)`);
+    }
+    overriddenPositions.add(key);
+    if (tileWalkable(floor, override.position)) {
+      errors.push(
+        `Floor "${floor.id}": wall zone override at ${key} must be on a non-walkable grid cell (invariant 18)`,
+      );
+    }
+  }
+
+  // Invariant 2 (013 contract invariant 17): the fully-cleared, fully-keyed floor is always
+  // completable. This BFS's "extra walkable" set (allRevealedPathwayPositions) never includes
+  // crackedWalls positions, so a floor's critical path can never depend on a cracked wall
+  // breaking (FR-009) — no separate check is needed for that guarantee; do not add cracked
+  // walls to this set without re-reading contracts/wall-torch-contract.md invariant 17.
   if (!fullyClearedPathExists(floor)) {
     errors.push(
       `Floor "${floor.id}": no path from entrance to exit even when fully cleared/keyed (invariant 2)`,

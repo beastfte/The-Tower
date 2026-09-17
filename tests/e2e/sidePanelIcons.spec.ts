@@ -10,7 +10,7 @@ test.describe("Side panel icons", () => {
       character: {
         baseStats: { damage: 5, defence: 2, hp: 30 },
         currentHp: 30,
-        inventory: ["loot-torch", "loot-torch", "loot-unbaked"],
+        inventory: ["loot-test-a", "loot-test-a", "loot-unbaked"],
         keyIds: ["bronze"],
         currency: 42,
         equippedWeaponId: "sword",
@@ -25,6 +25,7 @@ test.describe("Side panel icons", () => {
         collectedItemIds: [],
         toggledLeverIds: [],
         openedDoorIds: [],
+        crackedWallHitCounts: {},
       },
       completedFloorIds: [],
       completedFloorStates: {},
@@ -62,16 +63,15 @@ test.describe("Side panel icons", () => {
     await expect(goldWrapper).toHaveAttribute("title", /42 gold/i);
     await expect(goldWrapper.locator("span")).toHaveText("42");
 
-    // Loot: two "loot-torch" collapse into one icon with a "2" badge; the distinct
-    // "loot-unbaked" id (no baked art) falls back to a colored swatch with no badge.
-    const torchImg = rows.locator('img[src="/icons/torch.svg"]');
-    await expect(torchImg).toHaveCount(1);
-    const torchWrapper = torchImg.locator("xpath=..");
-    await expect(torchWrapper).toHaveAttribute("title", /torch/i);
-    await expect(torchWrapper.locator("span")).toHaveText("2");
+    // Loot: no loot id has baked art any more (013 retired the torch, the only one that did —
+    // research.md #8), so both ids fall back to a colored swatch (no <img>). Two "loot-test-a"
+    // still collapse into one swatch with a "2" badge; the distinct "loot-unbaked" id gets its
+    // own swatch with no badge (count 1).
+    const testAWrapper = rows.locator('[title^="loot-test-a"]');
+    await expect(testAWrapper).toHaveCount(1);
+    await expect(testAWrapper.locator("img")).toHaveCount(0);
+    await expect(testAWrapper.locator("span")).toHaveText("2");
 
-    // "loot-unbaked" has no baked icon — falls back to a plain colored swatch (no <img>) but
-    // still gets its own icon-wrapper element with a tooltip and no quantity badge (count 1).
     const unbakedWrapper = rows.locator('[title^="loot-unbaked"]');
     await expect(unbakedWrapper).toHaveCount(1);
     await expect(unbakedWrapper.locator("img")).toHaveCount(0);
@@ -104,6 +104,7 @@ test.describe("Side panel icons", () => {
         collectedItemIds: [],
         toggledLeverIds: [],
         openedDoorIds: [],
+        crackedWallHitCounts: {},
       },
       completedFloorIds: [],
       completedFloorStates: {},

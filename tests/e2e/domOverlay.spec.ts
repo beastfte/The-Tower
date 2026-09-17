@@ -76,6 +76,7 @@ test.describe("DOM UI overlay", () => {
         collectedItemIds: [],
         toggledLeverIds: [],
         openedDoorIds: [],
+        crackedWallHitCounts: {},
       },
       completedFloorIds: [],
       completedFloorStates: {},

@@ -2,7 +2,7 @@ import type { PlayerCharacterState } from "../character/save";
 import { applyDropTable } from "../character/inventory";
 import type { FloorProgress } from "../character/save";
 import type { Position } from "../types";
-import type { EnemyDefinition, KeyedDoorDefinition, LeverDefinition } from "./types";
+import type { CrackedWallDefinition, EnemyDefinition, KeyedDoorDefinition, LeverDefinition } from "./types";
 
 export interface FloorStateUpdate {
   floorProgress: FloorProgress;
@@ -74,5 +74,19 @@ export function applyDoorOpen(
   return {
     floorProgress: { ...floorProgress, openedDoorIds: [...floorProgress.openedDoorIds, door.id] },
     character: { ...character, keyIds: nextKeyIds },
+  };
+}
+
+/** 013 FR-003: records one collision against a cracked wall for this floor attempt.
+ * Always increments (unlike applyLeverToggle's idempotent no-op) — every blocked collision,
+ * including ones after the wall has already broken, counts toward the total (data-model.md). */
+export function applyWallCollision(
+  floorProgress: FloorProgress,
+  wall: CrackedWallDefinition,
+): FloorProgress {
+  const current = floorProgress.crackedWallHitCounts[wall.id] ?? 0;
+  return {
+    ...floorProgress,
+    crackedWallHitCounts: { ...floorProgress.crackedWallHitCounts, [wall.id]: current + 1 },
   };
 }

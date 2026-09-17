@@ -16,7 +16,10 @@ floor as a new `floor-XX.ts` module exporting a `FloorDefinition` (see
   avoid bright, cheerful, or comedic color schemes and character designs. This applies to
   enemy sprites, floor tilesets, item icons, and any UI/narrative text (including the death
   screen and win screen copy).
-- Placeholder rendering: until real sprite sheets are added, `FloorScene` renders every tile,
-  enemy, item, and hazard as a flat-colored rectangle (see the `COLORS` map in
+- Placeholder rendering: until real sprite sheets are added, `FloorScene` renders most tiles,
+  enemies, items, and hazards as a flat-colored rectangle (see the `COLORS` map in
   `src/game/scenes/FloorScene.ts`). Replacing these with real pixel-art sprites is a content
-  task, not a logic change — the rendering call sites are already in place.
+  task, not a logic change — the rendering call sites are already in place. Walls and keyed
+  doors are the first exception: they render from real pixel-art sprites lifted from the
+  user's reference sheet (`src/game/render/wallSprites.ts`, feature 013 session 4), not a
+  flat-colored rectangle.

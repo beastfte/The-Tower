@@ -15,7 +15,9 @@ describe("itemDescriptions completeness", () => {
       }
     }
 
-    expect(ids.size).toBeGreaterThan(0);
+    // 013: no floor currently places a "loot"-kind item (the only one, the torch, was
+    // retired — research.md #8), so `ids` may legitimately be empty; this only asserts
+    // completeness for whatever loot ids do exist.
     for (const id of ids) {
       expect(lootDescriptions[id], `missing lootDescriptions entry for "${id}"`).toBeDefined();
     }

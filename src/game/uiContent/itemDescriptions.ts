@@ -11,9 +11,9 @@ import type { Tower } from "../../domain/floor/tower";
  * type added to `src/data/floors/*` MUST get a matching entry below — enforced by
  * `tests/unit/game/itemDescriptions.test.ts`.
  */
-export const lootDescriptions: Record<string, string> = {
-  "loot-torch": "A rusty torch. Mostly useful for looking brave in the dark.",
-};
+/** 013: "loot-torch" removed — torches are now a decorative floor fixture (floor.torches),
+ * never a collectible loot item (FR-010). */
+export const lootDescriptions: Record<string, string> = {};
 
 export const keyTypeDescriptions: Record<string, string> = {
   bronze: "A tarnished bronze key. Opens bronze-marked doors.",

@@ -14,6 +14,11 @@ export interface FloorProgress {
    * key that opened them is still held (it's consumed on open); resets with the rest of
    * FloorProgress on checkpoint restart, mirroring toggledLeverIds. */
   openedDoorIds: string[];
+  /** 013 FR-003: wall id → number of player collisions against it this floor attempt. Absent
+   * entries are implicitly 0. A wall is broken (walkable) once its count exceeds
+   * CRACKED_WALL_BREAK_THRESHOLD — derived on read (wall.ts's isWallBroken), never stored as
+   * a separate flag. */
+  crackedWallHitCounts: Record<string, number>;
 }
 
 export interface PlayerCharacterState {
@@ -55,5 +60,6 @@ export function emptyFloorProgress(floorId: string, playerPosition: Position): F
     playerPosition,
     toggledLeverIds: [],
     openedDoorIds: [],
+    crackedWallHitCounts: {},
   };
 }

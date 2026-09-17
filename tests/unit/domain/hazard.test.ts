@@ -29,6 +29,9 @@ describe("death and recovery", () => {
     lavaTiles: [],
     levers: [],
     waterTiles: [],
+    crackedWalls: [],
+    torches: [],
+    wallZoneOverrides: [],
   };
 
   function buildSave(): PlayerSave {

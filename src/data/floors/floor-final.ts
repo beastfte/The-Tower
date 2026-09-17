@@ -83,4 +83,7 @@ export const FLOOR_FINAL: FloorDefinition = {
   lavaTiles: [],
   levers: [],
   waterTiles: [],
+  crackedWalls: [],
+  torches: [],
+  wallZoneOverrides: [],
 };

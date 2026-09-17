@@ -18,6 +18,9 @@ function makeFloor(levers: LeverDefinition[]): FloorDefinition {
     lavaTiles: [],
     levers,
     waterTiles: [],
+    crackedWalls: [],
+    torches: [],
+    wallZoneOverrides: [],
   };
 }
 

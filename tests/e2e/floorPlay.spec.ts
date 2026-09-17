@@ -13,9 +13,10 @@ import { clearSave, waitForActiveScene, isSceneActive, getEventLog, getCtxSave, 
  *
  * Path: (0,2) start -> right x2 -> engage goblin at (3,2) -> right through the (4,2) hazard
  * -> right to (5,2) -> up to collect the bronze key at (5,1) -> down -> right through the
- * now-unlocked bronze door at (6,2) -> right over the gold pile at (7,2) -> right to (8,2)
- * -> up to collect the loot torch at (8,1) -> down. Deliberately stops short of the (9,2)
- * exit to avoid floor completion/restart, which is out of this test's scope.
+ * now-unlocked bronze door at (6,2) -> right over the gold pile at (7,2). Deliberately stops
+ * short of the exit to avoid floor completion/restart, which is out of this test's scope.
+ * 013 removed the loot torch that used to sit one tile further on (retired — torches are no
+ * longer a collectible pickup), so this walkthrough no longer continues past the gold pile.
  */
 test("floor-01 walkthrough: combat, blocking pickup modal, and event log population", async ({ page }) => {
   await clearSave(page);
@@ -65,10 +66,8 @@ test("floor-01 walkthrough: combat, blocking pickup modal, and event log populat
   await pressAndWait(page, "ArrowDown"); // (5,1) -> (5,2)
   await pressAndWait(page, "ArrowRight"); // (5,2) -> (6,2), bronze door now unlocked
   await pressAndWait(page, "ArrowRight"); // (6,2) -> (7,2), plain currency pile (no modal)
-  await pressAndWait(page, "ArrowRight"); // (7,2) -> (8,2)
-  await pressAndWait(page, "ArrowUp"); // (8,2) -> (8,1), plain loot item (no modal)
 
-  // FR-018: no modal, and no new log entries, for the plain currency/loot pickups.
+  // FR-018: no modal, and no new log entry, for the plain currency pickup.
   expect(await isSceneActive(page, "FloorScene")).toBe(true);
   expect(await isSceneActive(page, "PickupModalScene")).toBe(false);
   log = await getEventLog(page);
@@ -76,7 +75,6 @@ test("floor-01 walkthrough: combat, blocking pickup modal, and event log populat
 
   save = await getCtxSave(page);
   expect(save.character.currency).toBe(25); // 15 (goblin drop) + 10 (gold pile)
-  expect(save.character.inventory).toContain("loot-torch");
   expect(save.character.currentHp).toBeGreaterThan(0);
   expect(save.character.currentHp).toBeLessThan(30); // took hazard (and possibly combat) damage
 });

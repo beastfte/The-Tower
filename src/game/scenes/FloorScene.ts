@@ -10,6 +10,7 @@ import {
   applyEnemyDefeat,
   applyLeverToggle,
   applyDoorOpen,
+  applyWallCollision,
 } from "../../domain/floor/floorState";
 import { hasReachedExit } from "../../domain/floor/floorCompletion";
 import { findKeyedDoorAt, isDoorPassable } from "../../domain/hazard/keyedDoor";
@@ -17,6 +18,8 @@ import { findHazardAt, applyHazardDamage } from "../../domain/hazard/hazardDamag
 import { findSpikePitAt } from "../../domain/hazard/spikePit";
 import { findLavaTileAt } from "../../domain/hazard/lavaTile";
 import { findLeverAt, resolveLeverEffects } from "../../domain/hazard/lever";
+import { findCrackedWallAt, resolveBrokenWallPositions, resolveWallZone } from "../../domain/floor/wall";
+import { ensureWallTexture, ensureDoorTexture, type DoorTier } from "../render/wallSprites";
 import { hasDiedFromHazard, markDead } from "../../domain/hazard/death";
 import { checkEngagementAllowed } from "../../domain/combat/blockingCheck";
 import { isWinningDefeat, triggerWin } from "../../domain/progress/winState";
@@ -34,6 +37,7 @@ import type {
   ItemDefinition,
   LavaTileDefinition,
   SpikePitDefinition,
+  ZoneThemeId,
 } from "../../domain/floor/types";
 import type { KeyDefinition, LootItem, WeaponId } from "../../domain/character/types";
 import {
@@ -96,15 +100,15 @@ const ITEM_TEXTURE_KEYS = [
   "key-bronze",
   "key-silver",
   "key-gold",
-  "door-closed-silver",
-  "door-closed-gold",
   "potion-attack",
   "potion-defense",
 ] as const;
-/** 006 FR-010/FR-011: keyed-door and floor entrance/exit ("stairs") board-tile art.
- * 010 US2: "door-open" removed — an open door now renders nothing (FR-007), so that texture
- * is no longer referenced anywhere; door-open.svg itself is left in public/icons/ untouched. */
-const PROP_TEXTURE_KEYS = ["door-closed", "stairs-up", "stairs-down"] as const;
+/** 006 FR-010/FR-011: floor entrance/exit ("stairs") board-tile art.
+ * 010 US2: "door-open" removed — an open door now renders nothing (FR-007).
+ * 013: "door-closed"/"door-closed-silver"/"door-closed-gold" removed — a closed door now renders
+ * from a real lifted sprite (wallSprites.ensureDoorTexture, session 4), not baked art; the
+ * door-*.svg files themselves are left in public/icons/ untouched, matching door-open.svg above. */
+const PROP_TEXTURE_KEYS = ["stairs-up", "stairs-down"] as const;
 /** 007: spike-pit's three cycle-segment sprites (FR-001, FR-012), lava's base/glow
  * frame-swap sprites (FR-004), the lever's two toggle-state sprites (FR-006), and water's
  * static sprite (FR-015). */
@@ -128,10 +132,9 @@ const SPIKE_SEGMENT_TEXTURE: Record<SpikePitSegment, string> = {
 
 /** 006 FR-009: maps a LootItem id to its baked texture key. A loot id with no entry here
  * falls back to the plain colored marker (COLORS.loot) rather than fabricating new art.
- * Exported (009) so SidePanelScene can render the same icon instead of duplicating this list. */
-export const LOOT_TEXTURE_KEYS: Record<string, string> = {
-  "loot-torch": "torch",
-};
+ * Exported (009) so SidePanelScene can render the same icon instead of duplicating this list.
+ * 013: "loot-torch" removed — torches are no longer a collectible loot item (FR-010). */
+export const LOOT_TEXTURE_KEYS: Record<string, string> = {};
 
 /** 009: maps a key type to its baked texture key, same "no entry → fallback" contract as
  * LOOT_TEXTURE_KEYS above. Replaces the previous `this.textures.exists(\`key-${keyType}\`)`
@@ -144,24 +147,47 @@ export const KEY_TEXTURE_KEYS: Record<string, string> = {
   gold: "key-gold",
 };
 
-/** 010 US1 (FR-005): maps a door's doorType to its baked closed-door texture key, same
- * "no entry → fallback" contract as KEY_TEXTURE_KEYS/LOOT_TEXTURE_KEYS above — the first
- * per-type door art this project has had (every door type previously shared "door-closed"). */
-export const DOOR_TEXTURE_KEYS: Record<string, string> = {
-  bronze: "door-closed",
-  silver: "door-closed-silver",
-  gold: "door-closed-gold",
-};
+/** 010 US1 (FR-005); 013 session 4 replaces the drawn tier-colored slab with the real door
+ * sprite lifted from the reference sheet's section 11 "DOORS" (wallSprites.ensureDoorTexture) —
+ * a door tier that doesn't match one of the 3 known tiers falls back to bronze rather than
+ * fabricating new art. */
+const DOOR_TIERS = new Set<DoorTier>(["bronze", "silver", "gold"]);
+function resolveDoorTier(doorType: string): DoorTier {
+  return DOOR_TIERS.has(doorType as DoorTier) ? (doorType as DoorTier) : "bronze";
+}
+
+/** Shared dark outline/notch color, matching the reference sheet's own darkest fill
+ * (`ctx.fillStyle = "#0a0d14"`, used for its canvas/atlas background). */
+const OUTLINE_COLOR = 0x0a0d14;
 
 export const COLORS = {
-  floor: 0x2b2430,
-  wall: 0x0d0a0f,
   enemyCompulsory: 0x8c2f39,
   enemyOptional: 0xb56576,
   hazard: 0xd1495b,
   loot: 0xe9c46a,
   key: 0xf4d35e,
 } as const;
+
+/** Blends a hex color toward white by `amount` (0-255) per channel. */
+function lighten(hex: number, amount: number): number {
+  const r = Math.min(255, ((hex >> 16) & 0xff) + amount);
+  const g = Math.min(255, ((hex >> 8) & 0xff) + amount);
+  const b = Math.min(255, (hex & 0xff) + amount);
+  return (r << 16) | (g << 8) | b;
+}
+
+/** 013 (research.md #3): per-zone floor base color, matching the reference sheet's own
+ * drawFloorMap floor cell — a base fill, occasionally swapped for a lighter "worn stone"
+ * variant, with faint dark grid lines. Walls/doors render from real lifted sprites instead
+ * (wallSprites.ts, session 4) — only the floor still uses this flat-color approximation. */
+const ZONE_FLOOR_COLORS: Record<ZoneThemeId, number> = {
+  stone: 0x2b2430,
+  crypt: 0x1f2421,
+  cavern: 0x2a2018,
+  frost: 0x1c2b33,
+  ember: 0x331a14,
+  arcane: 0x201830,
+};
 
 interface PendingPickup {
   kind: "key" | "potion" | "currency";
@@ -440,10 +466,22 @@ export class FloorScene extends Phaser.Scene {
     const leverEffects = resolveLeverEffects(floor, progress.toggledLeverIds);
 
     const row = floor.grid[target.y];
+    const brokenWallPositions = resolveBrokenWallPositions(floor, progress.crackedWallHitCounts);
     const baseWalkable =
       (row !== undefined && row[target.x] !== undefined && row[target.x]!.walkable) ||
-      leverEffects.revealedPathwayPositions.some((p) => positionsEqual(p, target));
-    if (!baseWalkable) return;
+      leverEffects.revealedPathwayPositions.some((p) => positionsEqual(p, target)) ||
+      brokenWallPositions.some((p) => positionsEqual(p, target));
+    if (!baseWalkable) {
+      // 013 FR-003/FR-005: a blocked collision into a not-yet-broken cracked wall counts
+      // toward its total but never completes this same move (research.md #5) — the player
+      // stays on their current tile, so no damage-while-standing timer can ever apply.
+      const crackedWall = findCrackedWallAt(floor, target);
+      if (crackedWall) {
+        ctx.save.currentFloorState = applyWallCollision(progress, crackedWall);
+        ctx.persist();
+      }
+      return;
+    }
 
     const defeated = new Set(progress.defeatedEnemyIds);
     const enemy = findLivingEnemyAt(floor, target, defeated);
@@ -649,6 +687,8 @@ export class FloorScene extends Phaser.Scene {
     const defeated = new Set(progress.defeatedEnemyIds);
     const collected = new Set(progress.collectedItemIds);
     const leverEffects = resolveLeverEffects(floor, progress.toggledLeverIds);
+    const brokenWallPositions = resolveBrokenWallPositions(floor, progress.crackedWallHitCounts);
+    const floorColor = ZONE_FLOOR_COLORS[floor.zone ?? "stone"];
 
     this.tileLayer.removeAll(true);
     this.livingMarkers = [];
@@ -658,10 +698,23 @@ export class FloorScene extends Phaser.Scene {
     for (let y = 0; y < floor.grid.length; y++) {
       const row = floor.grid[y]!;
       for (let x = 0; x < row.length; x++) {
-        const walkable = row[x]!.walkable;
-        const color = walkable ? COLORS.floor : COLORS.wall;
-        this.addTile(x, y, color);
+        const position = { x, y };
+        const walkable =
+          row[x]!.walkable || brokenWallPositions.some((p) => positionsEqual(p, position));
+        if (walkable) {
+          this.addFloorTile(x, y, floorColor);
+        } else {
+          // 013 session 3: a wall's own zone override (if any) picks the palette here, so a
+          // single floor can demonstrate more than one zone's wall art (contract invariant 18).
+          this.addWallTile(x, y, resolveWallZone(floor, position), !!findCrackedWallAt(floor, position));
+        }
       }
+    }
+
+    // 013 FR-012: a torch's faint glow, drawn before entity markers so it reads as ambient
+    // light rather than an obscuring overlay (research.md #7) — static, no animation.
+    for (const torch of floor.torches) {
+      this.addTorchGlow(torch.position);
     }
 
     // 006 FR-011: the entrance is where the player arrived from (stairs down into this
@@ -677,7 +730,7 @@ export class FloorScene extends Phaser.Scene {
       // vanish the instant a matching key was picked up, before the player ever reached them.
       const open = progress.openedDoorIds.includes(door.id) || leverEffects.unlockedDoorIds.has(door.id);
       if (!open) {
-        this.addTextureMarker(door.position, DOOR_TEXTURE_KEYS[door.doorType] ?? "door-closed", 1);
+        this.addDoorMarker(door.position, resolveDoorTier(door.doorType));
       }
     }
 
@@ -688,6 +741,12 @@ export class FloorScene extends Phaser.Scene {
 
     for (const water of floor.waterTiles) {
       this.addTextureMarker(water.position, "water", 1);
+    }
+
+    // 013 FR-011: a torch is a static prop marker, not an item-pickup loop entry — it's never
+    // obtainable (FR-010), the same way stairs-up/stairs-down render.
+    for (const torch of floor.torches) {
+      this.addTextureMarker(torch.position, "torch", 0.8);
     }
 
     for (const hazard of floor.hazardTiles) {
@@ -775,6 +834,42 @@ export class FloorScene extends Phaser.Scene {
     this.tileLayer.add(rect);
   }
 
+  /** 013: matches the reference sprite sheet's own drawFloorMap floor cell — a base fill, an
+   * occasional lighter "worn stone" variant on a pseudo-random subset of tiles, and faint dark
+   * grid lines on the top/left edges. */
+  private addFloorTile(x: number, y: number, color: number): void {
+    const size = this.tileSize;
+    const variant = (x * 7 + y * 13) % 9 === 0 ? lighten(color, 12) : color;
+    this.addTile(x, y, variant);
+    const gridLine = this.add.rectangle(x * size + size / 2, y * size, size, scalePx(1), OUTLINE_COLOR, 0.45);
+    this.tileLayer.add(gridLine);
+    const gridLineLeft = this.add.rectangle(x * size, y * size + size / 2, scalePx(1), size, OUTLINE_COLOR, 0.45);
+    this.tileLayer.add(gridLineLeft);
+  }
+
+  /** 013 session 4: the real wallBlock/crackedWall pixel sprite lifted from the reference sheet
+   * (wallSprites.ensureWallTexture), palette-swapped per zone — replaces the earlier flat-color
+   * + highlight-band approximation. */
+  private addWallTile(x: number, y: number, zone: ZoneThemeId, cracked: boolean): void {
+    const size = this.tileSize;
+    const key = ensureWallTexture(this, zone, cracked);
+    const image = this.add.image(x * size + size / 2, y * size + size / 2, key);
+    image.setDisplaySize(size, size);
+    this.tileLayer.add(image);
+  }
+
+  /** 013 session 4: the real door sprite lifted from the reference sheet's section 11 "DOORS"
+   * (wallSprites.ensureDoorTexture) — replaces the earlier drawn tier-colored slab. Named so
+   * e2e tests can still find it without relying on a texture key. */
+  private addDoorMarker(position: Position, tier: DoorTier): void {
+    const size = this.tileSize;
+    const key = ensureDoorTexture(this, tier);
+    const image = this.add.image(position.x * size + size / 2, position.y * size + size / 2, key);
+    image.setDisplaySize(size, size);
+    image.setName("door-marker");
+    this.tileLayer.add(image);
+  }
+
   private addMarker(position: Position, color: number, scale: number): Phaser.GameObjects.Rectangle {
     const size = this.tileSize;
     const rect = this.add.rectangle(
@@ -786,6 +881,16 @@ export class FloorScene extends Phaser.Scene {
     );
     this.tileLayer.add(rect);
     return rect;
+  }
+
+  /** 013 FR-012: a torch's static glow — one low-alpha circle covering its own tile and every
+   * tile within a 2-tile radius, with no animation (research.md #7). */
+  private addTorchGlow(position: Position): void {
+    const size = this.tileSize;
+    const cx = position.x * size + size / 2;
+    const cy = position.y * size + size / 2;
+    const glow = this.add.circle(cx, cy, size * 2, 0xf4d35e, 0.12);
+    this.tileLayer.add(glow);
   }
 
   /** 004 US1/US2/US3: species/weapon/armor art (research.md #1), sized to fit the tile. */

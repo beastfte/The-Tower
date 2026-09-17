@@ -105,6 +105,34 @@ export interface WaterTileDefinition {
   position: Position;
 }
 
+/** 013: a floor's visual wall/terrain theme; absent = "stone" (research.md #2). */
+export type ZoneThemeId = "stone" | "crypt" | "cavern" | "frost" | "ember" | "arcane";
+
+/** 013 FR-001/FR-003/FR-004: a wall that opens (becomes walkable) once collided with more
+ * than CRACKED_WALL_BREAK_THRESHOLD times. A normal wall has no entry here — it's simply
+ * any `walkable: false` grid cell not present in this array (research.md #1). */
+export interface CrackedWallDefinition {
+  id: string;
+  position: Position;
+}
+
+/** 013 FR-011/FR-012: a decorative, non-collectible fixture placed on a wall tile that casts
+ * a static glow. Never an ItemDefinition — it's never obtainable (FR-010). */
+export interface TorchDefinition {
+  id: string;
+  position: Position;
+}
+
+/** 013 (session 3, FR-014 extension): overrides which zone theme a single wall tile (normal
+ * or cracked) renders with, independent of the floor's own `zone` — used only to demonstrate
+ * multiple zone themes' wall art side-by-side on one floor. Every wall without an entry here
+ * keeps inheriting the floor's own zone exactly as before; this has no effect on collision,
+ * break behavior, or reachability. */
+export interface WallZoneOverride {
+  position: Position;
+  zone: ZoneThemeId;
+}
+
 export interface FloorDefinition {
   id: string;
   grid: Tile[][];
@@ -118,4 +146,9 @@ export interface FloorDefinition {
   lavaTiles: LavaTileDefinition[];
   levers: LeverDefinition[];
   waterTiles: WaterTileDefinition[];
+  crackedWalls: CrackedWallDefinition[];
+  torches: TorchDefinition[];
+  /** Absent = "stone" (research.md #2) — existing floors need no changes. */
+  zone?: ZoneThemeId;
+  wallZoneOverrides: WallZoneOverride[];
 }

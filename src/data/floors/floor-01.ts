@@ -27,7 +27,13 @@ import { rowFromPattern } from "./gridHelpers";
  * 011 adds one cloth-tier armor piece per slot (helm/chest/legs/boots) in the top-middle room
  * (x8-13/y2-8, alongside the existing migrated leather-chest piece) and one Attack Potion +
  * one Defense Potion in the bottom-left room (x0-4/y12-19, alongside the existing chest) — all
- * six for manual testing (FR-010), none on the critical path.
+ * six for manual testing (FR-010), none on the critical path. 013 removes the "Rusty Torch"
+ * loot pickup (torches are no longer collectible) and adds one cracked wall plus a co-located
+ * decorative torch at the existing (14,9) corridor-divider wall cell, and one new plain wall
+ * at (16,6) in the wizard's room — manual-test content (FR-014), none on the critical path.
+ * 013 session 3 adds 5 more cracked walls and 10 wall-zone overrides along the top boundary
+ * row (an already-solid `#` row) so all 12 wall variants (6 zones × normal/cracked) are visible
+ * on this one floor for manual comparison — purely cosmetic, no grid or reachability changes.
  */
 export const FLOOR_01: FloorDefinition = {
   id: "floor-01",
@@ -38,7 +44,10 @@ export const FLOOR_01: FloorDefinition = {
     rowFromPattern("##.....#......#....."),
     rowFromPattern("##.....#......#....."),
     rowFromPattern("##.....#......#....."),
-    rowFromPattern("##.....#......#....."),
+    // 013 FR-014: one interior cell (16,6) converted to a new plain wall, purely for manual
+    // testing — the wizard's room (x15-19/y2-8) is large open interior space, so this doesn't
+    // affect reachability or the critical path.
+    rowFromPattern("##.....#......#.#..."),
     rowFromPattern("##.....#......#....."),
     rowFromPattern("##.....#......#....."),
     rowFromPattern("#####.##.#######.###"),
@@ -95,12 +104,6 @@ export const FLOOR_01: FloorDefinition = {
       position: { x: 5, y: 9 },
       kind: "key",
       payload: { id: "key-bronze", keyType: "bronze" },
-    },
-    {
-      id: "floor01-loot-torch",
-      position: { x: 8, y: 9 },
-      kind: "loot",
-      payload: { id: "loot-torch", name: "Rusty Torch" },
     },
     {
       id: "floor01-gold-pile",
@@ -204,4 +207,36 @@ export const FLOOR_01: FloorDefinition = {
     },
   ],
   waterTiles: [{ id: "floor01-water", position: { x: 7, y: 1 } }],
+  // 013 FR-014: manual-test content, none on the critical path. The cracked wall reuses an
+  // existing corridor-divider wall cell between the middle and right rooms (both already
+  // reachable via the main corridor); the torch sits on that same cracked wall (FR-011).
+  // Session 3 adds 5 more cracked walls (one per remaining zone, at (14,9) doubling as the
+  // "stone" example since that's floor-01's default zone) along the top boundary row — an
+  // already-solid `#` row, so no grid changes or reachability impact.
+  crackedWalls: [
+    { id: "floor01-cracked-wall", position: { x: 14, y: 9 } },
+    { id: "floor01-cracked-wall-crypt", position: { x: 1, y: 0 } },
+    { id: "floor01-cracked-wall-cavern", position: { x: 3, y: 0 } },
+    { id: "floor01-cracked-wall-frost", position: { x: 5, y: 0 } },
+    { id: "floor01-cracked-wall-ember", position: { x: 7, y: 0 } },
+    { id: "floor01-cracked-wall-arcane", position: { x: 9, y: 0 } },
+  ],
+  torches: [{ id: "floor01-torch", position: { x: 14, y: 9 } }],
+  // Session 3 (FR-014 extension): demonstrates all 12 wall variants (6 zones × normal/cracked)
+  // on this one floor via per-tile zone overrides, purely cosmetic (research.md #10). The
+  // stone examples ((14,9) cracked, (0,0) normal) need no override — stone is floor-01's own
+  // default zone already. The other 5 cracked walls above, plus 5 new normal-wall positions
+  // along the same top boundary row, get an explicit override.
+  wallZoneOverrides: [
+    { position: { x: 1, y: 0 }, zone: "crypt" },
+    { position: { x: 3, y: 0 }, zone: "cavern" },
+    { position: { x: 5, y: 0 }, zone: "frost" },
+    { position: { x: 7, y: 0 }, zone: "ember" },
+    { position: { x: 9, y: 0 }, zone: "arcane" },
+    { position: { x: 11, y: 0 }, zone: "crypt" },
+    { position: { x: 13, y: 0 }, zone: "cavern" },
+    { position: { x: 15, y: 0 }, zone: "frost" },
+    { position: { x: 17, y: 0 }, zone: "ember" },
+    { position: { x: 19, y: 0 }, zone: "arcane" },
+  ],
 };
