@@ -4,13 +4,16 @@ import type { ArmorPieceDefinition, ArmorSlotId, WeaponDefinition, WeaponId } fr
 import { armorPieceKey } from "../../data/armorPieces";
 
 /**
- * Computes the player's effective combat stats: an equipped weapon replaces base
- * damage (FR-005), each independently-equipped armor slot adds its own defence value
- * (011 FR-003 — sum across slots, not one whole-character tier), and any Attack Potion
- * bonus (`bonusDamage`, 011 FR-007) always adds on top of whichever damage source is
- * active, since a weapon *replaces* rather than adds to `baseStats.damage`. `hp`
- * reflects the character's current HP (a real, persistent resource, research.md #6),
- * not max HP.
+ * Computes the player's effective combat stats: an equipped weapon's `attackValue` adds
+ * on top of the player's base (unarmed) damage rather than replacing it (bug fix:
+ * weapon-attack-not-additive — superseded 004 FR-005's original "replaces" behavior, which
+ * let a low-`attackValue` weapon make the player strictly weaker than unarmed), each
+ * independently-equipped armor slot adds its own defence value (011 FR-003 — sum across
+ * slots, not one whole-character tier), and any Attack Potion bonus (`bonusDamage`, 011
+ * FR-007) always adds on top as well. Equipping a second weapon still replaces the first
+ * weapon's own contribution (only one `equippedWeaponId` slot exists), it just doesn't
+ * replace the base. `hp` reflects the character's current HP (a real, persistent resource,
+ * research.md #6), not max HP.
  */
 export function computeEffectiveStats(
   character: PlayerCharacterState,
@@ -25,7 +28,7 @@ export function computeEffectiveStats(
     return sum + (piece?.defenceBonus ?? 0);
   }, 0);
 
-  const damage = (weapon?.attackValue ?? character.baseStats.damage) + character.bonusDamage;
+  const damage = character.baseStats.damage + (weapon?.attackValue ?? 0) + character.bonusDamage;
   const defence = character.baseStats.defence + armorDefence;
 
   return { damage, defence, hp: character.currentHp };

@@ -21,6 +21,14 @@ export function nextFloor(tower: Tower, currentFloorId: string): FloorDefinition
   return tower.floors[index + 1]!;
 }
 
+/** Mirrors `nextFloor`, one step the other direction (bug fix: backtrack-stairs-no-effect —
+ * FR-009a). `null` on the tower's first floor, since there's nothing to step back to. */
+export function previousFloor(tower: Tower, currentFloorId: string): FloorDefinition | null {
+  const index = floorIndexById(tower, currentFloorId);
+  if (index <= 0) return null;
+  return tower.floors[index - 1]!;
+}
+
 /**
  * Validates tower-wide invariants from contracts/floor-data-contract.md:
  * floor-id uniqueness (invariant 4), exactly one compulsory end boss on the final floor

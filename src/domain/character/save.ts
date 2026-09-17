@@ -36,8 +36,8 @@ export interface PlayerCharacterState {
    * (011 spec Clarifications). */
   equippedArmor: Partial<Record<ArmorSlotId, ArmorMaterialId>>;
   /** 011 FR-007/FR-008: Attack Potion's permanent bonus, tracked separately from
-   * `baseStats.damage` because an equipped weapon *replaces* base damage rather than adding to
-   * it (see computeEffectiveStats) — this field is always additive regardless of weapon state. */
+   * `baseStats.damage` and from any equipped weapon's `attackValue` — all three are additive
+   * (see computeEffectiveStats) — this field is always additive regardless of weapon state. */
   bonusDamage: number;
 }
 

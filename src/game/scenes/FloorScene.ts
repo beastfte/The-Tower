@@ -23,7 +23,7 @@ import { ensureWallTexture, ensureDoorTexture, type DoorTier } from "../render/w
 import { hasDiedFromHazard, markDead } from "../../domain/hazard/death";
 import { checkEngagementAllowed } from "../../domain/combat/blockingCheck";
 import { isWinningDefeat, triggerWin } from "../../domain/progress/winState";
-import { completeCurrentFloor } from "../../domain/progress/towerProgress";
+import { completeCurrentFloor, returnToPreviousFloor } from "../../domain/progress/towerProgress";
 import type { CombatOverlayData } from "./CombatOverlay";
 import type { PickupModalData } from "./PickupModalScene";
 import type { PauseMenuData } from "./PauseMenuScene";
@@ -446,6 +446,17 @@ export class FloorScene extends Phaser.Scene {
       ctx.save = completeCurrentFloor(ctx.save, ctx.tower);
       ctx.persist();
       this.scene.restart();
+      return;
+    }
+    // Bug fix: backtrack-stairs-no-effect (FR-009a) — stepping onto the entrance ("stairs
+    // down") mirrors the exit branch above, one floor the other direction.
+    if (positionsEqual(target, floor.entrance)) {
+      const withBacktrack = returnToPreviousFloor(ctx.save, ctx.tower);
+      if (withBacktrack !== ctx.save) {
+        ctx.save = withBacktrack;
+        ctx.persist();
+        this.scene.restart();
+      }
     }
   }
 

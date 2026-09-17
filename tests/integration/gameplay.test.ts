@@ -71,7 +71,7 @@ describe("gameplay integration", () => {
     expect(save.hasWon).toBe(true);
   });
 
-  it("equipping a weapon/armor pickup changes effective stats, and a second pickup replaces rather than stacks (FR-005, FR-008, FR-010)", () => {
+  it("equipping a weapon/armor pickup changes effective stats, and a second pickup replaces rather than stacks (FR-008, FR-010; bug fix: weapon-attack-not-additive)", () => {
     const floor = TOWER.floors[0]!;
     let save = createInitialPlayerSave(floor.id, floor.entrance);
 
@@ -82,15 +82,22 @@ describe("gameplay integration", () => {
     expect(save.character.equippedWeaponId).toBe(swordItem.payload);
 
     const afterSword = computeEffectiveStats(save.character, weaponCatalog, armorCatalog);
-    expect(afterSword.damage).toBe(weaponCatalog.get(swordItem.payload as WeaponId)!.attackValue);
+    const swordAttackValue = weaponCatalog.get(swordItem.payload as WeaponId)!.attackValue;
+    // bug fix: weapon-attack-not-additive — a weapon's attackValue now adds onto the
+    // player's base (unarmed) damage instead of replacing it outright.
+    expect(afterSword.damage).toBe(baseline.damage + swordAttackValue);
     expect(afterSword.damage).not.toBe(baseline.damage);
+    // Regression guard: equipping any weapon must never make the player weaker than
+    // unarmed (the exact symptom of the bug this fixes).
+    expect(afterSword.damage).toBeGreaterThan(baseline.damage);
 
-    // A second, different weapon replaces the first (FR-010) rather than stacking.
+    // A second, different weapon replaces the first weapon's own contribution (FR-010)
+    // rather than stacking with it — but both still add onto the same unarmed base.
     const axeItem = { id: "test-axe", position: floor.entrance, kind: "weapon" as const, payload: "axe" as WeaponId };
     save.character = applyItemPickup(save.character, axeItem);
     expect(save.character.equippedWeaponId).toBe("axe");
     const afterAxe = computeEffectiveStats(save.character, weaponCatalog, armorCatalog);
-    expect(afterAxe.damage).toBe(weaponCatalog.get("axe")!.attackValue);
+    expect(afterAxe.damage).toBe(baseline.damage + weaponCatalog.get("axe")!.attackValue);
 
     // 011: armor is now tracked per slot (chest), not as one whole-character tier.
     const leatherItem = floor.items.find((i) => i.kind === "armor")!;
