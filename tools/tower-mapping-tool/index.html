@@ -761,6 +761,20 @@
       const HAZARD_COLOR = { lava: "#c0491f", spike: "#7a2f2f", water: "#2f5a8a" };
       const HAZARD_GLYPH = { lava: "^", spike: "^", water: "~" };
       const DOOR_COLOR = { bronze: "#a5691f", silver: "#8a8f97", gold: "#c9a227" };
+
+      /** FR-005/FR-007: title-cases a tier id for display (e.g. "gold" -> "Gold"), so palette
+       * entries and legend rows read naturally without a separate display-name catalog. */
+      function tierLabel(tier) {
+        return tier.charAt(0).toUpperCase() + tier.slice(1);
+      }
+
+      /** A placed key's colour follows its tier (research.md D3: reusing DOOR_COLOR rather than
+       * a second key-specific colour map), falling back to the existing generic key colour for a
+       * tier with none defined (D4) — e.g. a stale tier the game no longer offers. */
+      function keyColorForTier(tier) {
+        return DOOR_COLOR[tier] || ITEM_COLOR.key;
+      }
+
       const LEVER_COLOR = "#6a4a8a";
       const ENTRANCE_COLOR = "#4c7350";
       const EXIT_COLOR = "#a5691f";
@@ -800,7 +814,7 @@
           order,
           width,
           height,
-          walls: Array.from({ length: height }, () => Array.from({ length: width }, () => true)),
+          walls: Array.from({ length: height }, () => Array.from({ length: width }, () => false)),
           entrance: { x: 0, y: 0 },
           exit: { x: Math.max(0, width - 1), y: Math.max(0, height - 1) },
           enemies: [],
@@ -969,7 +983,8 @@
           drawShape(ctx, e.position, tileSize, "circle", MONSTER_COLOR[e.species] || "#666", e.species[0].toUpperCase());
         }
         for (const it of floor.items) {
-          drawShape(ctx, it.position, tileSize, "square", ITEM_COLOR[it.kind] || "#888", itemGlyph(it.kind));
+          const itemColor = it.kind === "key" ? keyColorForTier(it.payload.keyType) : ITEM_COLOR[it.kind] || "#888";
+          drawShape(ctx, it.position, tileSize, "square", itemColor, itemGlyph(it.kind));
         }
         for (const d of floor.keyedDoors) {
           drawShape(ctx, d.position, tileSize, "diamond", DOOR_COLOR[d.doorType] || "#777", "D");
@@ -1240,8 +1255,8 @@
        * non-blocking "Replaced X with Y" notification. */
       function elementLabel(arrayKey, el) {
         if (arrayKey === "enemies") return el.species;
-        if (arrayKey === "items") return el.kind;
-        if (arrayKey === "keyedDoors") return "door";
+        if (arrayKey === "items") return el.kind === "key" ? el.payload.keyType + " key" : el.kind;
+        if (arrayKey === "keyedDoors") return el.doorType + " door";
         if (arrayKey === "spikePits") return "spike pit";
         if (arrayKey === "lavaTiles") return "lava";
         if (arrayKey === "waterTiles") return "water";
@@ -1496,11 +1511,18 @@
           "Monsters",
           PALETTE.monsters.map((m) => placeBtn("enemy", m.id, m.name, MONSTER_COLOR[m.id], m.id[0].toUpperCase())),
         );
+        group("Items", [
+          ...PALETTE.itemKinds
+            .filter((k) => k.id !== "key")
+            .map((k) => placeBtn("item", k.id, k.name, ITEM_COLOR[k.id], itemGlyph(k.id))),
+          ...PALETTE.doorKeyTiers.map((tier) =>
+            placeBtn("item", "key:" + tier, tierLabel(tier) + " key", keyColorForTier(tier), itemGlyph("key")),
+          ),
+        ]);
         group(
-          "Items",
-          PALETTE.itemKinds.map((k) => placeBtn("item", k.id, k.name, ITEM_COLOR[k.id], itemGlyph(k.id))),
+          "Doors",
+          PALETTE.doorKeyTiers.map((tier) => placeBtn("door", tier, tierLabel(tier) + " door", DOOR_COLOR[tier], "D")),
         );
-        group("Doors", [placeBtn("door", "door", "Keyed door", DOOR_COLOR.bronze, "D")]);
         group(
           "Hazards",
           PALETTE.hazardKinds.map((h) => placeBtn("hazard", h.id, h.name, HAZARD_COLOR[h.id], HAZARD_GLYPH[h.id])),
@@ -1557,9 +1579,13 @@
         cat("Monsters");
         for (const m of PALETTE.monsters) row(MONSTER_COLOR[m.id], m.id[0].toUpperCase(), m.name, "circle");
         cat("Items");
-        for (const k of PALETTE.itemKinds) row(ITEM_COLOR[k.id], itemGlyph(k.id), k.name, "square");
+        for (const k of PALETTE.itemKinds) {
+          if (k.id === "key") continue;
+          row(ITEM_COLOR[k.id], itemGlyph(k.id), k.name, "square");
+        }
+        for (const tier of PALETTE.doorKeyTiers) row(keyColorForTier(tier), itemGlyph("key"), tierLabel(tier) + " key", "square");
         cat("Doors &amp; hazards");
-        row(DOOR_COLOR.bronze, "D", "Keyed door", "diamond");
+        for (const tier of PALETTE.doorKeyTiers) row(DOOR_COLOR[tier], "D", tierLabel(tier) + " door", "diamond");
         for (const h of PALETTE.hazardKinds) row(HAZARD_COLOR[h.id], HAZARD_GLYPH[h.id], h.name, "square");
         row(LEVER_COLOR, "", "Lever", "square");
         row(CRACKED_WALL_COLOR, CRACKED_WALL_GLYPH, "Cracked wall", "square");
@@ -1796,7 +1822,7 @@
       }
 
       function placeElement(floor, value, tile) {
-        const [kind, subtype] = value.split(":");
+        const [kind, subtype, variant] = value.split(":");
         let arrayKey, el;
         if (kind === "enemy") {
           const species = PALETTE.monsters.find((m) => m.id === subtype);
@@ -1810,10 +1836,10 @@
           };
         } else if (kind === "item") {
           arrayKey = "items";
-          el = { id: freshElementId(floor, "item"), position: tile, kind: subtype, payload: defaultPayloadFor(subtype) };
+          el = { id: freshElementId(floor, "item"), position: tile, kind: subtype, payload: defaultPayloadFor(subtype, variant) };
         } else if (kind === "door") {
           arrayKey = "keyedDoors";
-          el = { id: freshElementId(floor, "door"), position: tile, doorType: "bronze" };
+          el = { id: freshElementId(floor, "door"), position: tile, doorType: subtype };
         } else if (kind === "hazard") {
           if (subtype === "lava") {
             arrayKey = "lavaTiles";
@@ -1840,11 +1866,11 @@
         renderInspector();
       }
 
-      function defaultPayloadFor(kind) {
+      function defaultPayloadFor(kind, tier = PALETTE.doorKeyTiers[0]) {
         if (kind === "currency") return 10;
         if (kind === "weapon") return PALETTE.weapons[0].id;
         if (kind === "armor") return { material: PALETTE.armorMaterials[0], slot: PALETTE.armorSlots[0] };
-        if (kind === "key") return { id: "key-bronze", keyType: "bronze" };
+        if (kind === "key") return { id: "key-" + tier, keyType: tier };
         if (kind === "chest") return { kind: "currency", amount: 20 };
         if (kind === "loot") return { id: "loot-item", name: "Curious trinket" };
         return undefined; // potion / potionAttack / potionDefense
@@ -2145,7 +2171,7 @@
         }
         warn.hidden = true;
         const newWalls = Array.from({ length: newHeight }, (_, y) =>
-          Array.from({ length: newWidth }, (_, x) => (floor.walls[y] && floor.walls[y][x] !== undefined ? floor.walls[y][x] : true)),
+          Array.from({ length: newWidth }, (_, x) => (floor.walls[y] && floor.walls[y][x] !== undefined ? floor.walls[y][x] : false)),
         );
         floor.width = newWidth;
         floor.height = newHeight;

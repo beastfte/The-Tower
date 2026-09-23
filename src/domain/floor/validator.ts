@@ -59,19 +59,6 @@ function leverIdsWithSelfCycle(floor: FloorDefinition): string[] {
   return badIds;
 }
 
-/** BFS treating only compulsory-enemy tiles and keyed-door tiles as blocked — the gates
- * invariant 3 requires to be mandatory (optional enemies are deliberately excluded here:
- * this check isolates whether the compulsory/door gates themselves are bypassable). */
-function bypassesEveryGate(floor: FloorDefinition): boolean {
-  const gatesBlocked = new Set([
-    ...floor.enemies
-      .filter((e) => e.placement === "compulsory")
-      .map((e) => positionKey(e.position)),
-    ...floor.keyedDoors.map((d) => positionKey(d.position)),
-  ]);
-  return bfsReaches(floor, floor.entrance, floor.exit, gatesBlocked);
-}
-
 function bfsReaches(
   floor: FloorDefinition,
   start: Position,
@@ -147,9 +134,10 @@ function validateLeverEffects(
   }
 }
 
-/** Validates a single FloorDefinition against invariants 1-4, 6, 8-9, and 11-12 of
+/** Validates a single FloorDefinition against invariants 1, 2, 4, 6, 8-9, and 11-12 of
  * contracts/floor-data-contract.md and contracts/trap-mechanics-contract.md, plus
- * invariants 15-18 of contracts/wall-torch-contract.md. */
+ * invariants 15-18 of contracts/wall-torch-contract.md. Invariant 3 (016) was removed —
+ * a floor is no longer required to have an unavoidable compulsory enemy/keyed door. */
 export function validateFloorDefinition(floor: FloorDefinition): ValidationResult {
   const errors: string[] = [];
 
@@ -303,13 +291,6 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
     );
   }
 
-  // Invariant 3: compulsory enemies / keyed doors on the critical path are never bypassable.
-  if (bypassesEveryGate(floor)) {
-    errors.push(
-      `Floor "${floor.id}": a path to the exit exists that bypasses every compulsory enemy and keyed door (invariant 3)`,
-    );
-  }
-
   // 007 US3 (contract invariant 12): no lever may gate the only route to itself.
   for (const leverId of leverIdsWithSelfCycle(floor)) {
     errors.push(
@@ -317,13 +298,15 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
     );
   }
 
-  // Invariant 8: grid measures exactly 15x15 tiles, the standing baseline for every authored
-  // floor going forward (014 FR-001/FR-008 — supersedes the old "at least 20x20" rule).
+  // Invariant 8: grid must not exceed 15x15 tiles — the game's render viewport is a fixed-size
+  // area built to fit exactly that many (014 FR-001/FR-008). A smaller grid is fine (016
+  // FR-007); the viewport isn't overflowed, just not fully filled. Larger still isn't (016
+  // FR-008) — see src/game/gameConfig.ts's PLAY_AREA and src/game/floorLayout.ts.
   const height = floor.grid.length;
   const width = floor.grid[0]?.length ?? 0;
-  if (height !== 15 || width !== 15) {
+  if (height > 15 || width > 15) {
     errors.push(
-      `Floor "${floor.id}": grid must measure exactly 15x15 tiles, got ${width}x${height} (invariant 8, FR-001)`,
+      `Floor "${floor.id}": grid must not exceed 15x15 tiles, got ${width}x${height} (invariant 8)`,
     );
   }
 
