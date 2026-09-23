@@ -1109,10 +1109,17 @@
           const snap = await dbFloors.orderBy("order").get();
           for (const doc of snap.docs) {
             const data = doc.data();
-            // Backfill fields added after this floor was first saved (e.g. crackedWalls/
-            // torches/wallZoneOverrides from feature 013's wall theming) — same treatment
-            // imported floors already get via normalizeImportedFloor.
-            if (data && typeof data.id === "string") floors.set(data.id, normalizeImportedFloor(data));
+            // The db capability's snapshots come back deep-frozen (so callers can't mutate a
+            // cached read without going through .set() again) — every in-place edit
+            // (floor.walls[y][x] = ..., array pushes for new elements, etc.) would otherwise
+            // silently no-op forever on any reloaded floor. A JSON round-trip severs every
+            // reference into the frozen snapshot, producing a fully mutable plain-object
+            // graph. Also backfills fields added after this floor was first saved (e.g.
+            // crackedWalls/torches/wallZoneOverrides from feature 013's wall theming) — same
+            // treatment imported floors already get via normalizeImportedFloor.
+            if (data && typeof data.id === "string") {
+              floors.set(data.id, normalizeImportedFloor(JSON.parse(JSON.stringify(data))));
+            }
           }
         } catch (err) {
           console.error("Tower Cartographer: failed to load floors", err);
