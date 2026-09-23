@@ -1,0 +1,2295 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tower Cartographer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    />
+    <style>
+      /* ---------- Design tokens ---------- */
+      :root {
+        color-scheme: light dark;
+        --paper: #e8e9dd;
+        --paper-raised: #f3f3e9;
+        --ink: #22282f;
+        --ink-soft: #565f68;
+        --ink-faint: #8b9199;
+        --line: #c7c8b8;
+        --line-strong: #a7a996;
+        --accent: #a5691f;
+        --accent-soft: #dcb877;
+        --accent-contrast: #2a1c08;
+        --wall: #333f4d;
+        --wall-hatch: #445264;
+        --floor-tile: #f6f4e6;
+        --danger: #9a3b28;
+        --good: #4c7350;
+        --info: #35607a;
+        --shadow: rgba(34, 40, 47, 0.18);
+        --focus: #2a6f97;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --paper: #1b2027;
+          --paper-raised: #242a33;
+          --ink: #e8e6da;
+          --ink-soft: #aab0b8;
+          --ink-faint: #767d86;
+          --line: #3a4250;
+          --line-strong: #4c5666;
+          --accent: #d9a24f;
+          --accent-soft: #6a4d1f;
+          --accent-contrast: #241a08;
+          --wall: #10151c;
+          --wall-hatch: #232c38;
+          --floor-tile: #2b323d;
+          --danger: #d97157;
+          --good: #7fb583;
+          --info: #7bb3d4;
+          --shadow: rgba(0, 0, 0, 0.45);
+          --focus: #7bb3d4;
+        }
+      }
+      :root[data-theme="dark"] {
+        --paper: #1b2027;
+        --paper-raised: #242a33;
+        --ink: #e8e6da;
+        --ink-soft: #aab0b8;
+        --ink-faint: #767d86;
+        --line: #3a4250;
+        --line-strong: #4c5666;
+        --accent: #d9a24f;
+        --accent-soft: #6a4d1f;
+        --accent-contrast: #241a08;
+        --wall: #10151c;
+        --wall-hatch: #232c38;
+        --floor-tile: #2b323d;
+        --danger: #d97157;
+        --good: #7fb583;
+        --info: #7bb3d4;
+        --shadow: rgba(0, 0, 0, 0.45);
+        --focus: #7bb3d4;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--paper);
+        color: var(--ink);
+        font-family: "IBM Plex Sans", system-ui, sans-serif;
+        font-size: 14px;
+        line-height: 1.45;
+        min-height: 100vh;
+      }
+      h1,
+      h2,
+      h3 {
+        font-family: "Fraunces", Georgia, serif;
+        text-wrap: balance;
+        margin: 0;
+        font-weight: 650;
+        color: var(--ink);
+      }
+      button {
+        font-family: inherit;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      input,
+      select {
+        font-family: inherit;
+        font-size: 13px;
+      }
+      :focus-visible {
+        outline: 2px solid var(--focus);
+        outline-offset: 1px;
+      }
+      .mono {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-variant-numeric: tabular-nums;
+      }
+      .eyebrow {
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        font-weight: 600;
+      }
+
+      /* ---------- App shell ---------- */
+      #app {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+      }
+      header.topbar {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--line-strong);
+        background: var(--paper-raised);
+        flex-wrap: wrap;
+      }
+      header.topbar h1 {
+        font-size: 20px;
+        white-space: nowrap;
+      }
+      header.topbar .tagline {
+        color: var(--ink-soft);
+        font-size: 12px;
+        margin-right: auto;
+      }
+      .btn {
+        border: 1px solid var(--line-strong);
+        background: var(--paper);
+        color: var(--ink);
+        padding: 7px 12px;
+        border-radius: 4px;
+        font-weight: 500;
+      }
+      .btn:hover {
+        border-color: var(--accent);
+      }
+      .btn-primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--accent-contrast);
+      }
+      .btn-primary:hover {
+        filter: brightness(1.08);
+      }
+      .btn-danger {
+        border-color: var(--danger);
+        color: var(--danger);
+        background: transparent;
+      }
+      .btn-danger:hover {
+        background: var(--danger);
+        color: var(--paper-raised);
+      }
+      .btn-ghost {
+        border-color: transparent;
+        background: transparent;
+      }
+      .btn-ghost:hover {
+        border-color: var(--line-strong);
+      }
+      .btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .btn-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      main {
+        flex: 1;
+        display: flex;
+        min-height: 0;
+      }
+      .view {
+        flex: 1;
+        display: none;
+        min-height: 0;
+      }
+      .view.active {
+        display: flex;
+      }
+
+      /* ---------- Overview ---------- */
+      #view-overview {
+        flex-direction: column;
+        padding: 20px;
+        gap: 16px;
+        overflow-y: auto;
+      }
+      #view-overview .overview-head {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      #floor-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 16px;
+      }
+      .floor-card {
+        background: var(--paper-raised);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        box-shadow: 0 1px 2px var(--shadow);
+      }
+      .floor-card canvas {
+        width: 100%;
+        aspect-ratio: 1;
+        border-radius: 3px;
+        border: 1px solid var(--line);
+        cursor: pointer;
+        display: block;
+      }
+      .floor-card .floor-card-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 6px;
+      }
+      .floor-card .floor-id {
+        font-weight: 600;
+        font-size: 13px;
+      }
+      .floor-card .floor-order {
+        color: var(--ink-faint);
+        font-size: 11px;
+      }
+      .floor-card .floor-card-actions {
+        display: flex;
+        gap: 6px;
+      }
+      .floor-card .floor-card-actions .btn {
+        padding: 4px 8px;
+        font-size: 12px;
+      }
+      .empty-state {
+        color: var(--ink-soft);
+        border: 1px dashed var(--line-strong);
+        border-radius: 6px;
+        padding: 32px;
+        text-align: center;
+      }
+
+      /* ---------- Editor ---------- */
+      #view-editor {
+        min-height: 0;
+      }
+      .rail {
+        width: 220px;
+        border-right: 1px solid var(--line);
+        background: var(--paper-raised);
+        padding: 14px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .rail-section h3 {
+        font-size: 13px;
+        margin-bottom: 8px;
+      }
+      .dim-controls {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .dim-controls input {
+        width: 52px;
+        padding: 4px 6px;
+        border: 1px solid var(--line-strong);
+        border-radius: 3px;
+        background: var(--paper);
+        color: var(--ink);
+      }
+      .palette-group {
+        margin-bottom: 10px;
+      }
+      .palette-group .group-label {
+        font-size: 11px;
+        color: var(--ink-faint);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 4px;
+        display: block;
+      }
+      .palette-item {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        width: 100%;
+        padding: 5px 7px;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        background: transparent;
+        color: var(--ink);
+        text-align: left;
+      }
+      .palette-item:hover {
+        background: var(--paper);
+      }
+      .palette-item.active {
+        border-color: var(--accent);
+        background: var(--paper);
+      }
+      .swatch {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        font-weight: 700;
+        color: #fff;
+        text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+      }
+      .tool-row {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .grid-stage {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        overflow: auto;
+        padding: 16px;
+        align-items: flex-start;
+      }
+      .grid-stage-head {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 10px;
+        flex-wrap: wrap;
+      }
+      .grid-stage-head input.floor-id-input {
+        border: 1px solid var(--line-strong);
+        border-radius: 3px;
+        background: var(--paper-raised);
+        color: var(--ink);
+        padding: 4px 8px;
+        font-family: "Fraunces", serif;
+        font-weight: 650;
+        font-size: 16px;
+        width: 180px;
+      }
+      #floor-canvas {
+        border: 2px solid var(--line-strong);
+        border-radius: 4px;
+        box-shadow: 0 2px 6px var(--shadow);
+        cursor: crosshair;
+        image-rendering: pixelated;
+        background: var(--wall);
+      }
+      #resize-warning {
+        color: var(--danger);
+        font-size: 12px;
+        max-width: 480px;
+        margin-top: 8px;
+      }
+
+      .inspector {
+        width: 260px;
+        border-left: 1px solid var(--line);
+        background: var(--paper-raised);
+        padding: 14px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .inspector h3 {
+        font-size: 13px;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        margin-bottom: 8px;
+      }
+      .field label {
+        font-size: 11px;
+        color: var(--ink-soft);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .field select,
+      .field input {
+        padding: 5px 7px;
+        border: 1px solid var(--line-strong);
+        border-radius: 3px;
+        background: var(--paper);
+        color: var(--ink);
+      }
+      .field-check {
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+      }
+      .legend {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .legend-row {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12px;
+      }
+      .legend-cat {
+        margin-top: 6px;
+        font-size: 11px;
+        color: var(--ink-faint);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .hint {
+        color: var(--ink-soft);
+        font-size: 12px;
+      }
+      .badge {
+        display: inline-block;
+        padding: 1px 6px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 600;
+        background: var(--line);
+        color: var(--ink-soft);
+      }
+      .badge.ok {
+        background: var(--good);
+        color: #fff;
+      }
+      .toast {
+        position: fixed;
+        bottom: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--ink);
+        color: var(--paper);
+        padding: 8px 16px;
+        border-radius: 5px;
+        font-size: 13px;
+        box-shadow: 0 3px 10px var(--shadow);
+        z-index: 50;
+        max-width: 70vw;
+      }
+      dialog {
+        border: 1px solid var(--line-strong);
+        border-radius: 6px;
+        padding: 20px;
+        background: var(--paper-raised);
+        color: var(--ink);
+      }
+      dialog::backdrop {
+        background: rgba(0, 0, 0, 0.4);
+      }
+      dialog h3 {
+        margin-bottom: 2px;
+      }
+
+      @media (max-width: 720px) {
+        main {
+          flex-direction: column;
+        }
+        .rail,
+        .inspector {
+          width: 100%;
+          border: none;
+          border-bottom: 1px solid var(--line);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <h1>Tower Cartographer</h1>
+        <span class="tagline">Draw floors, place monsters &amp; treasure, sync into The Magic Tower.</span>
+        <div class="btn-row">
+          <button class="btn" id="btn-view-overview">Overview</button>
+          <button class="btn" id="btn-import">Import tower&hellip;</button>
+          <button class="btn btn-primary" id="btn-export">Export tower</button>
+        </div>
+      </header>
+      <main>
+        <section class="view" id="view-overview">
+          <div class="overview-head">
+            <h2>Tower overview</h2>
+            <span class="eyebrow" id="floor-count">0 floors</span>
+            <button class="btn btn-primary" id="btn-add-floor" style="margin-left: auto">+ New floor</button>
+          </div>
+          <div id="floor-cards"></div>
+        </section>
+
+        <section class="view" id="view-editor">
+          <aside class="rail">
+            <div class="rail-section">
+              <h3>Grid size</h3>
+              <div class="dim-controls">
+                <input type="number" id="input-width" min="3" max="60" />
+                <span>&times;</span>
+                <input type="number" id="input-height" min="3" max="60" />
+                <button class="btn" id="btn-apply-size">Apply</button>
+              </div>
+              <p id="resize-warning" hidden></p>
+            </div>
+            <div class="rail-section">
+              <h3>Zone theme</h3>
+              <select id="floor-zone-select"></select>
+            </div>
+            <div class="rail-section">
+              <h3>Tools</h3>
+              <div class="tool-row" id="basic-tools"></div>
+              <div class="tool-row" id="paint-zone-row" style="align-items:center;gap:6px;margin-top:6px">
+                <select id="paint-zone-select"></select>
+              </div>
+            </div>
+            <div class="rail-section">
+              <h3>Palette</h3>
+              <div id="palette-groups"></div>
+            </div>
+          </aside>
+
+          <div class="grid-stage">
+            <div class="grid-stage-head">
+              <input class="floor-id-input mono" id="floor-id-input" spellcheck="false" />
+              <span class="eyebrow" id="floor-dims-label"></span>
+              <button class="btn btn-ghost" id="btn-close-editor">&larr; Overview</button>
+            </div>
+            <canvas id="floor-canvas"></canvas>
+            <p class="hint" id="editor-hint">Select a tool, then click or drag on the grid.</p>
+          </div>
+
+          <aside class="inspector" id="inspector">
+            <div id="inspector-content"></div>
+            <div>
+              <h3>Legend</h3>
+              <div class="legend" id="legend"></div>
+            </div>
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="import-dialog">
+      <form method="dialog" style="display: flex; flex-direction: column; gap: 12px; min-width: 280px">
+        <h3>Import tower</h3>
+        <p class="hint">
+          Reads a <code class="mono">TowerExport</code> JSON file (produced by
+          <code class="mono">npm run export-existing-floors</code> or a previous export from this tool) and adds
+          every floor in it as a normal, editable floor design.
+        </p>
+        <input type="file" id="import-file-input" accept="application/json,.json" />
+        <div class="btn-row" style="justify-content: flex-end">
+          <button class="btn" id="btn-import-cancel" type="button">Cancel</button>
+          <button class="btn btn-primary" id="btn-import-confirm" type="button">Import</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script>
+      /* =========================================================================================
+       * Tower Cartographer — a standalone visual floor-design tool for The Magic Tower.
+       * See specs/012-tower-mapping-tool/ for the full spec/plan/data-model this implements.
+       * Self-contained: no framework, no build step, no import from the game's own TypeScript
+       * source at runtime (research.md #2) — the PALETTE block below is generated by
+       * `npm run sync-tool-palette` (research.md #10-12, FR-018/019/020) from the game's own
+       * source catalogs. Do not hand-edit between the GENERATED-PALETTE markers; run the script
+       * instead, after any feature that adds/changes a monster species, weapon, armor piece,
+       * door/key tier, or lever effect.
+       * ===================================================================================== */
+
+      // GENERATED-PALETTE-START
+      const PALETTE = {
+        "monsters": [
+          {
+            "id": "goblin",
+            "name": "Goblin",
+            "baseline": {
+              "damage": 4,
+              "defence": 1,
+              "hp": 12
+            }
+          },
+          {
+            "id": "ogre",
+            "name": "Ogre",
+            "baseline": {
+              "damage": 6,
+              "defence": 4,
+              "hp": 30
+            }
+          },
+          {
+            "id": "wizard",
+            "name": "Wizard",
+            "baseline": {
+              "damage": 8,
+              "defence": 0,
+              "hp": 10
+            }
+          }
+        ],
+        "weapons": [
+          {
+            "id": "sword",
+            "name": "Sword"
+          },
+          {
+            "id": "axe",
+            "name": "Axe"
+          },
+          {
+            "id": "mace",
+            "name": "Mace"
+          },
+          {
+            "id": "bow",
+            "name": "Bow"
+          },
+          {
+            "id": "staff",
+            "name": "Staff"
+          }
+        ],
+        "armorMaterials": [
+          "cloth",
+          "leather",
+          "mail",
+          "plate"
+        ],
+        "armorSlots": [
+          "helm",
+          "chest",
+          "legs",
+          "boots"
+        ],
+        "doorKeyTiers": [
+          "bronze",
+          "silver",
+          "gold"
+        ],
+        "leverEffectKinds": [
+          "unlockDoor",
+          "revealPathway",
+          "deactivateTraps"
+        ],
+        "itemKinds": [
+          {
+            "id": "loot",
+            "name": "Loot (named)"
+          },
+          {
+            "id": "currency",
+            "name": "Currency"
+          },
+          {
+            "id": "key",
+            "name": "Key"
+          },
+          {
+            "id": "weapon",
+            "name": "Weapon"
+          },
+          {
+            "id": "armor",
+            "name": "Armor piece"
+          },
+          {
+            "id": "potion",
+            "name": "Potion (heal)"
+          },
+          {
+            "id": "chest",
+            "name": "Chest"
+          },
+          {
+            "id": "potionAttack",
+            "name": "Potion (attack)"
+          },
+          {
+            "id": "potionDefense",
+            "name": "Potion (defense)"
+          }
+        ],
+        "hazardKinds": [
+          {
+            "id": "spike",
+            "name": "Spike pit"
+          },
+          {
+            "id": "lava",
+            "name": "Lava tile"
+          },
+          {
+            "id": "water",
+            "name": "Water tile"
+          }
+        ]
+      };
+      // GENERATED-PALETTE-END
+
+      // ---------------------------------------------------------------------------------------
+      // Visual language (FR-015/FR-017): one shape+color+glyph per placed-element type,
+      // legible at both editor and thumbnail scale. Intentionally simplified vs. the live
+      // game's own art (spec Assumptions).
+      // ---------------------------------------------------------------------------------------
+      const MONSTER_COLOR = { goblin: "#5c6b2e", ogre: "#7a3438", wizard: "#463a7a" };
+      const ITEM_COLOR = {
+        currency: "#b8932e",
+        potion: "#2f7a72",
+        potionAttack: "#a13d2c",
+        potionDefense: "#2c5a91",
+        weapon: "#5a6570",
+        armor: "#8a5a34",
+        key: "#8d8d70",
+        chest: "#96731a",
+        loot: "#5f7a5a",
+      };
+      const HAZARD_COLOR = { lava: "#c0491f", spike: "#7a2f2f", water: "#2f5a8a" };
+      const HAZARD_GLYPH = { lava: "^", spike: "^", water: "~" };
+      const DOOR_COLOR = { bronze: "#a5691f", silver: "#8a8f97", gold: "#c9a227" };
+      const LEVER_COLOR = "#6a4a8a";
+      const ENTRANCE_COLOR = "#4c7350";
+      const EXIT_COLOR = "#a5691f";
+      const CRACKED_WALL_GLYPH = "╱";
+      const CRACKED_WALL_COLOR = "#8a8060";
+      const TORCH_GLYPH = "•";
+      const TORCH_COLOR = "#e8a23a";
+
+      // FR-022/FR-023 (013's ZoneThemeId): the tool's own simplified representation of the
+      // live game's 6 wall art themes — a small color swatch per zone, not real art (spec
+      // Assumptions). Used by both zone <select> elements and the zone-override tile indicator.
+      const ZONE_THEMES = ["stone", "crypt", "cavern", "frost", "ember", "arcane"];
+      const ZONE_LABELS = { stone: "Stone", crypt: "Crypt", cavern: "Cavern", frost: "Frost", ember: "Ember", arcane: "Arcane" };
+      const ZONE_COLOR = {
+        stone: "#8a8a8a",
+        crypt: "#5a6b5a",
+        cavern: "#6b5a4a",
+        frost: "#6a8fa0",
+        ember: "#a05a3a",
+        arcane: "#6a4a8a",
+      };
+
+      // ---------------------------------------------------------------------------------------
+      // In-memory model (data-model.md's "Tower Design (persisted...)"). One FloorDesign per
+      // entry; `floors` is the authoritative in-memory copy of every persisted document.
+      // ---------------------------------------------------------------------------------------
+      /** @type {Map<string, FloorDesign>} */
+      const floors = new Map();
+
+      function orderedFloorIds() {
+        return [...floors.values()].sort((a, b) => a.order - b.order).map((f) => f.id);
+      }
+
+      function makeBlankFloor(id, order, width = 15, height = 15) {
+        return {
+          id,
+          order,
+          width,
+          height,
+          walls: Array.from({ length: height }, () => Array.from({ length: width }, () => true)),
+          entrance: { x: 0, y: 0 },
+          exit: { x: Math.max(0, width - 1), y: Math.max(0, height - 1) },
+          enemies: [],
+          items: [],
+          keyedDoors: [],
+          hazardTiles: [],
+          spikePits: [],
+          lavaTiles: [],
+          levers: [],
+          waterTiles: [],
+          crackedWalls: [],
+          torches: [],
+          wallZoneOverrides: [],
+        };
+      }
+
+      /** Every placed-content array on a FloorDesign, for shared iteration (resize checks,
+       * occupancy checks, rendering). */
+      const CONTENT_ARRAYS = [
+        "enemies",
+        "items",
+        "keyedDoors",
+        "hazardTiles",
+        "spikePits",
+        "lavaTiles",
+        "levers",
+        "waterTiles",
+      ];
+
+      function posKey(p) {
+        return p.x + "," + p.y;
+      }
+
+      /** Every occupied position on this floor -> a short label, mirroring the game's own
+       * validator.ts claim map (used here only for the editor's "tile occupied" UX, not as a
+       * substitute for the real sync-time validation). */
+      function occupiedMap(floor) {
+        const map = new Map();
+        for (const key of CONTENT_ARRAYS) {
+          for (const el of floor[key]) map.set(posKey(el.position), key);
+        }
+        return map;
+      }
+
+      /** FR-020 (tool-side half, research.md #12): a saved floor design can reference a
+       * monster species/weapon/armor material-slot/door-key tier/lever effect that a later
+       * palette-sync removed (renamed or dropped upstream). This can only be checked here,
+       * since the repo-side sync script has no access to saved floor designs (research.md #2)
+       * — it only catches drift in the palette itself. Non-blocking: a flagged element still
+       * works exactly as before, this only surfaces the mismatch to the designer. */
+      function findStaleReferences(floor) {
+        const monsterIds = new Set(PALETTE.monsters.map((m) => m.id));
+        const weaponIds = new Set(PALETTE.weapons.map((w) => w.id));
+        const armorMaterials = new Set(PALETTE.armorMaterials);
+        const armorSlots = new Set(PALETTE.armorSlots);
+        const doorKeyTiers = new Set(PALETTE.doorKeyTiers);
+        const leverEffectKinds = new Set(PALETTE.leverEffectKinds);
+        const itemKinds = new Set(PALETTE.itemKinds.map((k) => k.id));
+        const stale = [];
+
+        for (const e of floor.enemies) {
+          if (!monsterIds.has(e.species)) stale.push(`monster "${e.id}" has unknown species "${e.species}"`);
+        }
+        for (const it of floor.items) {
+          if (!itemKinds.has(it.kind)) {
+            stale.push(`item "${it.id}" has unknown kind "${it.kind}"`);
+          } else if (it.kind === "weapon" && !weaponIds.has(it.payload)) {
+            stale.push(`item "${it.id}" references unknown weapon "${it.payload}"`);
+          } else if (it.kind === "armor" && it.payload) {
+            if (!armorMaterials.has(it.payload.material)) {
+              stale.push(`item "${it.id}" references unknown armor material "${it.payload.material}"`);
+            }
+            if (!armorSlots.has(it.payload.slot)) {
+              stale.push(`item "${it.id}" references unknown armor slot "${it.payload.slot}"`);
+            }
+          } else if (it.kind === "key" && it.payload && !doorKeyTiers.has(it.payload.keyType)) {
+            stale.push(`item "${it.id}" references unknown key tier "${it.payload.keyType}"`);
+          }
+        }
+        for (const d of floor.keyedDoors) {
+          if (!doorKeyTiers.has(d.doorType)) stale.push(`door "${d.id}" references unknown key tier "${d.doorType}"`);
+        }
+        for (const lv of floor.levers) {
+          if (!leverEffectKinds.has(lv.effect.kind)) {
+            stale.push(`lever "${lv.id}" references unknown effect "${lv.effect.kind}"`);
+          }
+        }
+        return stale;
+      }
+
+      function isWithinBounds(floor, p) {
+        return p.x >= 0 && p.y >= 0 && p.x < floor.width && p.y < floor.height;
+      }
+
+      /** FR-001: every element (including entrance/exit) that would fall outside a candidate
+       * new size. Empty array = resize is safe. */
+      function outOfBoundsElements(floor, newWidth, newHeight) {
+        const problems = [];
+        const check = (p, label) => {
+          if (p.x >= newWidth || p.y >= newHeight) problems.push(label + " at (" + p.x + "," + p.y + ")");
+        };
+        check(floor.entrance, "the entrance");
+        check(floor.exit, "the exit");
+        for (const key of CONTENT_ARRAYS) {
+          for (const el of floor[key]) check(el.position, key + " “" + el.id + "”");
+        }
+        // FR-026's wall decorations aren't in CONTENT_ARRAYS (they deliberately don't
+        // participate in the shared occupied-tile claim, since they coexist with each other),
+        // but FR-001's "any placed element" resize guard still needs to catch them.
+        for (const cw of floor.crackedWalls) check(cw.position, "cracked wall “" + cw.id + "”");
+        for (const t of floor.torches) check(t.position, "torch “" + t.id + "”");
+        for (const o of floor.wallZoneOverrides) {
+          check(o.position, "zone override at (" + o.position.x + "," + o.position.y + ")");
+        }
+        return problems;
+      }
+
+      let idCounter = 1;
+      function freshElementId(floor, kind) {
+        return floor.id + "-" + kind + "-" + idCounter++;
+      }
+
+      // ---------------------------------------------------------------------------------------
+      // Renderer (T004) — shared by the full-size editor grid and the small overview
+      // thumbnails. Draws walls/open tiles, then every placed element's icon at the given
+      // pixel-per-tile scale.
+      // ---------------------------------------------------------------------------------------
+      function renderFloor(canvas, floor, tileSize) {
+        const w = floor.width * tileSize;
+        const h = floor.height * tileSize;
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, w, h);
+
+        for (let y = 0; y < floor.height; y++) {
+          for (let x = 0; x < floor.width; x++) {
+            const blocked = floor.walls[y][x];
+            ctx.fillStyle = blocked ? getCss("--wall") : getCss("--floor-tile");
+            ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+          }
+        }
+
+        // Wall decorations (FR-022-FR-026): a zone override tints the tile itself; torches and
+        // cracked walls render as glyphs. All three are fully editable (T053-T055), not merely
+        // round-tripped read-only content.
+        for (const o of floor.wallZoneOverrides) {
+          ctx.fillStyle = ZONE_COLOR[o.zone] || "#888";
+          ctx.globalAlpha = 0.55;
+          ctx.fillRect(o.position.x * tileSize, o.position.y * tileSize, tileSize, tileSize);
+          ctx.globalAlpha = 1;
+        }
+        for (const cw of floor.crackedWalls) {
+          drawGlyph(ctx, cw.position, tileSize, CRACKED_WALL_GLYPH, CRACKED_WALL_COLOR, tileSize * 0.7);
+        }
+        for (const t of floor.torches) {
+          drawGlyph(ctx, t.position, tileSize, TORCH_GLYPH, TORCH_COLOR, tileSize * 0.5);
+        }
+
+        if (tileSize >= 6) drawGridLines(ctx, floor, tileSize);
+
+        drawGlyph(ctx, floor.entrance, tileSize, "A", ENTRANCE_COLOR);
+        drawGlyph(ctx, floor.exit, tileSize, "U", EXIT_COLOR);
+
+        for (const e of floor.enemies) {
+          drawShape(ctx, e.position, tileSize, "circle", MONSTER_COLOR[e.species] || "#666", e.species[0].toUpperCase());
+        }
+        for (const it of floor.items) {
+          drawShape(ctx, it.position, tileSize, "square", ITEM_COLOR[it.kind] || "#888", itemGlyph(it.kind));
+        }
+        for (const d of floor.keyedDoors) {
+          drawShape(ctx, d.position, tileSize, "diamond", DOOR_COLOR[d.doorType] || "#777", "D");
+        }
+        for (const s of floor.spikePits) drawShape(ctx, s.position, tileSize, "triangle", HAZARD_COLOR.spike, "^");
+        for (const l of floor.lavaTiles) drawShape(ctx, l.position, tileSize, "triangle", HAZARD_COLOR.lava, "^");
+        for (const wt of floor.waterTiles) drawShape(ctx, wt.position, tileSize, "triangle", HAZARD_COLOR.water, "~");
+        for (const lv of floor.levers) drawShape(ctx, lv.position, tileSize, "plus", LEVER_COLOR, "");
+      }
+
+      function itemGlyph(kind) {
+        return { currency: "$", potion: "P", potionAttack: "P", potionDefense: "P", weapon: "W", armor: "R", key: "K", chest: "C", loot: "L" }[
+          kind
+        ] || "?";
+      }
+
+      function getCss(varName) {
+        return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+      }
+
+      function drawGridLines(ctx, floor, tileSize) {
+        ctx.strokeStyle = "rgba(0,0,0,0.12)";
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= floor.width; x++) {
+          ctx.beginPath();
+          ctx.moveTo(x * tileSize + 0.5, 0);
+          ctx.lineTo(x * tileSize + 0.5, floor.height * tileSize);
+          ctx.stroke();
+        }
+        for (let y = 0; y <= floor.height; y++) {
+          ctx.beginPath();
+          ctx.moveTo(0, y * tileSize + 0.5);
+          ctx.lineTo(floor.width * tileSize, y * tileSize + 0.5);
+          ctx.stroke();
+        }
+      }
+
+      function drawGlyph(ctx, pos, tileSize, glyph, color, sizeOverride) {
+        const cx = pos.x * tileSize + tileSize / 2;
+        const cy = pos.y * tileSize + tileSize / 2;
+        ctx.fillStyle = color;
+        ctx.font = (sizeOverride || tileSize * 0.62) + "px 'IBM Plex Sans', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(glyph, cx, cy);
+      }
+
+      function drawShape(ctx, pos, tileSize, shape, color, glyph) {
+        const cx = pos.x * tileSize + tileSize / 2;
+        const cy = pos.y * tileSize + tileSize / 2;
+        const r = tileSize * 0.36;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        if (shape === "circle") {
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        } else if (shape === "square") {
+          ctx.rect(cx - r, cy - r, r * 2, r * 2);
+        } else if (shape === "diamond") {
+          ctx.moveTo(cx, cy - r);
+          ctx.lineTo(cx + r, cy);
+          ctx.lineTo(cx, cy + r);
+          ctx.lineTo(cx - r, cy);
+          ctx.closePath();
+        } else if (shape === "triangle") {
+          ctx.moveTo(cx, cy - r);
+          ctx.lineTo(cx + r, cy + r);
+          ctx.lineTo(cx - r, cy + r);
+          ctx.closePath();
+        } else if (shape === "plus") {
+          const t = r * 0.55;
+          ctx.rect(cx - t / 2, cy - r, t, r * 2);
+          ctx.rect(cx - r, cy - t / 2, r * 2, t);
+        }
+        ctx.fill();
+        if (glyph && tileSize >= 14) {
+          ctx.fillStyle = "#fff";
+          ctx.font = Math.max(8, tileSize * 0.4) + "px 'IBM Plex Sans', sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(glyph, cx, cy + 0.5);
+        }
+      }
+
+      // ---------------------------------------------------------------------------------------
+      // Persistence (US3, T014/T015) — one document per floor, keyed by id, in the Artifact's
+      // own database.
+      // ---------------------------------------------------------------------------------------
+      let dbFloors = null;
+      const saveTimers = new Map();
+      const saveInFlight = new Set();
+      const saveDirty = new Set();
+
+      function scheduleSave(floorId) {
+        if (!dbFloors) return;
+        if (saveTimers.has(floorId)) clearTimeout(saveTimers.get(floorId));
+        saveTimers.set(
+          floorId,
+          setTimeout(() => {
+            saveTimers.delete(floorId);
+            runSave(floorId);
+          }, 450),
+        );
+      }
+
+      async function runSave(floorId) {
+        if (saveInFlight.has(floorId)) {
+          saveDirty.add(floorId);
+          return;
+        }
+        const floor = floors.get(floorId);
+        if (!floor) return;
+        saveInFlight.add(floorId);
+        try {
+          // JSON round-trip strips `undefined` fields (e.g. an undefined item payload) so the
+          // stored document is always plain, JSON-safe data.
+          await dbFloors.doc(floorId).set(JSON.parse(JSON.stringify(floor)));
+        } catch (err) {
+          console.error("Tower Cartographer: failed to save floor", floorId, err);
+          showToast("Couldn't save “" + floorId + "” — will retry on the next edit.");
+        }
+        saveInFlight.delete(floorId);
+        if (saveDirty.delete(floorId)) runSave(floorId);
+      }
+
+      async function deleteFloorDoc(floorId) {
+        if (!dbFloors) return;
+        try {
+          await dbFloors.doc(floorId).delete();
+        } catch (err) {
+          console.error("Tower Cartographer: failed to delete floor", floorId, err);
+        }
+      }
+
+      async function loadAllFloors() {
+        if (!dbFloors) return;
+        try {
+          const snap = await dbFloors.orderBy("order").get();
+          for (const doc of snap.docs) {
+            const data = doc.data();
+            // Backfill fields added after this floor was first saved (e.g. crackedWalls/
+            // torches/wallZoneOverrides from feature 013's wall theming) — same treatment
+            // imported floors already get via normalizeImportedFloor.
+            if (data && typeof data.id === "string") floors.set(data.id, normalizeImportedFloor(data));
+          }
+        } catch (err) {
+          console.error("Tower Cartographer: failed to load floors", err);
+          showToast("Couldn't load saved floors — starting from an empty tower.");
+          return;
+        }
+        // FR-020 (tool-side half): a one-time, non-blocking summary if anything loaded
+        // references a catalog entry the palette no longer has — open the floor for details.
+        let staleFloorCount = 0;
+        for (const floor of floors.values()) {
+          if (findStaleReferences(floor).length > 0) staleFloorCount++;
+        }
+        if (staleFloorCount > 0) {
+          showToast(
+            staleFloorCount === 1
+              ? "1 floor references a removed catalog entry — open it to see details."
+              : staleFloorCount + " floors reference a removed catalog entry — open each to see details.",
+          );
+        }
+      }
+
+      // ---------------------------------------------------------------------------------------
+      // UI state
+      // ---------------------------------------------------------------------------------------
+      let currentFloorId = null;
+      /** @type {{kind:string,value?:string}} */
+      let activeTool = { kind: "select" };
+      let selectedElement = null; // {arrayKey, id} | {special:'entrance'|'exit'} | null
+      let isPainting = false;
+
+      const els = {};
+      function q(id) {
+        return document.getElementById(id);
+      }
+
+      // Artifacts render in a sandboxed iframe that silently blocks `window.prompt`/
+      // `confirm`/`alert` (no `allow-modals`) — a click that calls one does nothing at all,
+      // with no error. The native `<dialog>` element isn't subject to that restriction (it's
+      // an ordinary DOM/JS API, not a legacy blocking browser dialog), so every place that
+      // used to call prompt()/confirm() builds one of these instead.
+      function showPromptDialog({ title, message, defaultValue = "", confirmLabel = "Create" }) {
+        return new Promise((resolve) => {
+          const dialog = document.createElement("dialog");
+          dialog.innerHTML =
+            '<form method="dialog" style="display:flex;flex-direction:column;gap:12px;min-width:280px">' +
+            "<h3></h3>" +
+            (message ? '<p class="hint"></p>' : "") +
+            '<input type="text" class="floor-id-input mono" style="width:100%" />' +
+            '<div class="btn-row" style="justify-content:flex-end">' +
+            '<button class="btn" type="button" data-action="cancel">Cancel</button>' +
+            '<button class="btn btn-primary" type="button" data-action="ok"></button>' +
+            "</div></form>";
+          dialog.querySelector("h3").textContent = title;
+          if (message) dialog.querySelector("p").textContent = message;
+          dialog.querySelector('[data-action="ok"]').textContent = confirmLabel;
+          document.body.appendChild(dialog);
+
+          const input = dialog.querySelector("input");
+          input.value = defaultValue;
+          let settled = false;
+          const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            resolve(value);
+            dialog.close();
+          };
+          dialog.querySelector('[data-action="cancel"]').addEventListener("click", () => finish(null));
+          dialog.querySelector('[data-action="ok"]').addEventListener("click", () => finish(input.value));
+          dialog.addEventListener("cancel", () => finish(null)); // Esc key
+          dialog.addEventListener("close", () => {
+            finish(null);
+            dialog.remove();
+          });
+          dialog.showModal();
+          input.focus();
+          input.select();
+        });
+      }
+
+      function showConfirmDialog({ title, message, confirmLabel = "Confirm", danger = false }) {
+        return new Promise((resolve) => {
+          const dialog = document.createElement("dialog");
+          dialog.innerHTML =
+            '<form method="dialog" style="display:flex;flex-direction:column;gap:12px;min-width:280px">' +
+            "<h3></h3>" +
+            '<p class="hint"></p>' +
+            '<div class="btn-row" style="justify-content:flex-end">' +
+            '<button class="btn" type="button" data-action="cancel">Cancel</button>' +
+            '<button class="btn" type="button" data-action="ok"></button>' +
+            "</div></form>";
+          dialog.querySelector("h3").textContent = title;
+          dialog.querySelector("p").textContent = message;
+          const okBtn = dialog.querySelector('[data-action="ok"]');
+          okBtn.textContent = confirmLabel;
+          if (danger) okBtn.classList.add("btn-danger");
+          else okBtn.classList.add("btn-primary");
+          document.body.appendChild(dialog);
+
+          let settled = false;
+          const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            resolve(value);
+            dialog.close();
+          };
+          dialog.querySelector('[data-action="cancel"]').addEventListener("click", () => finish(false));
+          okBtn.addEventListener("click", () => finish(true));
+          dialog.addEventListener("cancel", () => finish(false));
+          dialog.addEventListener("close", () => {
+            finish(false);
+            dialog.remove();
+          });
+          dialog.showModal();
+        });
+      }
+
+      /** FR-021: a short, human label for whatever occupies (or would occupy) a tile, for the
+       * non-blocking "Replaced X with Y" notification. */
+      function elementLabel(arrayKey, el) {
+        if (arrayKey === "enemies") return el.species;
+        if (arrayKey === "items") return el.kind;
+        if (arrayKey === "keyedDoors") return "door";
+        if (arrayKey === "spikePits") return "spike pit";
+        if (arrayKey === "lavaTiles") return "lava";
+        if (arrayKey === "waterTiles") return "water";
+        if (arrayKey === "levers") return "lever";
+        return arrayKey;
+      }
+
+      /** FR-021: removes whatever placed element sits at `tile` (if any) and returns its label,
+       * or null if the tile held no element (e.g. it was a wall, or already empty). */
+      function removeElementAtTile(floor, tile, occupied) {
+        const arrayKey = occupied.get(posKey(tile));
+        if (!arrayKey) return null;
+        const idx = floor[arrayKey].findIndex((e) => posKey(e.position) === posKey(tile));
+        if (idx === -1) return null;
+        const [removed] = floor[arrayKey].splice(idx, 1);
+        return elementLabel(arrayKey, removed);
+      }
+
+      function announceReplacement(oldLabel, newLabel) {
+        showToast("Replaced " + oldLabel + " with " + newLabel + ".");
+      }
+
+      /** FR-026: a zone override, cracked-wall status, and torch can only exist on a wall tile
+       * — removes all three at `tile` (if present) and returns their labels, for a tile turning
+       * open. Doesn't touch `floor.walls` itself; callers do that separately. */
+      function clearWallDecorationsAt(floor, tile) {
+        const key = posKey(tile);
+        const cleared = [];
+        if (floor.crackedWalls.some((cw) => posKey(cw.position) === key)) cleared.push("cracked wall");
+        if (floor.torches.some((t) => posKey(t.position) === key)) cleared.push("torch");
+        if (floor.wallZoneOverrides.some((o) => posKey(o.position) === key)) cleared.push("zone override");
+        floor.crackedWalls = floor.crackedWalls.filter((cw) => posKey(cw.position) !== key);
+        floor.torches = floor.torches.filter((t) => posKey(t.position) !== key);
+        floor.wallZoneOverrides = floor.wallZoneOverrides.filter((o) => posKey(o.position) !== key);
+        return cleared;
+      }
+
+      function showToast(message) {
+        const t = document.createElement("div");
+        t.className = "toast";
+        t.textContent = message;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 3200);
+      }
+
+      // ---------------------------------------------------------------------------------------
+      // Overview (US2, T011-T013)
+      // ---------------------------------------------------------------------------------------
+      function renderOverview() {
+        const container = q("floor-cards");
+        container.innerHTML = "";
+        const ids = orderedFloorIds();
+        q("floor-count").textContent = ids.length + (ids.length === 1 ? " floor" : " floors");
+
+        if (ids.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "empty-state";
+          empty.textContent = "No floors yet — create one, or import the floors already in the live game.";
+          container.appendChild(empty);
+          return;
+        }
+
+        ids.forEach((id, index) => {
+          const floor = floors.get(id);
+          const card = document.createElement("div");
+          card.className = "floor-card";
+
+          const titleRow = document.createElement("div");
+          titleRow.className = "floor-card-title";
+          const idSpan = document.createElement("span");
+          idSpan.className = "floor-id mono";
+          idSpan.textContent = floor.id;
+          const orderSpan = document.createElement("span");
+          orderSpan.className = "floor-order mono";
+          orderSpan.textContent = "order " + floor.order;
+          titleRow.append(idSpan, orderSpan);
+
+          const canvas = document.createElement("canvas");
+          const thumbScale = Math.max(3, Math.min(10, Math.floor(180 / Math.max(floor.width, floor.height))));
+          renderFloor(canvas, floor, thumbScale);
+          canvas.addEventListener("click", () => openEditor(id));
+
+          const actions = document.createElement("div");
+          actions.className = "floor-card-actions";
+          const upBtn = mkBtn("↑", "Move earlier in tower order", () => reorderFloor(id, -1), index === 0);
+          const downBtn = mkBtn("↓", "Move later in tower order", () => reorderFloor(id, 1), index === ids.length - 1);
+          const removeBtn = mkBtn("Remove", "Delete this floor design", () => removeFloor(id));
+          removeBtn.classList.add("btn-danger");
+          actions.append(upBtn, downBtn, removeBtn);
+
+          card.append(titleRow, canvas, actions);
+          container.appendChild(card);
+        });
+      }
+
+      function mkBtn(label, title, onClick, disabled) {
+        const b = document.createElement("button");
+        b.className = "btn";
+        b.textContent = label;
+        b.title = title;
+        b.disabled = !!disabled;
+        b.addEventListener("click", (e) => {
+          e.stopPropagation();
+          onClick();
+        });
+        return b;
+      }
+
+      async function addFloor() {
+        let id = await showPromptDialog({
+          title: "New floor",
+          message: "Floor id (used as its file/db key, e.g. floor-03):",
+          defaultValue: "floor-" + (floors.size + 1),
+          confirmLabel: "Create",
+        });
+        if (!id) return;
+        id = id.trim();
+        if (!id) return;
+        if (floors.has(id)) {
+          showToast("A floor with id “" + id + "” already exists.");
+          return;
+        }
+        const maxOrder = [...floors.values()].reduce((m, f) => Math.max(m, f.order), -1);
+        const floor = makeBlankFloor(id, maxOrder + 1);
+        floors.set(id, floor);
+        scheduleSave(id);
+        renderOverview();
+        openEditor(id);
+      }
+
+      function reorderFloor(id, direction) {
+        const ids = orderedFloorIds();
+        const i = ids.indexOf(id);
+        const j = i + direction;
+        if (j < 0 || j >= ids.length) return;
+        const a = floors.get(ids[i]);
+        const b = floors.get(ids[j]);
+        const tmp = a.order;
+        a.order = b.order;
+        b.order = tmp;
+        scheduleSave(a.id);
+        scheduleSave(b.id);
+        renderOverview();
+      }
+
+      async function removeFloor(id) {
+        const confirmed = await showConfirmDialog({
+          title: "Remove floor",
+          message:
+            "Remove floor “" + id + "”? This cannot be undone in the tool (it stays in the live game until the next sync).",
+          confirmLabel: "Remove",
+          danger: true,
+        });
+        if (!confirmed) return;
+        floors.delete(id);
+        deleteFloorDoc(id);
+        renderOverview();
+      }
+
+      // ---------------------------------------------------------------------------------------
+      // Editor (US1, T005-T010)
+      // ---------------------------------------------------------------------------------------
+      function openEditor(id) {
+        currentFloorId = id;
+        selectedElement = null;
+        activeTool = { kind: "select" };
+        showView("editor");
+        renderEditor();
+        const stale = findStaleReferences(floors.get(id));
+        if (stale.length > 0) showToast("This floor: " + stale.join("; "));
+      }
+
+      function closeEditor() {
+        currentFloorId = null;
+        showView("overview");
+        renderOverview();
+      }
+
+      function showView(name) {
+        q("view-overview").classList.toggle("active", name === "overview");
+        q("view-editor").classList.toggle("active", name === "editor");
+      }
+
+      function currentFloor() {
+        return floors.get(currentFloorId);
+      }
+
+      const BASIC_TOOLS = [
+        { kind: "select", label: "Select / inspect" },
+        { kind: "paintOpen", label: "Paint open floor" },
+        { kind: "paintWall", label: "Paint wall" },
+        { kind: "setEntrance", label: "Set arrival tile" },
+        { kind: "setExit", label: "Set stairs-up tile" },
+        { kind: "paintZone", label: "Paint zone" },
+      ];
+
+      function renderBasicTools() {
+        const box = q("basic-tools");
+        box.innerHTML = "";
+        for (const tool of BASIC_TOOLS) {
+          const btn = document.createElement("button");
+          btn.className = "palette-item" + (activeTool.kind === tool.kind ? " active" : "");
+          btn.textContent = tool.label;
+          btn.addEventListener("click", () => {
+            activeTool = { kind: tool.kind };
+            selectedElement = null;
+            renderEditor();
+          });
+          box.appendChild(btn);
+        }
+      }
+
+      function paletteSwatch(color, glyph) {
+        const span = document.createElement("span");
+        span.className = "swatch";
+        span.style.background = color;
+        span.textContent = glyph || "";
+        return span;
+      }
+
+      function renderPalette() {
+        const box = q("palette-groups");
+        box.innerHTML = "";
+
+        const group = (label, items) => {
+          const g = document.createElement("div");
+          g.className = "palette-group";
+          const l = document.createElement("span");
+          l.className = "group-label";
+          l.textContent = label;
+          g.appendChild(l);
+          for (const item of items) g.appendChild(item);
+          box.appendChild(g);
+        };
+
+        const placeBtn = (kind, value, label, color, glyph) => {
+          const btn = document.createElement("button");
+          btn.className = "palette-item" + (activeTool.kind === "place" && activeTool.value === kind + ":" + value ? " active" : "");
+          btn.append(paletteSwatch(color, glyph));
+          const span = document.createElement("span");
+          span.textContent = label;
+          btn.appendChild(span);
+          btn.addEventListener("click", () => {
+            activeTool = { kind: "place", value: kind + ":" + value };
+            selectedElement = null;
+            renderEditor();
+          });
+          return btn;
+        };
+
+        group(
+          "Monsters",
+          PALETTE.monsters.map((m) => placeBtn("enemy", m.id, m.name, MONSTER_COLOR[m.id], m.id[0].toUpperCase())),
+        );
+        group(
+          "Items",
+          PALETTE.itemKinds.map((k) => placeBtn("item", k.id, k.name, ITEM_COLOR[k.id], itemGlyph(k.id))),
+        );
+        group("Doors", [placeBtn("door", "door", "Keyed door", DOOR_COLOR.bronze, "D")]);
+        group(
+          "Hazards",
+          PALETTE.hazardKinds.map((h) => placeBtn("hazard", h.id, h.name, HAZARD_COLOR[h.id], HAZARD_GLYPH[h.id])),
+        );
+        group("Mechanisms", [placeBtn("lever", "lever", "Lever", LEVER_COLOR, "")]);
+
+        // FR-024/FR-025: distinct from `placeBtn` above — these set a dedicated activeTool.kind
+        // (handled in handleCanvasInteract) rather than the generic "place" dispatch, since a
+        // cracked wall/torch layers onto a wall tile instead of occupying it as content.
+        const toolBtn = (kind, label, color, glyph) => {
+          const btn = document.createElement("button");
+          btn.className = "palette-item" + (activeTool.kind === kind ? " active" : "");
+          btn.append(paletteSwatch(color, glyph));
+          const span = document.createElement("span");
+          span.textContent = label;
+          btn.appendChild(span);
+          btn.addEventListener("click", () => {
+            activeTool = { kind };
+            selectedElement = null;
+            renderEditor();
+          });
+          return btn;
+        };
+        group("Wall Decor", [
+          toolBtn("placeCrackedWall", "Cracked wall", CRACKED_WALL_COLOR, CRACKED_WALL_GLYPH),
+          toolBtn("placeTorch", "Torch", TORCH_COLOR, TORCH_GLYPH),
+        ]);
+      }
+
+      function renderLegend() {
+        const box = q("legend");
+        box.innerHTML = "";
+        const row = (color, glyph, label, shape) => {
+          const r = document.createElement("div");
+          r.className = "legend-row";
+          const sw = document.createElement("span");
+          sw.className = "swatch";
+          sw.style.background = color;
+          sw.style.borderRadius = shape === "circle" ? "50%" : shape === "diamond" ? "2px" : "3px";
+          sw.textContent = glyph || "";
+          const lbl = document.createElement("span");
+          lbl.textContent = label;
+          r.append(sw, lbl);
+          box.appendChild(r);
+        };
+        const cat = (label) => {
+          const c = document.createElement("div");
+          c.className = "legend-cat";
+          c.textContent = label;
+          box.appendChild(c);
+        };
+        row(ENTRANCE_COLOR, "A", "Arrival tile", "circle");
+        row(EXIT_COLOR, "U", "Stairs up (exit)", "circle");
+        cat("Monsters");
+        for (const m of PALETTE.monsters) row(MONSTER_COLOR[m.id], m.id[0].toUpperCase(), m.name, "circle");
+        cat("Items");
+        for (const k of PALETTE.itemKinds) row(ITEM_COLOR[k.id], itemGlyph(k.id), k.name, "square");
+        cat("Doors &amp; hazards");
+        row(DOOR_COLOR.bronze, "D", "Keyed door", "diamond");
+        for (const h of PALETTE.hazardKinds) row(HAZARD_COLOR[h.id], HAZARD_GLYPH[h.id], h.name, "square");
+        row(LEVER_COLOR, "", "Lever", "square");
+        row(CRACKED_WALL_COLOR, CRACKED_WALL_GLYPH, "Cracked wall", "square");
+        row(TORCH_COLOR, TORCH_GLYPH, "Torch", "square");
+      }
+
+      /** FR-022: populates a zone <select> once. `includeClear` labels the empty option
+       * differently depending on which control it's for (the floor's own zone vs. a per-wall
+       * override) — both share the same "" value, meaning "not set." */
+      function populateZoneSelect(select, includeClearLabel) {
+        if (select.options.length > 0) return; // populate once; value is synced separately
+        const none = document.createElement("option");
+        none.value = "";
+        none.textContent = includeClearLabel;
+        select.appendChild(none);
+        for (const z of ZONE_THEMES) {
+          const opt = document.createElement("option");
+          opt.value = z;
+          opt.textContent = ZONE_LABELS[z];
+          select.appendChild(opt);
+        }
+      }
+
+      function renderEditor() {
+        const floor = currentFloor();
+        if (!floor) return;
+        q("floor-id-input").value = floor.id;
+        q("floor-dims-label").textContent = floor.width + " × " + floor.height + " tiles";
+        q("input-width").value = floor.width;
+        q("input-height").value = floor.height;
+        q("resize-warning").hidden = true;
+
+        populateZoneSelect(q("floor-zone-select"), "— none (stone) —");
+        q("floor-zone-select").value = floor.zone || "";
+        populateZoneSelect(q("paint-zone-select"), "— clear override —");
+
+        renderBasicTools();
+        renderPalette();
+        renderLegend();
+        renderCanvas();
+        renderInspector();
+        updateHint();
+      }
+
+      function updateHint() {
+        const hint = q("editor-hint");
+        if (activeTool.kind === "select") hint.textContent = "Click a placed element to inspect or edit it.";
+        else if (activeTool.kind === "paintOpen") hint.textContent = "Click or drag to carve open floor.";
+        else if (activeTool.kind === "paintWall") hint.textContent = "Click or drag to fill in wall (clears any element there first).";
+        else if (activeTool.kind === "setEntrance") hint.textContent = "Click an open tile to set the arrival point.";
+        else if (activeTool.kind === "setExit") hint.textContent = "Click an open tile to set the stairs-up (exit) tile.";
+        else if (activeTool.kind === "place") hint.textContent = "Click an open, empty tile to place it.";
+        else if (activeTool.kind === "placeCrackedWall") hint.textContent = "Click a tile to mark it (or make it) a cracked wall.";
+        else if (activeTool.kind === "placeTorch") hint.textContent = "Click a wall tile to place a torch; click again to remove it.";
+        else if (activeTool.kind === "paintZone") hint.textContent = "Pick a zone above, then click a wall tile to paint its override.";
+      }
+
+      function renderCanvas() {
+        const floor = currentFloor();
+        const canvas = q("floor-canvas");
+        const tileSize = 32;
+        renderFloor(canvas, floor, tileSize);
+        highlightSelection(canvas, floor, tileSize);
+      }
+
+      function highlightSelection(canvas, floor, tileSize) {
+        if (!selectedElement) return;
+        const pos = positionOfSelection(floor, selectedElement);
+        if (!pos) return;
+        const ctx = canvas.getContext("2d");
+        ctx.strokeStyle = getCss("--focus");
+        ctx.lineWidth = 3;
+        ctx.strokeRect(pos.x * tileSize + 1.5, pos.y * tileSize + 1.5, tileSize - 3, tileSize - 3);
+      }
+
+      function positionOfSelection(floor, sel) {
+        if (sel.special === "entrance") return floor.entrance;
+        if (sel.special === "exit") return floor.exit;
+        const el = floor[sel.arrayKey].find((e) => e.id === sel.id);
+        return el ? el.position : null;
+      }
+
+      function canvasEventToTile(evt) {
+        const canvas = q("floor-canvas");
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const px = (evt.clientX - rect.left) * scaleX;
+        const py = (evt.clientY - rect.top) * scaleY;
+        return { x: Math.floor(px / 32), y: Math.floor(py / 32) };
+      }
+
+      function handleCanvasPointerDown(evt) {
+        isPainting = true;
+        handleCanvasInteract(canvasEventToTile(evt));
+      }
+      function handleCanvasPointerMove(evt) {
+        if (!isPainting) return;
+        if (activeTool.kind !== "paintOpen" && activeTool.kind !== "paintWall") return;
+        handleCanvasInteract(canvasEventToTile(evt));
+      }
+      function handleCanvasPointerUp() {
+        isPainting = false;
+      }
+
+      function handleCanvasInteract(tile) {
+        const floor = currentFloor();
+        if (!floor || !isWithinBounds(floor, tile)) return;
+        const occupied = occupiedMap(floor);
+        const isEntrance = posKey(floor.entrance) === posKey(tile);
+        const isExit = posKey(floor.exit) === posKey(tile);
+        const key = posKey(tile);
+
+        if (activeTool.kind === "paintOpen") {
+          const cleared = clearWallDecorationsAt(floor, tile);
+          floor.walls[tile.y][tile.x] = false;
+          scheduleSave(floor.id);
+          renderCanvas();
+          if (cleared.length > 0) showToast("Cleared " + cleared.join(", ") + ".");
+        } else if (activeTool.kind === "paintWall") {
+          if (isEntrance || isExit) {
+            showToast("Move the entrance/stairs-up tile first — it can't be walled over.");
+            return;
+          }
+          const wasCracked = floor.crackedWalls.some((cw) => posKey(cw.position) === key);
+          const removedLabel = removeElementAtTile(floor, tile, occupied);
+          if (wasCracked) floor.crackedWalls = floor.crackedWalls.filter((cw) => posKey(cw.position) !== key);
+          floor.walls[tile.y][tile.x] = true;
+          scheduleSave(floor.id);
+          renderCanvas();
+          if (wasCracked) announceReplacement("cracked wall", "wall");
+          else if (removedLabel) announceReplacement(removedLabel, "wall");
+        } else if (activeTool.kind === "setEntrance") {
+          if (floor.walls[tile.y][tile.x]) {
+            showToast("The arrival tile must be an open tile.");
+            return;
+          }
+          floor.entrance = { x: tile.x, y: tile.y };
+          scheduleSave(floor.id);
+          renderCanvas();
+        } else if (activeTool.kind === "setExit") {
+          if (floor.walls[tile.y][tile.x]) {
+            showToast("The stairs-up tile must be an open tile.");
+            return;
+          }
+          floor.exit = { x: tile.x, y: tile.y };
+          scheduleSave(floor.id);
+          renderCanvas();
+        } else if (activeTool.kind === "place") {
+          if (isEntrance || isExit) {
+            showToast("That's the entrance/stairs-up tile — move it first if you want to place something there.");
+            return;
+          }
+          const wasWall = floor.walls[tile.y][tile.x];
+          const removedLabel = wasWall ? null : removeElementAtTile(floor, tile, occupied);
+          if (wasWall) {
+            clearWallDecorationsAt(floor, tile);
+            floor.walls[tile.y][tile.x] = false;
+          }
+          placeElement(floor, activeTool.value, tile);
+          const placed = floor[selectedElement.arrayKey].find((e) => e.id === selectedElement.id);
+          const newLabel = elementLabel(selectedElement.arrayKey, placed);
+          if (wasWall) announceReplacement("wall", newLabel);
+          else if (removedLabel) announceReplacement(removedLabel, newLabel);
+        } else if (activeTool.kind === "select") {
+          selectElementAt(floor, tile, isEntrance, isExit, occupied);
+        } else if (activeTool.kind === "placeCrackedWall") {
+          if (isEntrance || isExit) {
+            showToast("That's the entrance/stairs-up tile — move it first if you want to place something there.");
+            return;
+          }
+          if (floor.crackedWalls.some((cw) => posKey(cw.position) === key)) return; // already cracked
+          const wasWall = floor.walls[tile.y][tile.x];
+          const removedLabel = wasWall ? null : removeElementAtTile(floor, tile, occupied);
+          floor.walls[tile.y][tile.x] = true;
+          floor.crackedWalls.push({ id: freshElementId(floor, "crackedwall"), position: { x: tile.x, y: tile.y } });
+          scheduleSave(floor.id);
+          renderCanvas();
+          if (wasWall) announceReplacement("wall", "cracked wall");
+          else if (removedLabel) announceReplacement(removedLabel, "cracked wall");
+        } else if (activeTool.kind === "placeTorch") {
+          if (isEntrance || isExit) {
+            showToast("That's the entrance/stairs-up tile — move it first if you want to place something there.");
+            return;
+          }
+          if (floor.torches.some((t) => posKey(t.position) === key)) {
+            floor.torches = floor.torches.filter((t) => posKey(t.position) !== key);
+            scheduleSave(floor.id);
+            renderCanvas();
+            showToast("Removed torch.");
+            return;
+          }
+          const wasWall = floor.walls[tile.y][tile.x];
+          const removedLabel = wasWall ? null : removeElementAtTile(floor, tile, occupied);
+          floor.walls[tile.y][tile.x] = true;
+          floor.torches.push({ id: freshElementId(floor, "torch"), position: { x: tile.x, y: tile.y } });
+          scheduleSave(floor.id);
+          renderCanvas();
+          if (wasWall) announceReplacement("wall", "torch");
+          else if (removedLabel) announceReplacement(removedLabel, "torch");
+        } else if (activeTool.kind === "paintZone") {
+          if (isEntrance || isExit) {
+            showToast("That's the entrance/stairs-up tile — move it first if you want to place something there.");
+            return;
+          }
+          const zoneValue = q("paint-zone-select").value;
+          const wasWall = floor.walls[tile.y][tile.x];
+          const removedLabel = wasWall ? null : removeElementAtTile(floor, tile, occupied);
+          floor.walls[tile.y][tile.x] = true;
+          floor.wallZoneOverrides = floor.wallZoneOverrides.filter((o) => posKey(o.position) !== key);
+          if (zoneValue) floor.wallZoneOverrides.push({ position: { x: tile.x, y: tile.y }, zone: zoneValue });
+          scheduleSave(floor.id);
+          renderCanvas();
+          const newLabel = zoneValue ? ZONE_LABELS[zoneValue] + " zone override" : "cleared zone override";
+          if (wasWall) announceReplacement("wall", newLabel);
+          else if (removedLabel) announceReplacement(removedLabel, newLabel);
+        }
+      }
+
+      function selectElementAt(floor, tile, isEntrance, isExit, occupied) {
+        if (isEntrance) {
+          selectedElement = { special: "entrance" };
+        } else if (isExit) {
+          selectedElement = { special: "exit" };
+        } else if (occupied.has(posKey(tile))) {
+          const arrayKey = occupied.get(posKey(tile));
+          const el = floor[arrayKey].find((e) => posKey(e.position) === posKey(tile));
+          selectedElement = { arrayKey, id: el.id };
+        } else {
+          selectedElement = null;
+        }
+        renderCanvas();
+        renderInspector();
+      }
+
+      function placeElement(floor, value, tile) {
+        const [kind, subtype] = value.split(":");
+        let arrayKey, el;
+        if (kind === "enemy") {
+          const species = PALETTE.monsters.find((m) => m.id === subtype);
+          arrayKey = "enemies";
+          el = {
+            id: freshElementId(floor, "enemy"),
+            position: tile,
+            species: subtype,
+            stats: { ...species.baseline },
+            placement: "optional",
+          };
+        } else if (kind === "item") {
+          arrayKey = "items";
+          el = { id: freshElementId(floor, "item"), position: tile, kind: subtype, payload: defaultPayloadFor(subtype) };
+        } else if (kind === "door") {
+          arrayKey = "keyedDoors";
+          el = { id: freshElementId(floor, "door"), position: tile, doorType: "bronze" };
+        } else if (kind === "hazard") {
+          if (subtype === "lava") {
+            arrayKey = "lavaTiles";
+            el = { id: freshElementId(floor, "lava"), position: tile, damage: 8 };
+          } else if (subtype === "spike") {
+            arrayKey = "spikePits";
+            el = { id: freshElementId(floor, "spike"), position: tile, damage: 5 };
+          } else {
+            arrayKey = "waterTiles";
+            el = { id: freshElementId(floor, "water"), position: tile };
+          }
+        } else if (kind === "lever") {
+          arrayKey = "levers";
+          el = {
+            id: freshElementId(floor, "lever"),
+            position: tile,
+            effect: { kind: "unlockDoor", doorId: floor.keyedDoors[0] ? floor.keyedDoors[0].id : "" },
+          };
+        }
+        floor[arrayKey].push(el);
+        selectedElement = { arrayKey, id: el.id };
+        scheduleSave(floor.id);
+        renderCanvas();
+        renderInspector();
+      }
+
+      function defaultPayloadFor(kind) {
+        if (kind === "currency") return 10;
+        if (kind === "weapon") return PALETTE.weapons[0].id;
+        if (kind === "armor") return { material: PALETTE.armorMaterials[0], slot: PALETTE.armorSlots[0] };
+        if (kind === "key") return { id: "key-bronze", keyType: "bronze" };
+        if (kind === "chest") return { kind: "currency", amount: 20 };
+        if (kind === "loot") return { id: "loot-item", name: "Curious trinket" };
+        return undefined; // potion / potionAttack / potionDefense
+      }
+
+      // ---------------- Inspector (per-kind configuration, T009) ----------------
+      function renderInspector() {
+        const content = q("inspector-content");
+        content.innerHTML = "";
+        const floor = currentFloor();
+        if (!selectedElement || !floor) {
+          const p = document.createElement("p");
+          p.className = "hint";
+          p.textContent = "Nothing selected.";
+          content.appendChild(p);
+          return;
+        }
+
+        const h = document.createElement("h3");
+        content.appendChild(h);
+
+        if (selectedElement.special === "entrance") {
+          h.textContent = "Arrival tile";
+          content.appendChild(posReadout(floor.entrance));
+          return;
+        }
+        if (selectedElement.special === "exit") {
+          h.textContent = "Stairs-up tile";
+          content.appendChild(posReadout(floor.exit));
+          return;
+        }
+
+        const el = floor[selectedElement.arrayKey].find((e) => e.id === selectedElement.id);
+        if (!el) {
+          selectedElement = null;
+          renderInspector();
+          return;
+        }
+        h.textContent = inspectorTitleFor(selectedElement.arrayKey, el);
+        content.appendChild(posReadout(el.position));
+        content.appendChild(idReadout(el.id));
+        buildElementForm(content, floor, selectedElement.arrayKey, el);
+
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "btn btn-danger";
+        removeBtn.textContent = "Remove from floor";
+        removeBtn.style.marginTop = "8px";
+        removeBtn.addEventListener("click", () => {
+          floor[selectedElement.arrayKey] = floor[selectedElement.arrayKey].filter((e) => e.id !== el.id);
+          selectedElement = null;
+          scheduleSave(floor.id);
+          renderCanvas();
+          renderInspector();
+        });
+        content.appendChild(removeBtn);
+      }
+
+      function inspectorTitleFor(arrayKey, el) {
+        return (
+          {
+            enemies: "Monster",
+            items: "Item",
+            keyedDoors: "Keyed door",
+            spikePits: "Spike pit",
+            lavaTiles: "Lava tile",
+            waterTiles: "Water tile",
+            levers: "Lever",
+          }[arrayKey] || arrayKey
+        );
+      }
+
+      function posReadout(p) {
+        const el = document.createElement("p");
+        el.className = "hint mono";
+        el.textContent = "(" + p.x + ", " + p.y + ")";
+        return el;
+      }
+      function idReadout(id) {
+        const el = document.createElement("p");
+        el.className = "hint mono";
+        el.style.wordBreak = "break-all";
+        el.textContent = id;
+        return el;
+      }
+
+      function field(label, inputEl) {
+        const wrap = document.createElement("div");
+        wrap.className = "field";
+        const l = document.createElement("label");
+        l.textContent = label;
+        wrap.append(l, inputEl);
+        return wrap;
+      }
+
+      function selectField(label, options, value, onChange) {
+        const sel = document.createElement("select");
+        for (const opt of options) {
+          const o = document.createElement("option");
+          o.value = typeof opt === "string" ? opt : opt.id;
+          o.textContent = typeof opt === "string" ? opt : opt.name;
+          sel.appendChild(o);
+        }
+        sel.value = value;
+        sel.addEventListener("change", () => onChange(sel.value));
+        return field(label, sel);
+      }
+
+      function numberField(label, value, onChange) {
+        const inp = document.createElement("input");
+        inp.type = "number";
+        inp.value = value;
+        inp.addEventListener("change", () => onChange(Number(inp.value)));
+        return field(label, inp);
+      }
+
+      function textField(label, value, onChange) {
+        const inp = document.createElement("input");
+        inp.type = "text";
+        inp.value = value;
+        inp.addEventListener("change", () => onChange(inp.value));
+        return field(label, inp);
+      }
+
+      function checkField(label, checked, onChange) {
+        const wrap = document.createElement("div");
+        wrap.className = "field field-check";
+        const inp = document.createElement("input");
+        inp.type = "checkbox";
+        inp.checked = checked;
+        inp.addEventListener("change", () => onChange(inp.checked));
+        const l = document.createElement("label");
+        l.textContent = label;
+        wrap.append(inp, l);
+        return wrap;
+      }
+
+      function commit(floor) {
+        scheduleSave(floor.id);
+        renderCanvas();
+      }
+
+      function buildElementForm(content, floor, arrayKey, el) {
+        if (arrayKey === "enemies") {
+          content.appendChild(
+            selectField("Species", PALETTE.monsters, el.species, (v) => {
+              el.species = v;
+              commit(floor);
+              renderCanvas();
+            }),
+          );
+          content.appendChild(
+            selectField("Placement", ["optional", "compulsory"], el.placement, (v) => {
+              el.placement = v;
+              commit(floor);
+            }),
+          );
+          content.appendChild(checkField("End boss", !!el.isEndBoss, (v) => { el.isEndBoss = v || undefined; commit(floor); }));
+          content.appendChild(numberField("Damage", el.stats.damage, (v) => { el.stats.damage = v; commit(floor); }));
+          content.appendChild(numberField("Defence", el.stats.defence, (v) => { el.stats.defence = v; commit(floor); }));
+          content.appendChild(numberField("HP", el.stats.hp, (v) => { el.stats.hp = v; commit(floor); }));
+          content.appendChild(
+            numberField("Currency drop", el.drops && el.drops.currency ? el.drops.currency : 0, (v) => {
+              el.drops = v > 0 ? { currency: v } : undefined;
+              commit(floor);
+            }),
+          );
+        } else if (arrayKey === "items") {
+          content.appendChild(
+            selectField("Kind", PALETTE.itemKinds, el.kind, (v) => {
+              el.kind = v;
+              el.payload = defaultPayloadFor(v);
+              commit(floor);
+              renderCanvas();
+              renderInspector();
+            }),
+          );
+          buildItemPayloadForm(content, floor, el);
+        } else if (arrayKey === "keyedDoors") {
+          content.appendChild(
+            selectField("Key tier", PALETTE.doorKeyTiers, el.doorType, (v) => {
+              el.doorType = v;
+              commit(floor);
+              renderCanvas();
+            }),
+          );
+        } else if (arrayKey === "spikePits" || arrayKey === "lavaTiles") {
+          content.appendChild(numberField("Damage", el.damage, (v) => { el.damage = v; commit(floor); }));
+        } else if (arrayKey === "levers") {
+          buildLeverForm(content, floor, el);
+        }
+      }
+
+      function buildItemPayloadForm(content, floor, el) {
+        const kind = el.kind;
+        if (kind === "currency") {
+          content.appendChild(numberField("Amount", el.payload || 0, (v) => { el.payload = v; commit(floor); }));
+        } else if (kind === "weapon") {
+          content.appendChild(
+            selectField("Weapon", PALETTE.weapons, el.payload, (v) => { el.payload = v; commit(floor); renderCanvas(); }),
+          );
+        } else if (kind === "armor") {
+          const payload = el.payload || { material: PALETTE.armorMaterials[0], slot: PALETTE.armorSlots[0] };
+          el.payload = payload;
+          content.appendChild(
+            selectField("Material", PALETTE.armorMaterials, payload.material, (v) => { payload.material = v; commit(floor); }),
+          );
+          content.appendChild(selectField("Slot", PALETTE.armorSlots, payload.slot, (v) => { payload.slot = v; commit(floor); }));
+        } else if (kind === "key") {
+          const payload = el.payload || { id: "key-bronze", keyType: "bronze" };
+          el.payload = payload;
+          content.appendChild(
+            selectField("Key tier", PALETTE.doorKeyTiers, payload.keyType, (v) => {
+              payload.keyType = v;
+              payload.id = "key-" + v;
+              commit(floor);
+            }),
+          );
+        } else if (kind === "chest") {
+          const payload = el.payload || { kind: "currency", amount: 20 };
+          el.payload = payload;
+          content.appendChild(
+            selectField("Reward type", ["currency", "potion"], payload.kind, (v) => {
+              payload.kind = v;
+              if (v === "currency" && payload.amount === undefined) payload.amount = 20;
+              commit(floor);
+              renderInspector();
+            }),
+          );
+          if (payload.kind === "currency") {
+            content.appendChild(numberField("Amount", payload.amount || 0, (v) => { payload.amount = v; commit(floor); }));
+          }
+        } else if (kind === "loot") {
+          const payload = el.payload || { id: "loot-item", name: "Curious trinket" };
+          el.payload = payload;
+          content.appendChild(textField("Name", payload.name, (v) => { payload.name = v; commit(floor); }));
+        }
+        // potion / potionAttack / potionDefense: no payload, nothing to configure.
+      }
+
+      function buildLeverForm(content, floor, el) {
+        content.appendChild(
+          selectField("Effect", PALETTE.leverEffectKinds, el.effect.kind, (v) => {
+            if (v === "unlockDoor") el.effect = { kind: "unlockDoor", doorId: floor.keyedDoors[0] ? floor.keyedDoors[0].id : "" };
+            else if (v === "deactivateTraps") el.effect = { kind: "deactivateTraps", targetIds: [] };
+            else el.effect = { kind: "revealPathway", position: { x: 0, y: 0 } };
+            commit(floor);
+            renderInspector();
+          }),
+        );
+        if (el.effect.kind === "unlockDoor") {
+          content.appendChild(
+            selectField(
+              "Target door",
+              floor.keyedDoors.length ? floor.keyedDoors.map((d) => ({ id: d.id, name: d.id + " (" + d.doorType + ")" })) : [{ id: "", name: "(no doors on this floor yet)" }],
+              el.effect.doorId,
+              (v) => { el.effect.doorId = v; commit(floor); },
+            ),
+          );
+        } else if (el.effect.kind === "deactivateTraps") {
+          const traps = [...floor.spikePits, ...floor.lavaTiles];
+          if (traps.length === 0) {
+            const p = document.createElement("p");
+            p.className = "hint";
+            p.textContent = "No spike pits or lava tiles on this floor yet.";
+            content.appendChild(p);
+          }
+          for (const trap of traps) {
+            content.appendChild(
+              checkField(trap.id, el.effect.targetIds.includes(trap.id), (checked) => {
+                el.effect.targetIds = checked
+                  ? [...el.effect.targetIds, trap.id]
+                  : el.effect.targetIds.filter((id) => id !== trap.id);
+                commit(floor);
+              }),
+            );
+          }
+        } else {
+          content.appendChild(numberField("Target X", el.effect.position.x, (v) => { el.effect.position.x = v; commit(floor); renderCanvas(); }));
+          content.appendChild(numberField("Target Y", el.effect.position.y, (v) => { el.effect.position.y = v; commit(floor); renderCanvas(); }));
+        }
+      }
+
+      // ---------------------------------------------------------------------------------------
+      // Resize (T005, FR-001)
+      // ---------------------------------------------------------------------------------------
+      function applySize() {
+        const floor = currentFloor();
+        const newWidth = Math.max(1, Math.round(Number(q("input-width").value)));
+        const newHeight = Math.max(1, Math.round(Number(q("input-height").value)));
+        const problems = outOfBoundsElements(floor, newWidth, newHeight);
+        const warn = q("resize-warning");
+        if (problems.length > 0) {
+          warn.hidden = false;
+          warn.textContent = "Can't shrink to " + newWidth + "×" + newHeight + " — move or remove first: " + problems.join(", ");
+          q("input-width").value = floor.width;
+          q("input-height").value = floor.height;
+          return;
+        }
+        warn.hidden = true;
+        const newWalls = Array.from({ length: newHeight }, (_, y) =>
+          Array.from({ length: newWidth }, (_, x) => (floor.walls[y] && floor.walls[y][x] !== undefined ? floor.walls[y][x] : true)),
+        );
+        floor.width = newWidth;
+        floor.height = newHeight;
+        floor.walls = newWalls;
+        scheduleSave(floor.id);
+        renderEditor();
+      }
+
+      // ---------------------------------------------------------------------------------------
+      // Import / Export (US3 T016, US4 T017) — the TowerExport contract
+      // (contracts/tower-export-schema.md).
+      // ---------------------------------------------------------------------------------------
+      function towerExportFromFloors() {
+        return {
+          floors: orderedFloorIds().map((id) => JSON.parse(JSON.stringify(floors.get(id)))),
+        };
+      }
+
+      async function exportTower() {
+        if (floors.size === 0) {
+          showToast("Nothing to export yet — create or import a floor first.");
+          return;
+        }
+        const json = JSON.stringify(towerExportFromFloors(), null, 2);
+        const downloads = window.claude && window.claude.use ? await claude.use("downloads").catch(() => null) : null;
+        if (!downloads) {
+          showToast("Downloads aren't available in this view — can't export right now.");
+          return;
+        }
+        try {
+          await downloads.save({ filename: "tower-export.json", data: json });
+          showToast("Exported " + floors.size + " floor(s).");
+        } catch (err) {
+          if (err && err.code !== "declined") console.error("Tower Cartographer: export failed", err);
+        }
+      }
+
+      function openImportDialog() {
+        q("import-file-input").value = "";
+        q("import-dialog").showModal();
+      }
+
+      function importTowerFile() {
+        const input = q("import-file-input");
+        const file = input.files && input.files[0];
+        if (!file) {
+          showToast("Choose a JSON file first.");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          let parsed;
+          try {
+            parsed = JSON.parse(String(reader.result));
+          } catch (err) {
+            showToast("That file isn't valid JSON.");
+            return;
+          }
+          if (!parsed || !Array.isArray(parsed.floors)) {
+            showToast("That file doesn't look like a TowerExport (expected a top-level “floors” array).");
+            return;
+          }
+          let imported = 0;
+          for (const f of parsed.floors) {
+            if (!f || typeof f.id !== "string") continue;
+            const floor = normalizeImportedFloor(f);
+            floors.set(floor.id, floor);
+            scheduleSave(floor.id);
+            imported++;
+          }
+          q("import-dialog").close();
+          renderOverview();
+          showToast("Imported " + imported + " floor(s).");
+        };
+        reader.readAsText(file);
+      }
+
+      /** Fills in any FloorDesign field an imported FloorExport might omit (e.g. an export
+       * produced before a newer field existed) so the rest of the tool can assume every field
+       * is present. */
+      function normalizeImportedFloor(f) {
+        const blank = makeBlankFloor(f.id, typeof f.order === "number" ? f.order : 0, f.width || 15, f.height || 15);
+        return { ...blank, ...f };
+      }
+
+      // ---------------------------------------------------------------------------------------
+      // Boot
+      // ---------------------------------------------------------------------------------------
+      function wireStaticEvents() {
+        q("btn-view-overview").addEventListener("click", () => {
+          showView("overview");
+          renderOverview();
+        });
+        q("btn-close-editor").addEventListener("click", closeEditor);
+        q("btn-add-floor").addEventListener("click", addFloor);
+        q("btn-apply-size").addEventListener("click", applySize);
+        q("floor-zone-select").addEventListener("change", () => {
+          const floor = currentFloor();
+          if (!floor) return;
+          if (q("floor-zone-select").value) floor.zone = q("floor-zone-select").value;
+          else delete floor.zone;
+          scheduleSave(floor.id);
+          renderCanvas();
+        });
+        q("btn-export").addEventListener("click", exportTower);
+        q("btn-import").addEventListener("click", openImportDialog);
+        q("btn-import-cancel").addEventListener("click", () => q("import-dialog").close());
+        q("btn-import-confirm").addEventListener("click", importTowerFile);
+
+        const canvas = q("floor-canvas");
+        canvas.addEventListener("pointerdown", handleCanvasPointerDown);
+        canvas.addEventListener("pointermove", handleCanvasPointerMove);
+        window.addEventListener("pointerup", handleCanvasPointerUp);
+
+        q("floor-id-input").addEventListener("change", (e) => {
+          const floor = currentFloor();
+          const newId = e.target.value.trim();
+          if (!newId || newId === floor.id) {
+            e.target.value = floor.id;
+            return;
+          }
+          if (floors.has(newId)) {
+            showToast("A floor with id “" + newId + "” already exists.");
+            e.target.value = floor.id;
+            return;
+          }
+          floors.delete(floor.id);
+          deleteFloorDoc(floor.id);
+          floor.id = newId;
+          currentFloorId = newId;
+          floors.set(newId, floor);
+          scheduleSave(newId);
+          renderEditor();
+        });
+      }
+
+      async function boot() {
+        wireStaticEvents();
+        const db = window.claude && window.claude.use ? await claude.use("db").catch(() => null) : null;
+        dbFloors = db ? db.collection("floors") : null;
+        if (!dbFloors) showToast("This view can't save your work — open the published Artifact to persist floors.");
+        await loadAllFloors();
+        showView("overview");
+        renderOverview();
+      }
+
+      if (window.claude && window.claude.hot) {
+        window.claude.hot.ready ? window.claude.hot.ready(boot) : boot();
+      } else {
+        boot();
+      }
+    </script>
+  </body>
+</html>

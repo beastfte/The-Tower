@@ -1,9 +1,39 @@
 # Floor Content Authoring Guide
 
-This directory holds the tower's fixed, hand-authored content (`FR-002`, `FR-013`). Add a new
-floor as a new `floor-XX.ts` module exporting a `FloorDefinition` (see
+This directory holds the tower's fixed content (`FR-002`, `FR-013`). Add a new floor as a new
+`floor-XX.ts` module exporting a `FloorDefinition` (see
 `../../specs/001-fantasy-tower-adventure/contracts/floor-data-contract.md`), then register it in
-`floors/index.ts`'s `createTower([...])` call in the order it should appear in the tower.
+`floors/index.ts`'s `createTower([...])` call in the order it should appear in the tower — or
+use the visual authoring path below instead of hand-writing the TypeScript directly.
+
+## Visual authoring (the Tower Mapping Tool, feature 012)
+
+Every file in `floors/` can also be produced from **Tower Cartographer**
+(`tools/tower-mapping-tool/index.html`), a standalone visual floor-design tool published as a
+Claude Artifact — draw a floor's walls and open space on a grid, place monsters/items/doors/
+hazards/levers with a palette, and see the result immediately instead of writing it as code.
+See `specs/012-tower-mapping-tool/quickstart.md` for the full walkthrough. In short:
+
+- **Design → game**: design a floor in the tool, use its "Export tower" action, then run
+  `npm run sync-tower -- <path-to-export.json>`. This regenerates every `floor-*.ts` file (and
+  `floors/index.ts`) in the export from scratch — it re-validates everything first
+  (`validateFloorDefinition`/`validateTower`, unmodified) and writes nothing at all if any
+  floor fails an integrity check (an unobtainable key, no end boss, etc.); the CLI prints
+  every problem found instead.
+- **Game → design** (bringing a hand-authored floor like `floor-01`/`floor-final` under the
+  tool's management): run `npm run export-existing-floors -- <output-path.json>`, then use the
+  tool's "Import tower" action on that file. From then on, syncing regenerates that floor's
+  file too — any hand-authored content the tool's data model can't represent (e.g. a narrative
+  comment) does not survive the first sync after importing.
+- The tool's own palette (monster species, weapons, armor materials/slots, door/key tiers,
+  lever effect kinds) is generated from this directory's own source catalogs — run
+  `npm run sync-tool-palette` after adding or changing any of `monsterSpecies.ts`, `weapons.ts`,
+  `armorPieces.ts`, or the `DOOR_KEY_TIERS`/`LEVER_EFFECT_KINDS` catalogs in
+  `src/domain/character/types.ts`/`src/domain/floor/types.ts`. It refuses to write (and reports
+  what would disappear) if a catalog entry the palette currently offers has been renamed or
+  removed, rather than silently dropping it — run it and resolve the conflict before continuing.
+  Only `ItemKind` stays hand-maintained in the tool's own `ITEM_KINDS` list (no runtime catalog
+  to derive it from) — update that one by hand, same as before.
 
 ## Art direction (FR-014, FR-015)
 

@@ -31,16 +31,34 @@ export interface EnemyDefinition {
   drops?: DropTable;
 }
 
-export type ItemKind =
-  | "loot"
-  | "currency"
-  | "key"
-  | "weapon"
-  | "armor"
-  | "potion"
-  | "chest"
-  | "potionAttack"
-  | "potionDefense";
+/** 012 FR-018 (2026-09-23 gap fix): a runtime-readable catalog of item kinds, so tooling
+ * (`scripts/sync-tool-palette.ts`) can derive this set instead of hand-mirroring it. Previously
+ * a TypeScript union only, with no runtime representation (a `type` alone erases at
+ * compile time). */
+export const ITEM_KINDS = [
+  "loot",
+  "currency",
+  "key",
+  "weapon",
+  "armor",
+  "potion",
+  "chest",
+  "potionAttack",
+  "potionDefense",
+] as const;
+export type ItemKind = (typeof ITEM_KINDS)[number];
+
+/** 012 FR-018 (2026-09-23 gap fix): the tile-modifying hazard categories the design tool's
+ * palette currently offers — "spike"/"lava"/"water" map to `spikePits`/`lavaTiles`/
+ * `waterTiles` respectively. Deliberately excludes generic `HazardTileDefinition`
+ * (`hazardTiles`): the design tool has never had a way to place one (spec.md's FR-006 only
+ * ever named lava/spike pits/water), so it's a separate, pre-existing gap, not something this
+ * catalog silently starts claiming is covered. Adding a new hazard category still requires a
+ * code change (a new `FloorDefinition` array field), same as before — this catalog exists so
+ * that change has one canonical place to update, and `sync-tool-palette.ts`'s drift test can
+ * catch the tool's palette falling out of sync with it. */
+export const HAZARD_KINDS = ["spike", "lava", "water"] as const;
+export type HazardKind = (typeof HAZARD_KINDS)[number];
 
 /** A chest's one predetermined reward, fixed at authoring time (005 spec Assumptions). */
 export type ChestReward = { kind: "currency"; amount: number } | { kind: "potion" };
@@ -91,6 +109,12 @@ export interface LavaTileDefinition {
   position: Position;
   damage: number;
 }
+
+/** 012 FR-018 (research.md #11): a runtime-readable catalog of lever effect kinds, so tooling
+ * (e.g. scripts/sync-tool-palette.ts) can derive this set instead of hand-mirroring it. The
+ * TypeScript union below stays the source of truth for shape; this array mirrors its `kind`
+ * literals for runtime access (a `type` alone erases at compile time). */
+export const LEVER_EFFECT_KINDS = ["unlockDoor", "revealPathway", "deactivateTraps"] as const;
 
 export type LeverEffect =
   | { kind: "unlockDoor"; doorId: string }
