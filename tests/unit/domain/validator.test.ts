@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { validateFloorDefinition } from "../../../src/domain/floor/validator";
-import type { FloorDefinition } from "../../../src/domain/floor/types";
+import { classifyEnemyPlacement, validateFloorDefinition } from "../../../src/domain/floor/validator";
+import type { EnemyDefinition, FloorDefinition } from "../../../src/domain/floor/types";
 
 /** A minimal 20x20 fully-walkable floor, extended per test with this feature's content. */
 function baseFloor(overrides: Partial<FloorDefinition> = {}): FloorDefinition {
@@ -25,6 +25,96 @@ function baseFloor(overrides: Partial<FloorDefinition> = {}): FloorDefinition {
     ...overrides,
   };
 }
+
+/** Builds a floor from a boolean walkability grid (`rows[y][x]`), for the classifier tests
+ * below where a specific corridor shape matters more than the standard `baseFloor()` fixture. */
+function floorFromGrid(rows: boolean[][], entrance: EnemyDefinition["position"], exit: EnemyDefinition["position"], enemies: EnemyDefinition[]): FloorDefinition {
+  return {
+    id: "f-classify",
+    grid: rows.map((row) => row.map((walkable) => ({ walkable }))),
+    entrance,
+    exit,
+    enemies,
+    items: [],
+    keyedDoors: [],
+    hazardTiles: [],
+    spikePits: [],
+    lavaTiles: [],
+    levers: [],
+    waterTiles: [],
+    crackedWalls: [],
+    torches: [],
+    wallZoneOverrides: [],
+  };
+}
+
+function enemyAt(id: string, x: number, y: number): EnemyDefinition {
+  return { id, position: { x, y }, species: "goblin", stats: { damage: 1, defence: 0, hp: 1 } };
+}
+
+describe("classifyEnemyPlacement (017) — computed from geometry, never authored", () => {
+  it("classifies an enemy in a walls-sealed one-tile corridor as compulsory", () => {
+    const enemy = enemyAt("e1", 2, 1);
+    const floor = floorFromGrid(
+      [
+        [false, false, false, false, false],
+        [true, true, true, true, true],
+        [false, false, false, false, false],
+      ],
+      { x: 0, y: 1 },
+      { x: 4, y: 1 },
+      [enemy],
+    );
+    expect(classifyEnemyPlacement(floor, enemy)).toBe("compulsory");
+  });
+
+  it("classifies an enemy beside a genuine alternate route as optional", () => {
+    // A fully-open 3x3 room: the enemy sits dead center, but the border alone connects
+    // entrance to exit without ever entering the center tile.
+    const enemy = enemyAt("e1", 1, 1);
+    const floor = floorFromGrid(
+      [
+        [true, true, true],
+        [true, true, true],
+        [true, true, true],
+      ],
+      { x: 0, y: 1 },
+      { x: 2, y: 1 },
+      [enemy],
+    );
+    expect(classifyEnemyPlacement(floor, enemy)).toBe("optional");
+  });
+
+  it("classifies both enemies as optional when each guards one of two parallel routes (FR-008)", () => {
+    // Top corridor (y=0) and bottom corridor (y=2), joined only at the x=0 and x=4 junction
+    // columns; the middle row is walled off between them so the routes never merge.
+    const enemyTop = enemyAt("top", 2, 0);
+    const enemyBottom = enemyAt("bottom", 2, 2);
+    const floor = floorFromGrid(
+      [
+        [true, true, true, true, true],
+        [true, false, false, false, true],
+        [true, true, true, true, true],
+      ],
+      { x: 0, y: 1 },
+      { x: 4, y: 1 },
+      [enemyTop, enemyBottom],
+    );
+    expect(classifyEnemyPlacement(floor, enemyTop)).toBe("optional");
+    expect(classifyEnemyPlacement(floor, enemyBottom)).toBe("optional");
+  });
+
+  it("classifies enemies in series on one corridor as each individually compulsory", () => {
+    const enemyA = enemyAt("a", 2, 0);
+    const enemyB = enemyAt("b", 3, 0);
+    const floor = floorFromGrid([[true, true, true, true, true, true]], { x: 0, y: 0 }, { x: 5, y: 0 }, [
+      enemyA,
+      enemyB,
+    ]);
+    expect(classifyEnemyPlacement(floor, enemyA)).toBe("compulsory");
+    expect(classifyEnemyPlacement(floor, enemyB)).toBe("compulsory");
+  });
+});
 
 describe("validateFloorDefinition — water tiles (007 US4, invariant 10)", () => {
   it("rejects a water tile authored on a walkable grid cell", () => {

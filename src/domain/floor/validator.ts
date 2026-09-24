@@ -1,6 +1,6 @@
 import type { Position } from "../types";
 import { positionKey } from "../types";
-import type { FloorDefinition } from "./types";
+import type { EnemyDefinition, FloorDefinition } from "./types";
 
 export interface ValidationResult {
   valid: boolean;
@@ -26,37 +26,54 @@ function allRevealedPathwayPositions(floor: FloorDefinition, excludeLeverId?: st
   return positions;
 }
 
-/** BFS from entrance to exit assuming every compulsory enemy is defeated, every keyed door
+/** BFS from entrance to exit assuming every enemy is eventually defeated, every keyed door
  * open, and every lever-revealed pathway open (007 US3, contract invariant 14 — a fully
- * progressed player can pass every optional gate, levers included). */
+ * progressed player can pass every gate, levers included). 017: enemy tiles are no longer
+ * treated as blocked here — whether an enemy is avoidable is now a computed per-enemy fact
+ * (see `classifyEnemyPlacement`), not something this floor-wide completability check decides;
+ * walls, grid shape, and unkeyed doors remain the only real obstacles. */
 function fullyClearedPathExists(floor: FloorDefinition): boolean {
-  const optionalBlocked = new Set(
-    floor.enemies.filter((e) => e.placement === "optional").map((e) => positionKey(e.position)),
-  );
-  return bfsReaches(floor, floor.entrance, floor.exit, optionalBlocked, allRevealedPathwayPositions(floor));
+  return bfsReaches(floor, floor.entrance, floor.exit, new Set(), allRevealedPathwayPositions(floor));
 }
 
 /** 007 US3 (contract invariant 12): no lever may be the sole means of reaching itself.
  * Returns the ids of any lever unreachable from the entrance once every *other* lever's
  * pathway is assumed open (its own pathway is excluded, so a lever can't bootstrap its own
- * access), matching invariant 2's "fully progressed player" baseline (optional enemies
- * cleared, doors keyed — neither is a self-referential dependency). */
+ * access), matching invariant 2's "fully progressed player" baseline (every enemy fightable
+ * through, doors keyed — neither is a self-referential dependency). 017: no longer blocks
+ * enemy tiles, for the same reason as `fullyClearedPathExists` above. */
 function leverIdsWithSelfCycle(floor: FloorDefinition): string[] {
-  const optionalBlocked = new Set(
-    floor.enemies.filter((e) => e.placement === "optional").map((e) => positionKey(e.position)),
-  );
   const badIds: string[] = [];
   for (const lever of floor.levers) {
     const reachable = bfsReaches(
       floor,
       floor.entrance,
       lever.position,
-      optionalBlocked,
+      new Set(),
       allRevealedPathwayPositions(floor, lever.id),
     );
     if (!reachable) badIds.push(lever.id);
   }
   return badIds;
+}
+
+/** 017: an enemy's compulsory/optional status is a computed fact about the floor's geometry,
+ * never an authored one (contracts/enemy-classification-contract.md §1). Optional ⇔ a path
+ * from entrance to exit exists that never enters this enemy's own tile, assuming every OTHER
+ * enemy is passable (fightable through) and every keyed door is passable (keyed) — i.e.,
+ * whether this one enemy's tile is a cut-vertex on the entrance-to-exit route. */
+export function classifyEnemyPlacement(
+  floor: FloorDefinition,
+  enemy: EnemyDefinition,
+): "compulsory" | "optional" {
+  const avoidable = bfsReaches(
+    floor,
+    floor.entrance,
+    floor.exit,
+    new Set([positionKey(enemy.position)]),
+    allRevealedPathwayPositions(floor),
+  );
+  return avoidable ? "optional" : "compulsory";
 }
 
 function bfsReaches(

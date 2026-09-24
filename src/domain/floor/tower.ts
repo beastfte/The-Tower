@@ -1,5 +1,5 @@
 import type { FloorDefinition } from "./types";
-import type { ValidationResult } from "./validator";
+import { classifyEnemyPlacement, type ValidationResult } from "./validator";
 
 /** The ordered game world (FR-001). Assembled from authored floor content. */
 export interface Tower {
@@ -54,11 +54,13 @@ export function validateTower(tower: Tower): ValidationResult {
       `Tower: expected exactly one end boss across the tower, found ${endBosses.length} (invariant 5)`,
     );
   } else {
-    const { enemy, index } = endBosses[0]!;
+    const { enemy, floor, index } = endBosses[0]!;
     if (index !== tower.finalFloorIndex) {
       errors.push(`Tower: the end boss must be on the final floor (invariant 5)`);
     }
-    if (enemy.placement !== "compulsory") {
+    // 017: "compulsory" is computed from the boss's floor geometry, not trusted from a
+    // declared field — an end boss that can actually be walked around now fails here.
+    if (classifyEnemyPlacement(floor, enemy) !== "compulsory") {
       errors.push(`Tower: the end boss must be a compulsory enemy (invariant 5)`);
     }
   }

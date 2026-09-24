@@ -18,7 +18,8 @@ describe("GameContext event log (002 FR-015, FR-017)", () => {
     const save = createInitialPlayerSave(floor.id, floor.entrance);
     const ctx = new GameContext(TOWER, new InMemoryPersistenceService(), save);
 
-    const enemy = floor.enemies.find((e) => e.placement === "compulsory")!;
+    // 017: placement is computed, not authored — select by stable id instead.
+    const enemy = floor.enemies.find((e) => e.id === "floor01-goblin")!;
     const encounter = simulateEncounter(
       { damage: 10, defence: 2, hp: 30 },
       enemy.stats,
@@ -39,7 +40,7 @@ describe("GameContext event log (002 FR-015, FR-017)", () => {
     const persistence = new InMemoryPersistenceService();
     const ctx = new GameContext(TOWER, persistence, save);
 
-    const enemy = floor.enemies.find((e) => e.placement === "optional")!;
+    const enemy = floor.enemies.find((e) => e.id === "floor01-rat")!;
     ctx.logCombatEncounter(enemy.id, simulateEncounter({ damage: 10, defence: 2, hp: 30 }, enemy.stats));
     ctx.logPickup("currency", "20 gold");
     ctx.persist();

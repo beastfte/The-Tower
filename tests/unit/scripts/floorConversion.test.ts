@@ -18,7 +18,6 @@ function sampleDefinition(): FloorDefinition {
         id: "e1",
         position: { x: 1, y: 1 },
         stats: { damage: 4, defence: 1, hp: 12 },
-        placement: "compulsory",
         species: "goblin",
         drops: { currency: 15 },
       },

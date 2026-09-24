@@ -39,7 +39,6 @@ export const FLOOR_FINAL: FloorDefinition = {
       position: { x: 7, y: 7 },
       species: "ogre",
       stats: { damage: 5, defence: 3, hp: 25 },
-      placement: "compulsory",
       isEndBoss: true,
       drops: { currency: 100 },
     },

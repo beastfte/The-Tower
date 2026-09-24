@@ -161,8 +161,11 @@ function resolveDoorTier(doorType: string): DoorTier {
 const OUTLINE_COLOR = 0x0a0d14;
 
 export const COLORS = {
-  enemyCompulsory: 0x8c2f39,
-  enemyOptional: 0xb56576,
+  /** 017: was split into enemyCompulsory/enemyOptional by `enemy.placement` — that field is
+   * gone (placement is now computed, not authored) and this fallback marker only ever renders
+   * for an enemy whose species is missing from the catalog, which never happens for valid data
+   * (research.md R3). One neutral colour is all that fallback needs. */
+  enemy: 0x8c2f39,
   hazard: 0xd1495b,
   loot: 0xe9c46a,
   key: 0xf4d35e,
@@ -822,11 +825,7 @@ export class FloorScene extends Phaser.Scene {
       const species = ctx.monsterSpeciesCatalog.get(enemy.species);
       const marker = species
         ? this.addTextureMarker(enemy.position, species.textureKey, species.spriteScale)
-        : this.addMarker(
-            enemy.position,
-            enemy.placement === "compulsory" ? COLORS.enemyCompulsory : COLORS.enemyOptional,
-            0.8,
-          );
+        : this.addMarker(enemy.position, COLORS.enemy, 0.8);
       this.livingMarkers.push({
         gameObject: marker,
         baseY: marker.y,

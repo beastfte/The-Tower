@@ -47,7 +47,6 @@ export const FLOOR_01: FloorDefinition = {
       position: { x: 3, y: 7 },
       species: "goblin",
       stats: { damage: 4, defence: 1, hp: 12 },
-      placement: "compulsory",
       drops: { currency: 15 },
     },
     {
@@ -55,7 +54,6 @@ export const FLOOR_01: FloorDefinition = {
       position: { x: 1, y: 10 },
       species: "goblin",
       stats: { damage: 3, defence: 0, hp: 10 },
-      placement: "optional",
       drops: { currency: 20 },
     },
     {
@@ -63,7 +61,6 @@ export const FLOOR_01: FloorDefinition = {
       position: { x: 9, y: 9 },
       species: "ogre",
       stats: { damage: 6, defence: 4, hp: 20 },
-      placement: "optional",
       drops: { currency: 20 },
     },
     {
@@ -71,7 +68,6 @@ export const FLOOR_01: FloorDefinition = {
       position: { x: 13, y: 12 },
       species: "wizard",
       stats: { damage: 7, defence: 0, hp: 8 },
-      placement: "optional",
       drops: { currency: 20 },
     },
   ],

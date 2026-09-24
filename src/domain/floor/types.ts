@@ -1,8 +1,6 @@
 import type { CombatStats, Position, Tile } from "../types";
 import type { ArmorMaterialId, ArmorSlotId, KeyDefinition, LootItem, WeaponId } from "../character/types";
 
-export type EnemyPlacement = "compulsory" | "optional";
-
 export type MonsterSpeciesId = "goblin" | "ogre" | "wizard";
 
 export interface MonsterSpecies {
@@ -25,7 +23,6 @@ export interface EnemyDefinition {
   id: string;
   position: Position;
   stats: CombatStats;
-  placement: EnemyPlacement;
   species: MonsterSpeciesId;
   isEndBoss?: boolean;
   drops?: DropTable;

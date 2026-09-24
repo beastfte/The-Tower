@@ -39,7 +39,9 @@ describe("gameplay integration", () => {
     const blocked = checkEngagementAllowed(save.character, weaponCatalog, armorCatalog, unbeatable);
     expect(blocked.allowed).toBe(false);
 
-    const compulsoryEnemy = floor.enemies.find((e) => e.placement === "compulsory")!;
+    // 017: placement is computed, not authored — select the same enemy by its stable id
+    // (floor-01's one geometrically-unavoidable enemy, confirmed by research.md R7).
+    const compulsoryEnemy = floor.enemies.find((e) => e.id === "floor01-goblin")!;
     const allowed = checkEngagementAllowed(save.character, weaponCatalog, armorCatalog, compulsoryEnemy.stats);
     expect(allowed.allowed).toBe(true);
   });
@@ -47,7 +49,9 @@ describe("gameplay integration", () => {
   it("permanently removes a defeated enemy and allows advancing (FR-009, FR-010a)", () => {
     const floor = TOWER.floors[0]!;
     let save = createInitialPlayerSave(floor.id, floor.entrance);
-    const compulsoryEnemy = floor.enemies.find((e) => e.placement === "compulsory")!;
+    // 017: placement is computed, not authored — select the same enemy by its stable id
+    // (floor-01's one geometrically-unavoidable enemy, confirmed by research.md R7).
+    const compulsoryEnemy = floor.enemies.find((e) => e.id === "floor01-goblin")!;
 
     const afterDefeat = applyEnemyDefeat(save.currentFloorState, save.character, compulsoryEnemy);
     save.currentFloorState = afterDefeat.floorProgress;

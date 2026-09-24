@@ -932,9 +932,93 @@
         return problems;
       }
 
-      let idCounter = 1;
+      // 017 FR-009/FR-010 (research.md R8): a floor loaded from a previous session already has
+      // ids in it — a single counter starting fresh at 1 on every page load (the old behavior)
+      // eventually collides with one of them. Seeding per (floor, kind) from the highest suffix
+      // already used for that exact pair, recomputed fresh on every call rather than cached,
+      // means there's no separate counter state that can ever go stale — it always reflects
+      // whatever the floor's array actually contains right now, whether that got there via
+      // editing, a reload, an import, or a duplicate.
+      const ELEMENT_KIND_ARRAY_KEY = {
+        enemy: "enemies",
+        item: "items",
+        door: "keyedDoors",
+        lava: "lavaTiles",
+        spike: "spikePits",
+        water: "waterTiles",
+        lever: "levers",
+        crackedwall: "crackedWalls",
+        torch: "torches",
+      };
+      function maxExistingElementSuffix(floor, kind) {
+        const arrayKey = ELEMENT_KIND_ARRAY_KEY[kind];
+        const prefix = floor.id + "-" + kind + "-";
+        let max = 0;
+        for (const el of floor[arrayKey] || []) {
+          if (typeof el.id === "string" && el.id.startsWith(prefix)) {
+            const n = Number(el.id.slice(prefix.length));
+            if (Number.isFinite(n) && n > max) max = n;
+          }
+        }
+        return max;
+      }
       function freshElementId(floor, kind) {
-        return floor.id + "-" + kind + "-" + idCounter++;
+        return floor.id + "-" + kind + "-" + (maxExistingElementSuffix(floor, kind) + 1);
+      }
+
+      // ---------------------------------------------------------------------------------------
+      // Enemy placement classification (017) — MUST mirror src/domain/floor/validator.ts's
+      // `classifyEnemyPlacement` exactly (contracts/enemy-classification-contract.md §1).
+      // Duplicated here because this tool is a single self-contained HTML file with no build
+      // step and no import from src/ (research.md R4) — a parity test extracts this function
+      // from the HTML and asserts it agrees with the TypeScript version on shared fixtures.
+      // ---------------------------------------------------------------------------------------
+      function revealedPathwayPositions(floor, excludeLeverId) {
+        const positions = new Set();
+        for (const lv of floor.levers) {
+          if (lv.id === excludeLeverId) continue;
+          if (lv.effect.kind === "revealPathway") positions.add(posKey(lv.effect.position));
+        }
+        return positions;
+      }
+
+      function tileOpen(floor, x, y) {
+        return x >= 0 && y >= 0 && y < floor.height && x < floor.width && !floor.walls[y][x];
+      }
+
+      function bfsReachesTile(floor, start, goal, extraBlocked, extraWalkable) {
+        const visited = new Set([posKey(start)]);
+        const queue = [start];
+        const deltas = [{ x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }];
+        while (queue.length > 0) {
+          const current = queue.shift();
+          if (posKey(current) === posKey(goal)) return true;
+          for (const d of deltas) {
+            const next = { x: current.x + d.x, y: current.y + d.y };
+            const key = posKey(next);
+            if (visited.has(key)) continue;
+            const open = tileOpen(floor, next.x, next.y) || extraWalkable.has(key);
+            if (!open) continue;
+            if (extraBlocked.has(key)) continue;
+            visited.add(key);
+            queue.push(next);
+          }
+        }
+        return false;
+      }
+
+      /** Optional iff a path from entrance to exit exists that never enters this enemy's own
+       * tile, with every OTHER enemy passable and every keyed door passable (contract §1). */
+      function classifyEnemyPlacement(floor, enemy) {
+        const blocked = new Set([posKey(enemy.position)]);
+        const avoidable = bfsReachesTile(
+          floor,
+          floor.entrance,
+          floor.exit,
+          blocked,
+          revealedPathwayPositions(floor),
+        );
+        return avoidable ? "optional" : "compulsory";
       }
 
       // ---------------------------------------------------------------------------------------
@@ -1704,6 +1788,7 @@
           floor.walls[tile.y][tile.x] = false;
           scheduleSave(floor.id);
           renderCanvas();
+          renderInspector(); // 017 FR-007: geometry changed — the selected enemy's computed Placement may have too
           if (cleared.length > 0) showToast("Cleared " + cleared.join(", ") + ".");
         } else if (activeTool.kind === "paintWall") {
           if (isEntrance || isExit) {
@@ -1716,6 +1801,7 @@
           floor.walls[tile.y][tile.x] = true;
           scheduleSave(floor.id);
           renderCanvas();
+          renderInspector(); // 017 FR-007
           if (wasCracked) announceReplacement("cracked wall", "wall");
           else if (removedLabel) announceReplacement(removedLabel, "wall");
         } else if (activeTool.kind === "setEntrance") {
@@ -1726,6 +1812,7 @@
           floor.entrance = { x: tile.x, y: tile.y };
           scheduleSave(floor.id);
           renderCanvas();
+          renderInspector(); // 017 FR-007
         } else if (activeTool.kind === "setExit") {
           if (floor.walls[tile.y][tile.x]) {
             showToast("The stairs-up tile must be an open tile.");
@@ -1734,6 +1821,7 @@
           floor.exit = { x: tile.x, y: tile.y };
           scheduleSave(floor.id);
           renderCanvas();
+          renderInspector(); // 017 FR-007
         } else if (activeTool.kind === "place") {
           if (isEntrance || isExit) {
             showToast("That's the entrance/stairs-up tile — move it first if you want to place something there.");
@@ -1832,7 +1920,6 @@
             position: tile,
             species: subtype,
             stats: { ...species.baseline },
-            placement: "optional",
           };
         } else if (kind === "item") {
           arrayKey = "items";
@@ -1965,6 +2052,15 @@
         return wrap;
       }
 
+      /** 017: for a value the designer no longer sets (it's computed from the floor's
+       * geometry), not an editable control. */
+      function readOnlyField(label, value) {
+        const p = document.createElement("p");
+        p.className = "hint mono";
+        p.textContent = value;
+        return field(label, p);
+      }
+
       function selectField(label, options, value, onChange) {
         const sel = document.createElement("select");
         for (const opt of options) {
@@ -2021,12 +2117,7 @@
               renderCanvas();
             }),
           );
-          content.appendChild(
-            selectField("Placement", ["optional", "compulsory"], el.placement, (v) => {
-              el.placement = v;
-              commit(floor);
-            }),
-          );
+          content.appendChild(readOnlyField("Placement (computed)", classifyEnemyPlacement(floor, el)));
           content.appendChild(checkField("End boss", !!el.isEndBoss, (v) => { el.isEndBoss = v || undefined; commit(floor); }));
           content.appendChild(numberField("Damage", el.stats.damage, (v) => { el.stats.damage = v; commit(floor); }));
           content.appendChild(numberField("Defence", el.stats.defence, (v) => { el.stats.defence = v; commit(floor); }));

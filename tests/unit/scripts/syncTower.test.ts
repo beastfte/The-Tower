@@ -41,7 +41,6 @@ function validFloorExport(overrides: Partial<FloorExport> = {}): FloorExport {
         id: "boss",
         position: { x: 7, y: 7 },
         stats: { damage: 6, defence: 4, hp: 30 },
-        placement: "compulsory",
         species: "ogre",
         isEndBoss: true,
       },
