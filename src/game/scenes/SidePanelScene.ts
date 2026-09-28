@@ -13,6 +13,7 @@ import { SIDE_PANEL_AREA, DESIGN_SIDE_PANEL_AREA } from "../gameConfig";
 import { getUiRoot, px } from "../ui/domOverlay";
 import type { FloorScene } from "./FloorScene";
 import { COLORS, LOOT_TEXTURE_KEYS, KEY_TEXTURE_KEYS } from "./FloorScene";
+import { spriteDataUrl } from "../render/spriteTextures";
 
 /** Height reserved at the top of the side panel for the pause control (design-space units). */
 const PAUSE_BUTTON_AREA_HEIGHT = 20;
@@ -243,7 +244,7 @@ export class SidePanelScene extends Phaser.Scene {
     this.addRow(`Dmg: ${stats.damage}`, "Damage dealt per successful attack.");
     this.addRow(`Def: ${stats.defence}`, "Reduces incoming damage per attack.");
     if (weapon) {
-      this.addIconRow({ src: `/icons/${weapon.textureKey}.svg` }, `${weapon.name}: Determines damage dealt in combat.`);
+      this.addIconRow({ src: spriteDataUrl(weapon.textureKey) }, `${weapon.name}: Determines damage dealt in combat.`);
     } else {
       this.addRow("Weapon: (unarmed)", "Determines damage dealt in combat.");
     }
@@ -260,7 +261,7 @@ export class SidePanelScene extends Phaser.Scene {
         const piece = material ? this.ctx.armorCatalog.get(`${material}:${slot}`) : undefined;
         return piece
           ? {
-              icon: { src: `/icons/${piece.textureKey}.svg` },
+              icon: { src: spriteDataUrl(piece.textureKey) },
               tooltipText: `${piece.name}: ${armorSlotDescriptions[slot]}`,
               count: 1,
             }
@@ -272,7 +273,7 @@ export class SidePanelScene extends Phaser.Scene {
       }),
     );
     this.addIconRow(
-      { src: "/icons/coin.svg" },
+      { src: spriteDataUrl("coin") },
       `${character.currency} gold: Currency collected so far this playthrough.`,
       { count: character.currency, alwaysShow: true },
     );
@@ -291,7 +292,7 @@ export class SidePanelScene extends Phaser.Scene {
           const description = lootDescriptions[lootId] ?? "";
           const textureKey = LOOT_TEXTURE_KEYS[lootId];
           return {
-            icon: textureKey ? { src: `/icons/${textureKey}.svg` } : { fallbackColor: hexColor(COLORS.loot) },
+            icon: textureKey ? { src: spriteDataUrl(textureKey) } : { fallbackColor: hexColor(COLORS.loot) },
             tooltipText: `${name}: ${description}`,
             count,
           };
@@ -312,7 +313,7 @@ export class SidePanelScene extends Phaser.Scene {
           const description = keyTypeDescriptions[keyType] ?? "";
           const textureKey = KEY_TEXTURE_KEYS[keyType];
           return {
-            icon: textureKey ? { src: `/icons/${textureKey}.svg` } : { fallbackColor: hexColor(COLORS.key) },
+            icon: textureKey ? { src: spriteDataUrl(textureKey) } : { fallbackColor: hexColor(COLORS.key) },
             tooltipText: `${keyType} key: ${description}`,
             count,
           };

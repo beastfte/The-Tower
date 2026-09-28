@@ -60,7 +60,6 @@ function buildFixture(openRows: boolean[][], entrance: { x: number; y: number },
     levers: [],
     waterTiles: [],
     crackedWalls: [],
-    torches: [],
     wallZoneOverrides: [],
   };
   const toolFloor = {

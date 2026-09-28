@@ -555,7 +555,7 @@ export const FLOOR_1: FloorDefinition = {
       },
       kind: "armor",
       payload: {
-        material: "cloth",
+        material: "leather",
         slot: "helm",
       },
     },
@@ -665,7 +665,6 @@ export const FLOOR_1: FloorDefinition = {
   levers: [],
   waterTiles: [],
   crackedWalls: [],
-  torches: [],
   zone: "stone",
   wallZoneOverrides: [],
 };

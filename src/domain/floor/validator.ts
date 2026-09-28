@@ -1,6 +1,9 @@
 import type { Position } from "../types";
 import { positionKey } from "../types";
-import type { EnemyDefinition, FloorDefinition } from "./types";
+import type { ArmorPickupPayload, EnemyDefinition, FloorDefinition } from "./types";
+import { DOOR_KEY_TIERS, type WeaponId } from "../character/types";
+import { ARMOR_PIECES, armorPieceKey } from "../../data/armorPieces";
+import { WEAPONS } from "../../data/weapons";
 
 export interface ValidationResult {
   valid: boolean;
@@ -153,7 +156,8 @@ function validateLeverEffects(
 
 /** Validates a single FloorDefinition against invariants 1, 2, 4, 6, 8-9, and 11-12 of
  * contracts/floor-data-contract.md and contracts/trap-mechanics-contract.md, plus
- * invariants 15-18 of contracts/wall-torch-contract.md. Invariant 3 (016) was removed —
+ * invariants 16 and 18 of contracts/wall-torch-contract.md (its torch-specific invariant 15
+ * was removed with the torch feature — 018 FR-020). Invariant 3 (016) was removed —
  * a floor is no longer required to have an unavoidable compulsory enemy/keyed door. */
 export function validateFloorDefinition(floor: FloorDefinition): ValidationResult {
   const errors: string[] = [];
@@ -187,9 +191,6 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
   for (const lava of floor.lavaTiles) claim(lava.position, `lava tile "${lava.id}"`);
   for (const lever of floor.levers) claim(lever.position, `lever "${lever.id}"`);
   for (const water of floor.waterTiles) claim(water.position, `water tile "${water.id}"`);
-  // 013 (contract invariant 15): a torch's position is deliberately NOT claimed here — it may
-  // (and typically does) coincide with a crackedWalls position or an ordinary wall tile
-  // (FR-011), so it's exempt from the shared-claim check every other placed-content type uses.
   for (const wall of floor.crackedWalls) claim(wall.position, `cracked wall "${wall.id}"`);
 
   if (occupied.has(positionKey(floor.entrance))) {
@@ -245,10 +246,6 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
     floor.crackedWalls.map((w) => w.id),
     "cracked wall",
   );
-  checkUnique(
-    floor.torches.map((t) => t.id),
-    "torch",
-  );
 
   // 007 US4 (contract invariant 10): a water tile's grid cell must be non-walkable — its
   // only gameplay behavior is blocking, which the grid already expresses (research.md #8).
@@ -263,8 +260,8 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
   // 007 US3 (contract invariant 11): every LeverEffect reference must resolve on this floor.
   validateLeverEffects(floor, occupied, errors);
 
-  // 013 (contract invariant 16): both a cracked wall and a torch are anchored to an
-  // impassable tile — mirrors invariant 10's water-tile rule.
+  // 013 (contract invariant 16): a cracked wall is anchored to an impassable tile — mirrors
+  // invariant 10's water-tile rule.
   for (const wall of floor.crackedWalls) {
     if (tileWalkable(floor, wall.position)) {
       errors.push(
@@ -272,11 +269,28 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
       );
     }
   }
-  for (const torch of floor.torches) {
-    if (tileWalkable(floor, torch.position)) {
-      errors.push(
-        `Floor "${floor.id}": torch "${torch.id}" at ${positionKey(torch.position)} must be on a non-walkable grid cell (invariant 16)`,
-      );
+
+  // 018 FR-024: a floor naming a removed/unknown armour material, weapon id, or door tier
+  // fails validation by name rather than degrading silently — this only matters for a raw JSON
+  // tower import (sync-tower.ts), since hand-authored floor data is already TypeScript-checked.
+  for (const door of floor.keyedDoors) {
+    if (!(DOOR_KEY_TIERS as readonly string[]).includes(door.doorType)) {
+      errors.push(`Floor "${floor.id}": keyed door "${door.id}" has unknown door tier "${door.doorType}" (FR-024)`);
+    }
+  }
+  for (const item of floor.items) {
+    if (item.kind === "weapon") {
+      const weaponId = item.payload as WeaponId;
+      if (!WEAPONS[weaponId]) {
+        errors.push(`Floor "${floor.id}": item "${item.id}" references unknown weapon "${weaponId}" (FR-024)`);
+      }
+    } else if (item.kind === "armor") {
+      const payload = item.payload as ArmorPickupPayload;
+      if (!ARMOR_PIECES[armorPieceKey(payload.material, payload.slot)]) {
+        errors.push(
+          `Floor "${floor.id}": item "${item.id}" references unknown armour material "${payload.material}" (FR-024)`,
+        );
+      }
     }
   }
 

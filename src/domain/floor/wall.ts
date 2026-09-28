@@ -1,5 +1,5 @@
 import { positionKey, type Position } from "../types";
-import type { CrackedWallDefinition, FloorDefinition, TorchDefinition, ZoneThemeId } from "./types";
+import type { CrackedWallDefinition, FloorDefinition, ZoneThemeId } from "./types";
 
 /** 013 FR-004: "more than five" collisions before a cracked wall opens. */
 export const CRACKED_WALL_BREAK_THRESHOLD = 5;
@@ -10,11 +10,6 @@ export function findCrackedWallAt(
   position: Position,
 ): CrackedWallDefinition | undefined {
   return floor.crackedWalls.find((w) => positionKey(w.position) === positionKey(position));
-}
-
-/** Returns the torch at a position, if any (013). */
-export function findTorchAt(floor: FloorDefinition, position: Position): TorchDefinition | undefined {
-  return floor.torches.find((t) => positionKey(t.position) === positionKey(position));
 }
 
 /** Returns the zone a wall tile at `position` should render with — its per-tile override if

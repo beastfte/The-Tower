@@ -30,7 +30,6 @@ function sampleDefinition(): FloorDefinition {
     levers: [{ id: "l1", position: { x: 1, y: 1 }, effect: { kind: "unlockDoor", doorId: "d1" } }],
     waterTiles: [],
     crackedWalls: [{ id: "cw1", position: { x: 0, y: 0 } }],
-    torches: [{ id: "t1", position: { x: 0, y: 0 } }],
     zone: "frost",
     wallZoneOverrides: [{ position: { x: 0, y: 0 }, zone: "ember" }],
   };
@@ -75,7 +74,6 @@ describe("floorDefinitionToExport / floorExportToDefinition round-trip", () => {
     // The specific fields the 012 contract doc's field list omits (documentation gap vs.
     // feature 013's later additions to FloorDefinition) must still survive the round-trip.
     expect(fe.crackedWalls).toEqual(def.crackedWalls);
-    expect(fe.torches).toEqual(def.torches);
     expect(fe.zone).toBe(def.zone);
     expect(fe.wallZoneOverrides).toEqual(def.wallZoneOverrides);
   });
@@ -109,7 +107,6 @@ describe("floorDefinitionToExport / floorExportToDefinition round-trip", () => {
       levers: [],
       waterTiles: [],
       crackedWalls: [],
-      torches: [],
       wallZoneOverrides: [],
     };
     const def = floorExportToDefinition(fe);

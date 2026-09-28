@@ -9,7 +9,7 @@ import type { FloorDefinition } from "../../../src/domain/floor/types";
 /** FR-016 / research.md #7 — the repo -> tool direction. Tests must not depend on the live
  * tower's authored content (src/data/floors) — it's replaced wholesale whenever the tower is
  * redesigned. This fixture floor exercises every field the 012 contract doc's field list
- * omits (torches, cracked walls, wall zone overrides) plus a hazard/lever/keyed-door/item set,
+ * omits (cracked walls, wall zone overrides) plus a hazard/lever/keyed-door/item set,
  * on a single one-wide corridor so its lone enemy is automatically the compulsory end boss. */
 function buildFixtureFloor(): FloorDefinition {
   const wallRow = () => Array.from({ length: 9 }, () => ({ walkable: false }));
@@ -40,7 +40,6 @@ function buildFixtureFloor(): FloorDefinition {
     levers: [{ id: "test-lever", position: { x: 5, y: 1 }, effect: { kind: "deactivateTraps", targetIds: ["test-spike"] } }],
     waterTiles: [{ id: "test-water", position: { x: 1, y: 0 } }],
     crackedWalls: [{ id: "test-cracked-wall", position: { x: 0, y: 0 } }],
-    torches: [{ id: "test-torch", position: { x: 0, y: 0 } }],
     wallZoneOverrides: [{ position: { x: 3, y: 0 }, zone: "frost" }],
     zone: "stone",
   };
@@ -76,16 +75,14 @@ describe("exportExistingFloors — repo -> tool direction (FR-016)", () => {
     expect(validation.valid).toBe(true);
   });
 
-  it("preserves torches, cracked walls, and wall zone overrides — fields the 012 contract doc's field list omits", () => {
+  it("preserves cracked walls and wall zone overrides — fields the 012 contract doc's field list omits", () => {
     const result = exportExistingFloors(TOWER);
     const floor = TOWER.floors.find((f) => f.id === "test-floor")!;
     const floorExport = result.floors.find((f) => f.id === "test-floor")!;
 
-    expect(floor.torches.length).toBeGreaterThan(0);
     expect(floor.crackedWalls.length).toBeGreaterThan(0);
     expect(floor.wallZoneOverrides.length).toBeGreaterThan(0);
 
-    expect(floorExport.torches).toEqual(floor.torches);
     expect(floorExport.crackedWalls).toEqual(floor.crackedWalls);
     expect(floorExport.wallZoneOverrides).toEqual(floor.wallZoneOverrides);
   });

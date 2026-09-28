@@ -38,7 +38,6 @@ const FIRST_FLOOR: FloorDefinition = {
   levers: [],
   waterTiles: [],
   crackedWalls: [],
-  torches: [],
   wallZoneOverrides: [],
 };
 const FINAL_FLOOR: FloorDefinition = {
@@ -63,7 +62,6 @@ const FINAL_FLOOR: FloorDefinition = {
   levers: [],
   waterTiles: [],
   crackedWalls: [],
-  torches: [],
   wallZoneOverrides: [],
 };
 const TOWER = createTower([FIRST_FLOOR, FINAL_FLOOR]);
@@ -144,11 +142,11 @@ describe("gameplay integration", () => {
 
     // A second, different weapon replaces the first weapon's own contribution (FR-010)
     // rather than stacking with it — but both still add onto the same unarmed base.
-    const axeItem = { id: "test-axe", position: floor.entrance, kind: "weapon" as const, payload: "axe" as WeaponId };
-    save.character = applyItemPickup(save.character, axeItem);
-    expect(save.character.equippedWeaponId).toBe("axe");
-    const afterAxe = computeEffectiveStats(save.character, weaponCatalog, armorCatalog);
-    expect(afterAxe.damage).toBe(baseline.damage + weaponCatalog.get("axe")!.attackValue);
+    const goldSwordItem = { id: "test-gold-sword", position: floor.entrance, kind: "weapon" as const, payload: "goldSword" as WeaponId };
+    save.character = applyItemPickup(save.character, goldSwordItem);
+    expect(save.character.equippedWeaponId).toBe("goldSword");
+    const afterGoldSword = computeEffectiveStats(save.character, weaponCatalog, armorCatalog);
+    expect(afterGoldSword.damage).toBe(baseline.damage + weaponCatalog.get("goldSword")!.attackValue);
 
     // 011: armor is now tracked per slot (chest), not as one whole-character tier.
     const leatherItem = floor.items.find((i) => i.kind === "armor")!;

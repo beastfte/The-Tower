@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { classifyEnemyPlacement, validateFloorDefinition } from "../../../src/domain/floor/validator";
-import type { EnemyDefinition, FloorDefinition } from "../../../src/domain/floor/types";
+import type { EnemyDefinition, FloorDefinition, ItemDefinition } from "../../../src/domain/floor/types";
 
 /** A minimal 20x20 fully-walkable floor, extended per test with this feature's content. */
 function baseFloor(overrides: Partial<FloorDefinition> = {}): FloorDefinition {
@@ -20,7 +20,6 @@ function baseFloor(overrides: Partial<FloorDefinition> = {}): FloorDefinition {
     levers: [],
     waterTiles: [],
     crackedWalls: [],
-    torches: [],
     wallZoneOverrides: [],
     ...overrides,
   };
@@ -43,7 +42,6 @@ function floorFromGrid(rows: boolean[][], entrance: EnemyDefinition["position"],
     levers: [],
     waterTiles: [],
     crackedWalls: [],
-    torches: [],
     wallZoneOverrides: [],
   };
 }
@@ -132,7 +130,7 @@ describe("validateFloorDefinition — water tiles (007 US4, invariant 10)", () =
   });
 });
 
-describe("validateFloorDefinition — cracked walls & torches (013, invariants 15-17)", () => {
+describe("validateFloorDefinition — cracked walls (013, invariant 16)", () => {
   it("rejects a cracked wall authored on a walkable grid cell", () => {
     const floor = baseFloor({ crackedWalls: [{ id: "cw1", position: { x: 5, y: 5 } }] });
     const result = validateFloorDefinition(floor);
@@ -140,21 +138,10 @@ describe("validateFloorDefinition — cracked walls & torches (013, invariants 1
     expect(result.errors.some((e) => e.includes("invariant 16"))).toBe(true);
   });
 
-  it("rejects a torch authored on a walkable grid cell", () => {
-    const floor = baseFloor({ torches: [{ id: "t1", position: { x: 5, y: 5 } }] });
-    const result = validateFloorDefinition(floor);
-    expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes("invariant 16"))).toBe(true);
-  });
-
-  it("accepts a cracked wall and a co-located torch on the same non-walkable cell", () => {
-    const floor = baseFloor({
-      crackedWalls: [{ id: "cw1", position: { x: 5, y: 5 } }],
-      torches: [{ id: "t1", position: { x: 5, y: 5 } }],
-    });
+  it("accepts a cracked wall on a non-walkable cell", () => {
+    const floor = baseFloor({ crackedWalls: [{ id: "cw1", position: { x: 5, y: 5 } }] });
     floor.grid[5]![5] = { walkable: false };
     const result = validateFloorDefinition(floor);
-    expect(result.errors.some((e) => e.includes("invariant 15"))).toBe(false);
     expect(result.errors.some((e) => e.includes("invariant 16"))).toBe(false);
   });
 
@@ -230,5 +217,55 @@ describe("validateFloorDefinition — wall zone overrides (013 session 3, invari
     const result = validateFloorDefinition(floor);
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes("invariant 18") && e.includes("duplicated"))).toBe(true);
+  });
+});
+
+describe("validateFloorDefinition — removed-asset rejection (018 FR-024)", () => {
+  // These payloads are deliberately outside the current type unions — they simulate a raw JSON
+  // tower import naming a removed asset, which TypeScript can't catch but the validator must.
+  it("rejects an item naming an unknown weapon id, by name", () => {
+    const floor = baseFloor({
+      items: [{ id: "i1", position: { x: 5, y: 5 }, kind: "weapon", payload: "axe" as unknown as ItemDefinition["payload"] }],
+    });
+    const result = validateFloorDefinition(floor);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("FR-024") && e.includes("axe"))).toBe(true);
+  });
+
+  it("rejects an item naming an unknown armour material, by name", () => {
+    const floor = baseFloor({
+      items: [
+        {
+          id: "i1",
+          position: { x: 5, y: 5 },
+          kind: "armor",
+          payload: { material: "cloth", slot: "helm" } as unknown as ItemDefinition["payload"],
+        },
+      ],
+    });
+    const result = validateFloorDefinition(floor);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("FR-024") && e.includes("cloth"))).toBe(true);
+  });
+
+  it("rejects a keyed door naming an unknown door tier, by name", () => {
+    const floor = baseFloor({
+      keyedDoors: [{ id: "d1", position: { x: 5, y: 5 }, doorType: "obsidian" }],
+    });
+    const result = validateFloorDefinition(floor);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("FR-024") && e.includes("obsidian"))).toBe(true);
+  });
+
+  it("accepts a surviving weapon id, armour material, and door tier", () => {
+    const floor = baseFloor({
+      items: [
+        { id: "i1", position: { x: 5, y: 5 }, kind: "weapon", payload: "diamondSword" },
+        { id: "i2", position: { x: 6, y: 5 }, kind: "armor", payload: { material: "plate", slot: "chest" } },
+      ],
+      keyedDoors: [{ id: "d1", position: { x: 7, y: 5 }, doorType: "gold" }],
+    });
+    const result = validateFloorDefinition(floor);
+    expect(result.errors.some((e) => e.includes("FR-024"))).toBe(false);
   });
 });

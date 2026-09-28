@@ -30,7 +30,6 @@ describe("death and recovery", () => {
     levers: [],
     waterTiles: [],
     crackedWalls: [],
-    torches: [],
     wallZoneOverrides: [],
   };
 

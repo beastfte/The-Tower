@@ -53,7 +53,6 @@ function validFloorExport(overrides: Partial<FloorExport> = {}): FloorExport {
     levers: [],
     waterTiles: [],
     crackedWalls: [],
-    torches: [],
     wallZoneOverrides: [],
     ...overrides,
   };

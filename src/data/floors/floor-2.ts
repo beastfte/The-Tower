@@ -124,7 +124,6 @@ export const FLOOR_2: FloorDefinition = {
   levers: [],
   waterTiles: [],
   crackedWalls: [],
-  torches: [],
   zone: "ember",
   wallZoneOverrides: [],
 };

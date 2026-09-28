@@ -39,7 +39,10 @@ import type {
   SpikePitDefinition,
   ZoneThemeId,
 } from "../../domain/floor/types";
-import type { KeyDefinition, LootItem, WeaponId } from "../../domain/character/types";
+import { ARMOR_MATERIAL_ORDER } from "../../domain/character/types";
+import type { ArmorMaterialId, KeyDefinition, LootItem, WeaponId } from "../../domain/character/types";
+import { ensureLavaGlowTexture, ensurePlayerTexture, ensureSpriteTexture, ensureZoneTileTexture } from "../render/spriteTextures";
+import type { ArmourTierId } from "../render/spriteData";
 import {
   keyTypeDescriptions,
   potionDescription,
@@ -63,71 +66,11 @@ const MOVE_COOLDOWN_MS = 160;
  * from the spike pit's own visual arm/retract cycle (research.md #3). */
 const TRAP_TICK_MS = 1000;
 
-/** 004: species/weapon art baked to public/icons/*.svg (research.md #1).
- * 011: the player's body is now always "player-none" — per-slot armor overlays replace the old
- * whole-body tier swap (player-leather/mail/plate.svg are left on disk, unreferenced). */
-const SPECIES_TEXTURE_KEYS = ["goblin", "ogre", "wizard"] as const;
-const WEAPON_TEXTURE_KEYS = ["sword", "axe", "mace", "bow", "staff"] as const;
-const PLAYER_TEXTURE_KEYS = ["player-none"] as const;
-/** 011: one overlay texture per material/slot combination (data/armorPieces.ts), layered onto
- * the base player sprite in drawPlayer(). */
-const ARMOR_TEXTURE_KEYS = [
-  "armor-cloth-helm",
-  "armor-cloth-chest",
-  "armor-cloth-legs",
-  "armor-cloth-boots",
-  "armor-leather-helm",
-  "armor-leather-chest",
-  "armor-leather-legs",
-  "armor-leather-boots",
-  "armor-mail-helm",
-  "armor-mail-chest",
-  "armor-mail-legs",
-  "armor-mail-boots",
-  "armor-plate-helm",
-  "armor-plate-chest",
-  "armor-plate-legs",
-  "armor-plate-boots",
-] as const;
-/** 005: potion (US1), coin (US3), chest (US2) — item/prop art baked to public/icons/*.svg.
- * 006: torch (a loot item) and key-bronze (US1's real key art, FR-008/FR-009) added.
- * 011: potion-attack/potion-defense (new permanent-stat-boost potions) added. */
-const ITEM_TEXTURE_KEYS = [
-  "potion",
-  "coin",
-  "chest",
-  "torch",
-  "key-bronze",
-  "key-silver",
-  "key-gold",
-  "potion-attack",
-  "potion-defense",
-] as const;
-/** 006 FR-010/FR-011: floor entrance/exit ("stairs") board-tile art.
- * 010 US2: "door-open" removed — an open door now renders nothing (FR-007).
- * 013: "door-closed"/"door-closed-silver"/"door-closed-gold" removed — a closed door now renders
- * from a real lifted sprite (wallSprites.ensureDoorTexture, session 4), not baked art; the
- * door-*.svg files themselves are left in public/icons/ untouched, matching door-open.svg above. */
-const PROP_TEXTURE_KEYS = ["stairs-up", "stairs-down"] as const;
-/** 007: spike-pit's three cycle-segment sprites (FR-001, FR-012), lava's base/glow
- * frame-swap sprites (FR-004), the lever's two toggle-state sprites (FR-006), and water's
- * static sprite (FR-015). */
-const TRAP_TEXTURE_KEYS = [
-  "spike-off",
-  "spike-half",
-  "spike-on",
-  "lava",
-  "lava-glow",
-  "lever-off",
-  "lever-on",
-  "water",
-] as const;
-
 const SPIKE_SEGMENT_TEXTURE: Record<SpikePitSegment, string> = {
-  retracted: "spike-off",
-  rising: "spike-half",
-  armed: "spike-on",
-  falling: "spike-half",
+  retracted: "spikesOff",
+  rising: "spikesHalf",
+  armed: "spikesOn",
+  falling: "spikesHalf",
 };
 
 /** 006 FR-009: maps a LootItem id to its baked texture key. A loot id with no entry here
@@ -142,9 +85,9 @@ export const LOOT_TEXTURE_KEYS: Record<string, string> = {};
  * static allow-list, so a real key.keyType->textureKey map is the single authoritative source,
  * reusable by SidePanelScene (a DOM-only scene with no Phaser texture manager to query). */
 export const KEY_TEXTURE_KEYS: Record<string, string> = {
-  bronze: "key-bronze",
-  silver: "key-silver",
-  gold: "key-gold",
+  bronze: "keyBronze",
+  silver: "keySilver",
+  gold: "keyGold",
 };
 
 /** 010 US1 (FR-005); 013 session 4 replaces the drawn tier-colored slab with the real door
@@ -171,27 +114,6 @@ export const COLORS = {
   key: 0xf4d35e,
 } as const;
 
-/** Blends a hex color toward white by `amount` (0-255) per channel. */
-function lighten(hex: number, amount: number): number {
-  const r = Math.min(255, ((hex >> 16) & 0xff) + amount);
-  const g = Math.min(255, ((hex >> 8) & 0xff) + amount);
-  const b = Math.min(255, (hex & 0xff) + amount);
-  return (r << 16) | (g << 8) | b;
-}
-
-/** 013 (research.md #3): per-zone floor base color, matching the reference sheet's own
- * drawFloorMap floor cell — a base fill, occasionally swapped for a lighter "worn stone"
- * variant, with faint dark grid lines. Walls/doors render from real lifted sprites instead
- * (wallSprites.ts, session 4) — only the floor still uses this flat-color approximation. */
-const ZONE_FLOOR_COLORS: Record<ZoneThemeId, number> = {
-  stone: 0x2b2430,
-  crypt: 0x1f2421,
-  cavern: 0x2a2018,
-  frost: 0x1c2b33,
-  ember: 0x331a14,
-  arcane: 0x201830,
-};
-
 interface PendingPickup {
   kind: "key" | "potion" | "currency";
   label: string;
@@ -202,9 +124,6 @@ export class FloorScene extends Phaser.Scene {
   private ctx!: GameContext;
   private canMove = true;
   private playerSprite!: Phaser.GameObjects.Image;
-  /** 011 US2: one overlay per currently-equipped armor slot, layered on top of playerSprite;
-   * destroyed and rebuilt every drawPlayer() call alongside the base sprite. */
-  private playerArmorSprites: Phaser.GameObjects.Image[] = [];
   private tileLayer!: Phaser.GameObjects.Container;
   private messageText!: HTMLDivElement;
   /** Set from the fixed `TILE_SIZE` constant in `create()` (014 FR-004/FR-005) — no longer
@@ -233,16 +152,9 @@ export class FloorScene extends Phaser.Scene {
   }
 
   preload(): void {
-    // 011: armor overlays share the same 128x128 canvas/anchor as the base player sprite (so
-    // drawPlayer can layer them at the same position/size with no separate anchor math) — loaded
-    // alongside PLAYER_TEXTURE_KEYS rather than the smaller 64x64 item icons.
-    for (const key of [...SPECIES_TEXTURE_KEYS, ...PLAYER_TEXTURE_KEYS, ...ARMOR_TEXTURE_KEYS]) {
-      if (!this.textures.exists(key)) this.load.svg(key, `/icons/${key}.svg`, { width: 128, height: 128 });
-    }
-    for (const key of WEAPON_TEXTURE_KEYS) {
-      if (!this.textures.exists(key)) this.load.svg(key, `/icons/${key}.svg`, { width: 64, height: 64 });
-    }
-    for (const key of [...ITEM_TEXTURE_KEYS, ...PROP_TEXTURE_KEYS, ...TRAP_TEXTURE_KEYS]) {
+    // The lever is the sheet's one genuine orphan (FR-025) — its existing art is kept as-is
+    // rather than sourced from spriteData.ts, so it's the only texture still preloaded here.
+    for (const key of ["lever-off", "lever-on"]) {
       if (!this.textures.exists(key)) this.load.svg(key, `/icons/${key}.svg`, { width: 64, height: 64 });
     }
   }
@@ -711,7 +623,7 @@ export class FloorScene extends Phaser.Scene {
     const collected = new Set(progress.collectedItemIds);
     const leverEffects = resolveLeverEffects(floor, progress.toggledLeverIds);
     const brokenWallPositions = resolveBrokenWallPositions(floor, progress.crackedWallHitCounts);
-    const floorColor = ZONE_FLOOR_COLORS[floor.zone ?? "stone"];
+    const zone = floor.zone ?? "stone";
 
     this.tileLayer.removeAll(true);
     this.livingMarkers = [];
@@ -725,7 +637,7 @@ export class FloorScene extends Phaser.Scene {
         const walkable =
           row[x]!.walkable || brokenWallPositions.some((p) => positionsEqual(p, position));
         if (walkable) {
-          this.addFloorTile(x, y, floorColor);
+          this.addFloorTile(x, y, zone);
         } else {
           // 013 session 3: a wall's own zone override (if any) picks the palette here, so a
           // single floor can demonstrate more than one zone's wall art (contract invariant 18).
@@ -734,16 +646,10 @@ export class FloorScene extends Phaser.Scene {
       }
     }
 
-    // 013 FR-012: a torch's faint glow, drawn before entity markers so it reads as ambient
-    // light rather than an obscuring overlay (research.md #7) — static, no animation.
-    for (const torch of floor.torches) {
-      this.addTorchGlow(torch.position);
-    }
-
     // 006 FR-011: the entrance is where the player arrived from (stairs down into this
     // floor); the exit leads further up the tower (stairs up).
-    this.addTextureMarker(floor.entrance, "stairs-down", 1);
-    this.addTextureMarker(floor.exit, "stairs-up", 1);
+    this.addTextureMarker(floor.entrance, "stairsDown", 1);
+    this.addTextureMarker(floor.exit, "stairsUp", 1);
 
     for (const door of floor.keyedDoors) {
       // 010 US2 (FR-007) fix: rendering "open" must reflect that the door was actually
@@ -766,18 +672,12 @@ export class FloorScene extends Phaser.Scene {
       this.addTextureMarker(water.position, "water", 1);
     }
 
-    // 013 FR-011: a torch is a static prop marker, not an item-pickup loop entry — it's never
-    // obtainable (FR-010), the same way stairs-up/stairs-down render.
-    for (const torch of floor.torches) {
-      this.addTextureMarker(torch.position, "torch", 0.8);
-    }
-
     for (const hazard of floor.hazardTiles) {
       this.addTile(hazard.position.x, hazard.position.y, COLORS.hazard);
     }
 
     for (const pit of floor.spikePits) {
-      const marker = this.addTextureMarker(pit.position, "spike-off", 1);
+      const marker = this.addTextureMarker(pit.position, "spikesOff", 1);
       this.spikePitMarkers.push({ gameObject: marker, pit });
     }
 
@@ -804,9 +704,9 @@ export class FloorScene extends Phaser.Scene {
       } else if (item.kind === "potion") {
         marker = this.addTextureMarker(item.position, "potion", 0.35);
       } else if (item.kind === "potionAttack") {
-        marker = this.addTextureMarker(item.position, "potion-attack", 0.35);
+        marker = this.addTextureMarker(item.position, "potionAttack", 0.35);
       } else if (item.kind === "potionDefense") {
-        marker = this.addTextureMarker(item.position, "potion-defense", 0.35);
+        marker = this.addTextureMarker(item.position, "potionDefense", 0.35);
       } else if (item.kind === "chest") {
         marker = this.addTextureMarker(item.position, "chest", 0.8);
       } else if (item.kind === "key") {
@@ -856,13 +756,16 @@ export class FloorScene extends Phaser.Scene {
     this.tileLayer.add(rect);
   }
 
-  /** 013: matches the reference sprite sheet's own drawFloorMap floor cell — a base fill, an
-   * occasional lighter "worn stone" variant on a pseudo-random subset of tiles, and faint dark
-   * grid lines on the top/left edges. */
-  private addFloorTile(x: number, y: number, color: number): void {
+  /** 018: the sheet's own floorSlab/floorCracked tiles, zone-palette-swapped — a pseudo-random
+   * subset renders the cracked variant (research/data-model's floor sprite pair), plus faint
+   * dark grid lines on the top/left edges. */
+  private addFloorTile(x: number, y: number, zone: ZoneThemeId): void {
     const size = this.tileSize;
-    const variant = (x * 7 + y * 13) % 9 === 0 ? lighten(color, 12) : color;
-    this.addTile(x, y, variant);
+    const cracked = (x * 7 + y * 13) % 9 === 0;
+    const key = ensureZoneTileTexture(this, cracked ? "floorCracked" : "floorSlab", zone);
+    const image = this.add.image(x * size + size / 2, y * size + size / 2, key);
+    image.setDisplaySize(size, size);
+    this.tileLayer.add(image);
     // 014: a grid line marks the boundary with the *previous* row/column, so the outermost
     // row/column (x/y === 0) skips its line — there's no adjacent tile on that side to
     // separate from, and drawing it anyway would poke half its width past PLAY_AREA's own
@@ -914,23 +817,14 @@ export class FloorScene extends Phaser.Scene {
     return rect;
   }
 
-  /** 013 FR-012: a torch's static glow — one low-alpha circle covering its own tile and every
-   * tile within a 2-tile radius, with no animation (research.md #7). */
-  private addTorchGlow(position: Position): void {
-    const size = this.tileSize;
-    const cx = position.x * size + size / 2;
-    const cy = position.y * size + size / 2;
-    const glow = this.add.circle(cx, cy, size * 2, 0xf4d35e, 0.12);
-    this.tileLayer.add(glow);
-  }
-
   /** 004 US1/US2/US3: species/weapon/armor art (research.md #1), sized to fit the tile. */
   private addTextureMarker(position: Position, textureKey: string, scale: number): Phaser.GameObjects.Image {
     const size = this.tileSize;
+    const key = ensureSpriteTexture(this, textureKey);
     const image = this.add.image(
       position.x * size + size / 2,
       position.y * size + size / 2,
-      textureKey,
+      key,
     );
     image.setDisplaySize((size - scalePx(2)) * scale, (size - scalePx(2)) * scale);
     this.tileLayer.add(image);
@@ -951,38 +845,37 @@ export class FloorScene extends Phaser.Scene {
       if (gameObject.texture.key !== textureKey) gameObject.setTexture(textureKey);
     }
     for (const { gameObject, lava } of this.lavaMarkers) {
-      const textureKey = computeLavaFrame(lava, time);
+      const frame = computeLavaFrame(lava, time);
+      const textureKey = frame === "lava" ? ensureSpriteTexture(this, "lava") : ensureLavaGlowTexture(this);
       if (gameObject.texture.key !== textureKey) gameObject.setTexture(textureKey);
     }
   }
 
-  /** 011 US2 (FR-005/FR-006): base "player-none" body, then one overlay image per equipped
-   * armor slot (drawn after the base so it layers on top) — each overlay is authored at the
-   * same 128x128 canvas/anchor as the base sprite, so no separate positioning math is needed
-   * (research.md #3): every layer uses the exact same position/size as the base. */
+  /** Whichever equipped slot carries the most protective material picks the body's tier — the
+   * sheet composes worn armour as one whole-body state (contract C3), not per-slot overlays, so
+   * a mixed loadout still needs exactly one tier to render. */
+  private playerTier(): ArmourTierId {
+    const materials = Object.values(this.ctx.save.character.equippedArmor).filter(
+      (m): m is ArmorMaterialId => !!m,
+    );
+    if (materials.length === 0) return "none";
+    return materials.reduce((best, m) => (ARMOR_MATERIAL_ORDER[m] > ARMOR_MATERIAL_ORDER[best] ? m : best));
+  }
+
+  /** 018 (contract C3): one composed image — base body plus tier-recoloured armour overlay,
+   * baked into a single texture by ensurePlayerTexture — replacing the old base-plus-four-
+   * separate-overlay-images approach that rendered armour off-centre. */
   private drawPlayer(position: Position): void {
     if (this.playerSprite) this.playerSprite.destroy();
-    for (const sprite of this.playerArmorSprites) sprite.destroy();
-    this.playerArmorSprites = [];
 
     const size = this.tileSize;
     const displaySize = size - scalePx(4);
     const px = position.x * size + size / 2;
     const py = position.y * size + size / 2;
 
-    this.playerSprite = this.add.image(px, py, "player-none");
+    const key = ensurePlayerTexture(this, this.playerTier());
+    this.playerSprite = this.add.image(px, py, key);
     this.playerSprite.setDisplaySize(displaySize, displaySize);
     this.tileLayer.add(this.playerSprite);
-
-    const { equippedArmor } = this.ctx.save.character;
-    for (const [slot, material] of Object.entries(equippedArmor)) {
-      if (!material) continue;
-      const piece = this.ctx.armorCatalog.get(`${material}:${slot}`);
-      if (!piece) continue;
-      const overlay = this.add.image(px, py, piece.textureKey);
-      overlay.setDisplaySize(displaySize, displaySize);
-      this.tileLayer.add(overlay);
-      this.playerArmorSprites.push(overlay);
-    }
   }
 }

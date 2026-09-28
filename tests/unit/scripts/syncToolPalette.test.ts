@@ -22,8 +22,8 @@ describe("sync-tool-palette — palette generation matches the game's source cat
   it("includes every monster species, weapon, armor material/slot, door/key tier, lever effect kind, item kind, and hazard kind the game currently defines", () => {
     const palette = buildPalette();
     expect(palette.monsters.map((m) => m.id).sort()).toEqual(["goblin", "ogre", "wizard"]);
-    expect(palette.weapons.map((w) => w.id).sort()).toEqual(["axe", "bow", "mace", "staff", "sword"]);
-    expect(palette.armorMaterials.sort()).toEqual(["cloth", "leather", "mail", "plate"]);
+    expect(palette.weapons.map((w) => w.id).sort()).toEqual(["diamondSword", "goldSword", "sword", "woodSword"]);
+    expect(palette.armorMaterials.sort()).toEqual(["leather", "mail", "plate"]);
     expect(palette.armorSlots.sort()).toEqual(["boots", "chest", "helm", "legs"]);
     expect(palette.doorKeyTiers.sort()).toEqual(["bronze", "gold", "silver"]);
     expect(palette.leverEffectKinds.sort()).toEqual(["deactivateTraps", "revealPathway", "unlockDoor"]);

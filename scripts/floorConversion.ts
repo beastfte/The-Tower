@@ -9,7 +9,6 @@ import type {
   LeverDefinition,
   WaterTileDefinition,
   CrackedWallDefinition,
-  TorchDefinition,
   WallZoneOverride,
   ZoneThemeId,
 } from "../src/domain/floor/types";
@@ -18,10 +17,10 @@ import type { Position, Tile } from "../src/domain/types";
 /**
  * The wire shape flowing both directions across the tool/repo boundary
  * (contracts/tower-export-schema.md). Extends that contract's documented field list with
- * `crackedWalls`/`torches`/`zone`/`wallZoneOverrides` — `FloorDefinition` fields added by
+ * `crackedWalls`/`zone`/`wallZoneOverrides` — `FloorDefinition` fields added by
  * feature 013 after the 012 contract docs were written. Omitting them here would silently
- * drop any existing floor's torches/cracked walls/zone overrides on every import/export
- * round-trip (`floor-01` uses all three) — a documentation gap relative to plan.md's own
+ * drop any existing floor's cracked walls/zone overrides on every import/export
+ * round-trip (`floor-01` uses them) — a documentation gap relative to plan.md's own
  * stated intent ("exports the exact same `FloorDefinition` shape"), not a deliberate
  * exclusion, so this module completes the round-trip rather than following the stale list
  * literally.
@@ -44,7 +43,6 @@ export interface FloorExport {
   levers: LeverDefinition[];
   waterTiles: WaterTileDefinition[];
   crackedWalls: CrackedWallDefinition[];
-  torches: TorchDefinition[];
   zone?: ZoneThemeId;
   wallZoneOverrides: WallZoneOverride[];
 }
@@ -82,7 +80,6 @@ export function floorExportToDefinition(fe: FloorExport): FloorDefinition {
     levers: fe.levers,
     waterTiles: fe.waterTiles,
     crackedWalls: fe.crackedWalls,
-    torches: fe.torches,
     wallZoneOverrides: fe.wallZoneOverrides,
   };
   if (fe.zone) def.zone = fe.zone;
@@ -113,7 +110,6 @@ export function floorDefinitionToExport(def: FloorDefinition, order: number): Fl
     levers: def.levers,
     waterTiles: def.waterTiles,
     crackedWalls: def.crackedWalls,
-    torches: def.torches,
     wallZoneOverrides: def.wallZoneOverrides,
   };
   if (def.zone) fe.zone = def.zone;

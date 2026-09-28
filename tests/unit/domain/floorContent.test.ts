@@ -52,7 +52,6 @@ const FIXTURE_FLOOR_1: FloorDefinition = {
   levers: [{ id: "f1-lever", position: { x: 11, y: 10 }, effect: { kind: "deactivateTraps", targetIds: ["f1-spike"] } }],
   waterTiles: [{ id: "f1-water", position: { x: 2, y: 0 } }],
   crackedWalls: [{ id: "f1-cracked-wall", position: { x: 3, y: 10 } }],
-  torches: [{ id: "f1-torch", position: { x: 3, y: 10 } }],
   wallZoneOverrides: [{ position: { x: 5, y: 0 }, zone: "frost" }],
 };
 
@@ -89,7 +88,7 @@ const FIXTURE_FLOOR_FINAL: FloorDefinition = {
   ],
   items: [
     { id: "final-armor", position: { x: 2, y: 3 }, kind: "armor", payload: { material: "mail", slot: "chest" } },
-    { id: "final-weapon", position: { x: 3, y: 11 }, kind: "weapon", payload: "bow" },
+    { id: "final-weapon", position: { x: 3, y: 11 }, kind: "weapon", payload: "diamondSword" },
     { id: "final-potion", position: { x: 11, y: 3 }, kind: "potion", payload: undefined },
     { id: "final-chest", position: { x: 11, y: 11 }, kind: "chest", payload: { kind: "currency", amount: 30 } },
   ],
@@ -100,7 +99,6 @@ const FIXTURE_FLOOR_FINAL: FloorDefinition = {
   levers: [],
   waterTiles: [],
   crackedWalls: [],
-  torches: [],
   wallZoneOverrides: [],
 };
 

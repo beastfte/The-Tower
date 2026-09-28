@@ -24,7 +24,6 @@ const FIXTURE_FLOOR: FloorDefinition = {
   levers: [],
   waterTiles: [],
   crackedWalls: [],
-  torches: [],
   wallZoneOverrides: [],
 };
 const TOWER = createTower([FIXTURE_FLOOR]);

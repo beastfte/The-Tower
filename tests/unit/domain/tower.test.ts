@@ -28,7 +28,6 @@ function chokepointFloor(bossEnemy: EnemyDefinition, bypassRow?: number): FloorD
     levers: [],
     waterTiles: [],
     crackedWalls: [],
-    torches: [],
     wallZoneOverrides: [],
   };
 }

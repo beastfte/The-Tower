@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   CRACKED_WALL_BREAK_THRESHOLD,
   findCrackedWallAt,
-  findTorchAt,
   isWallBroken,
   resolveBrokenWallPositions,
   resolveWallZone,
@@ -12,14 +11,12 @@ import { emptyFloorProgress } from "../../../src/domain/character/save";
 import type {
   CrackedWallDefinition,
   FloorDefinition,
-  TorchDefinition,
   WallZoneOverride,
 } from "../../../src/domain/floor/types";
 import type { FloorProgress } from "../../../src/domain/character/save";
 
 function makeFloor(
   crackedWalls: CrackedWallDefinition[],
-  torches: TorchDefinition[] = [],
   wallZoneOverrides: WallZoneOverride[] = [],
 ): FloorDefinition {
   return {
@@ -36,7 +33,6 @@ function makeFloor(
     levers: [],
     waterTiles: [],
     crackedWalls,
-    torches,
     wallZoneOverrides,
   };
 }
@@ -51,9 +47,8 @@ describe("isWallBroken", () => {
   });
 });
 
-describe("findCrackedWallAt / findTorchAt", () => {
+describe("findCrackedWallAt", () => {
   const wall: CrackedWallDefinition = { id: "cw1", position: { x: 1, y: 0 } };
-  const torch: TorchDefinition = { id: "t1", position: { x: 1, y: 0 } };
 
   it("finds a cracked wall at its position", () => {
     const floor = makeFloor([wall]);
@@ -63,11 +58,6 @@ describe("findCrackedWallAt / findTorchAt", () => {
   it("returns undefined when no cracked wall is at a position", () => {
     const floor = makeFloor([wall]);
     expect(findCrackedWallAt(floor, { x: 0, y: 0 })).toBeUndefined();
-  });
-
-  it("finds a torch at its position, co-located with a cracked wall", () => {
-    const floor = makeFloor([wall], [torch]);
-    expect(findTorchAt(floor, { x: 1, y: 0 })).toBe(torch);
   });
 });
 
@@ -103,14 +93,14 @@ describe("resolveWallZone", () => {
 
   it("uses a matching override instead of the floor's own zone", () => {
     const floor = {
-      ...makeFloor([], [], [{ position: { x: 1, y: 0 }, zone: "ember" as const }]),
+      ...makeFloor([], [{ position: { x: 1, y: 0 }, zone: "ember" as const }]),
       zone: "crypt" as const,
     };
     expect(resolveWallZone(floor, { x: 1, y: 0 })).toBe("ember");
   });
 
   it("ignores an override at a different position", () => {
-    const floor = makeFloor([], [], [{ position: { x: 0, y: 0 }, zone: "ember" as const }]);
+    const floor = makeFloor([], [{ position: { x: 0, y: 0 }, zone: "ember" as const }]);
     expect(resolveWallZone(floor, { x: 1, y: 0 })).toBe("stone");
   });
 });

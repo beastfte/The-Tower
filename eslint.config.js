@@ -24,6 +24,7 @@ export default [
         WheelEvent: "readonly",
         HTMLDivElement: "readonly",
         HTMLButtonElement: "readonly",
+        CanvasRenderingContext2D: "readonly",
         structuredClone: "readonly",
         console: "readonly",
       },
@@ -36,10 +37,11 @@ export default [
     },
   },
   {
-    files: ["*.config.ts", "*.config.js"],
+    files: ["*.config.ts", "*.config.js", "scripts/**/*.ts"],
     languageOptions: {
       globals: {
         process: "readonly",
+        Buffer: "readonly",
       },
     },
   },

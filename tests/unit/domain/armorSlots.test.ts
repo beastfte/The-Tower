@@ -19,15 +19,15 @@ function armorItem(material: ArmorMaterialId, slot: ArmorSlotId): ItemDefinition
 describe("armor pickup (011 FR-001/FR-003/FR-004)", () => {
   it("equips an empty slot", () => {
     const save = createInitialPlayerSave("floor-01", position);
-    const character = applyItemPickup(save.character, armorItem("cloth", "helm"));
-    expect(character.equippedArmor.helm).toBe("cloth");
+    const character = applyItemPickup(save.character, armorItem("leather", "helm"));
+    expect(character.equippedArmor.helm).toBe("leather");
   });
 
   it("overrides a slot when the new piece is strictly higher tier", () => {
     const save = createInitialPlayerSave("floor-01", position);
-    let character = applyItemPickup(save.character, armorItem("cloth", "chest"));
-    character = applyItemPickup(character, armorItem("mail", "chest"));
-    expect(character.equippedArmor.chest).toBe("mail");
+    let character = applyItemPickup(save.character, armorItem("leather", "chest"));
+    character = applyItemPickup(character, armorItem("plate", "chest"));
+    expect(character.equippedArmor.chest).toBe("plate");
   });
 
   it("is a no-op when the new piece is an equal or lower tier", () => {
@@ -41,26 +41,26 @@ describe("armor pickup (011 FR-001/FR-003/FR-004)", () => {
 
   it("tracks each slot independently", () => {
     const save = createInitialPlayerSave("floor-01", position);
-    let character = applyItemPickup(save.character, armorItem("cloth", "helm"));
+    let character = applyItemPickup(save.character, armorItem("leather", "helm"));
     character = applyItemPickup(character, armorItem("plate", "boots"));
-    expect(character.equippedArmor).toEqual({ helm: "cloth", boots: "plate" });
+    expect(character.equippedArmor).toEqual({ helm: "leather", boots: "plate" });
   });
 });
 
 describe("computeEffectiveStats armor defence (011 FR-003)", () => {
   it("sums defence bonuses across every independently-equipped slot", () => {
     const save = createInitialPlayerSave("floor-01", position);
-    let character = applyItemPickup(save.character, armorItem("cloth", "helm"));
-    character = applyItemPickup(character, armorItem("leather", "chest"));
-    character = applyItemPickup(character, armorItem("mail", "legs"));
-    character = applyItemPickup(character, armorItem("plate", "boots"));
+    let character = applyItemPickup(save.character, armorItem("leather", "helm"));
+    character = applyItemPickup(character, armorItem("mail", "chest"));
+    character = applyItemPickup(character, armorItem("plate", "legs"));
+    character = applyItemPickup(character, armorItem("leather", "boots"));
 
     const stats = computeEffectiveStats(character, weaponCatalog, armorCatalog);
     const expectedArmor =
-      ARMOR_PIECES["cloth:helm"]!.defenceBonus +
-      ARMOR_PIECES["leather:chest"]!.defenceBonus +
-      ARMOR_PIECES["mail:legs"]!.defenceBonus +
-      ARMOR_PIECES["plate:boots"]!.defenceBonus;
+      ARMOR_PIECES["leather:helm"]!.defenceBonus +
+      ARMOR_PIECES["mail:chest"]!.defenceBonus +
+      ARMOR_PIECES["plate:legs"]!.defenceBonus +
+      ARMOR_PIECES["leather:boots"]!.defenceBonus;
     expect(stats.defence).toBe(character.baseStats.defence + expectedArmor);
   });
 

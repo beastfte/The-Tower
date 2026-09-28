@@ -644,28 +644,23 @@
         ],
         "weapons": [
           {
+            "id": "woodSword",
+            "name": "Wooden Sword"
+          },
+          {
             "id": "sword",
             "name": "Sword"
           },
           {
-            "id": "axe",
-            "name": "Axe"
+            "id": "goldSword",
+            "name": "Gold Sword"
           },
           {
-            "id": "mace",
-            "name": "Mace"
-          },
-          {
-            "id": "bow",
-            "name": "Bow"
-          },
-          {
-            "id": "staff",
-            "name": "Staff"
+            "id": "diamondSword",
+            "name": "Diamond Sword"
           }
         ],
         "armorMaterials": [
-          "cloth",
           "leather",
           "mail",
           "plate"
@@ -780,8 +775,6 @@
       const EXIT_COLOR = "#a5691f";
       const CRACKED_WALL_GLYPH = "╱";
       const CRACKED_WALL_COLOR = "#8a8060";
-      const TORCH_GLYPH = "•";
-      const TORCH_COLOR = "#e8a23a";
 
       // FR-022/FR-023 (013's ZoneThemeId): the tool's own simplified representation of the
       // live game's 6 wall art themes — a small color swatch per zone, not real art (spec
@@ -826,7 +819,6 @@
           levers: [],
           waterTiles: [],
           crackedWalls: [],
-          torches: [],
           wallZoneOverrides: [],
         };
       }
@@ -925,7 +917,6 @@
         // participate in the shared occupied-tile claim, since they coexist with each other),
         // but FR-001's "any placed element" resize guard still needs to catch them.
         for (const cw of floor.crackedWalls) check(cw.position, "cracked wall “" + cw.id + "”");
-        for (const t of floor.torches) check(t.position, "torch “" + t.id + "”");
         for (const o of floor.wallZoneOverrides) {
           check(o.position, "zone override at (" + o.position.x + "," + o.position.y + ")");
         }
@@ -948,7 +939,6 @@
         water: "waterTiles",
         lever: "levers",
         crackedwall: "crackedWalls",
-        torch: "torches",
       };
       function maxExistingElementSuffix(floor, kind) {
         const arrayKey = ELEMENT_KIND_ARRAY_KEY[kind];
@@ -1042,8 +1032,8 @@
           }
         }
 
-        // Wall decorations (FR-022-FR-026): a zone override tints the tile itself; torches and
-        // cracked walls render as glyphs. All three are fully editable (T053-T055), not merely
+        // Wall decorations (FR-022-FR-026): a zone override tints the tile itself; a cracked
+        // wall renders as a glyph. Both are fully editable (T053-T055), not merely
         // round-tripped read-only content.
         for (const o of floor.wallZoneOverrides) {
           ctx.fillStyle = ZONE_COLOR[o.zone] || "#888";
@@ -1053,9 +1043,6 @@
         }
         for (const cw of floor.crackedWalls) {
           drawGlyph(ctx, cw.position, tileSize, CRACKED_WALL_GLYPH, CRACKED_WALL_COLOR, tileSize * 0.7);
-        }
-        for (const t of floor.torches) {
-          drawGlyph(ctx, t.position, tileSize, TORCH_GLYPH, TORCH_COLOR, tileSize * 0.5);
         }
 
         if (tileSize >= 6) drawGridLines(ctx, floor, tileSize);
@@ -1214,7 +1201,7 @@
             // silently no-op forever on any reloaded floor. A JSON round-trip severs every
             // reference into the frozen snapshot, producing a fully mutable plain-object
             // graph. Also backfills fields added after this floor was first saved (e.g.
-            // crackedWalls/torches/wallZoneOverrides from feature 013's wall theming) — same
+            // crackedWalls/wallZoneOverrides from feature 013's wall theming) — same
             // treatment imported floors already get via normalizeImportedFloor.
             if (data && typeof data.id === "string") {
               floors.set(data.id, normalizeImportedFloor(JSON.parse(JSON.stringify(data))));
@@ -1363,17 +1350,15 @@
         showToast("Replaced " + oldLabel + " with " + newLabel + ".");
       }
 
-      /** FR-026: a zone override, cracked-wall status, and torch can only exist on a wall tile
-       * — removes all three at `tile` (if present) and returns their labels, for a tile turning
-       * open. Doesn't touch `floor.walls` itself; callers do that separately. */
+      /** FR-026: a zone override and cracked-wall status can only exist on a wall tile — removes
+       * both at `tile` (if present) and returns their labels, for a tile turning open. Doesn't
+       * touch `floor.walls` itself; callers do that separately. */
       function clearWallDecorationsAt(floor, tile) {
         const key = posKey(tile);
         const cleared = [];
         if (floor.crackedWalls.some((cw) => posKey(cw.position) === key)) cleared.push("cracked wall");
-        if (floor.torches.some((t) => posKey(t.position) === key)) cleared.push("torch");
         if (floor.wallZoneOverrides.some((o) => posKey(o.position) === key)) cleared.push("zone override");
         floor.crackedWalls = floor.crackedWalls.filter((cw) => posKey(cw.position) !== key);
-        floor.torches = floor.torches.filter((t) => posKey(t.position) !== key);
         floor.wallZoneOverrides = floor.wallZoneOverrides.filter((o) => posKey(o.position) !== key);
         return cleared;
       }
@@ -1613,9 +1598,9 @@
         );
         group("Mechanisms", [placeBtn("lever", "lever", "Lever", LEVER_COLOR, "")]);
 
-        // FR-024/FR-025: distinct from `placeBtn` above — these set a dedicated activeTool.kind
+        // FR-024: distinct from `placeBtn` above — this sets a dedicated activeTool.kind
         // (handled in handleCanvasInteract) rather than the generic "place" dispatch, since a
-        // cracked wall/torch layers onto a wall tile instead of occupying it as content.
+        // cracked wall layers onto a wall tile instead of occupying it as content.
         const toolBtn = (kind, label, color, glyph) => {
           const btn = document.createElement("button");
           btn.className = "palette-item" + (activeTool.kind === kind ? " active" : "");
@@ -1632,7 +1617,6 @@
         };
         group("Wall Decor", [
           toolBtn("placeCrackedWall", "Cracked wall", CRACKED_WALL_COLOR, CRACKED_WALL_GLYPH),
-          toolBtn("placeTorch", "Torch", TORCH_COLOR, TORCH_GLYPH),
         ]);
       }
 
@@ -1673,7 +1657,6 @@
         for (const h of PALETTE.hazardKinds) row(HAZARD_COLOR[h.id], HAZARD_GLYPH[h.id], h.name, "square");
         row(LEVER_COLOR, "", "Lever", "square");
         row(CRACKED_WALL_COLOR, CRACKED_WALL_GLYPH, "Cracked wall", "square");
-        row(TORCH_COLOR, TORCH_GLYPH, "Torch", "square");
       }
 
       /** FR-022: populates a zone <select> once. `includeClear` labels the empty option
@@ -1723,7 +1706,6 @@
         else if (activeTool.kind === "setExit") hint.textContent = "Click an open tile to set the stairs-up (exit) tile.";
         else if (activeTool.kind === "place") hint.textContent = "Click an open, empty tile to place it.";
         else if (activeTool.kind === "placeCrackedWall") hint.textContent = "Click a tile to mark it (or make it) a cracked wall.";
-        else if (activeTool.kind === "placeTorch") hint.textContent = "Click a wall tile to place a torch; click again to remove it.";
         else if (activeTool.kind === "paintZone") hint.textContent = "Pick a zone above, then click a wall tile to paint its override.";
       }
 
@@ -1854,26 +1836,6 @@
           renderCanvas();
           if (wasWall) announceReplacement("wall", "cracked wall");
           else if (removedLabel) announceReplacement(removedLabel, "cracked wall");
-        } else if (activeTool.kind === "placeTorch") {
-          if (isEntrance || isExit) {
-            showToast("That's the entrance/stairs-up tile — move it first if you want to place something there.");
-            return;
-          }
-          if (floor.torches.some((t) => posKey(t.position) === key)) {
-            floor.torches = floor.torches.filter((t) => posKey(t.position) !== key);
-            scheduleSave(floor.id);
-            renderCanvas();
-            showToast("Removed torch.");
-            return;
-          }
-          const wasWall = floor.walls[tile.y][tile.x];
-          const removedLabel = wasWall ? null : removeElementAtTile(floor, tile, occupied);
-          floor.walls[tile.y][tile.x] = true;
-          floor.torches.push({ id: freshElementId(floor, "torch"), position: { x: tile.x, y: tile.y } });
-          scheduleSave(floor.id);
-          renderCanvas();
-          if (wasWall) announceReplacement("wall", "torch");
-          else if (removedLabel) announceReplacement(removedLabel, "torch");
         } else if (activeTool.kind === "paintZone") {
           if (isEntrance || isExit) {
             showToast("That's the entrance/stairs-up tile — move it first if you want to place something there.");

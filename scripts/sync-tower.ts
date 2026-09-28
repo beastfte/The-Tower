@@ -72,7 +72,6 @@ function serializeFloorFile(fe: FloorExport, def: FloorDefinition): string {
     arrayField("levers", def.levers),
     arrayField("waterTiles", def.waterTiles),
     arrayField("crackedWalls", def.crackedWalls),
-    arrayField("torches", def.torches),
   ];
   if (def.zone) lines.push(`  zone: ${JSON.stringify(def.zone)},`);
   lines.push(arrayField("wallZoneOverrides", def.wallZoneOverrides));

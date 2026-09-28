@@ -23,7 +23,6 @@ function floor(id: string, overrides: Partial<FloorDefinition> = {}): FloorDefin
     levers: [],
     waterTiles: [],
     crackedWalls: [],
-    torches: [],
     wallZoneOverrides: [],
     ...overrides,
   };

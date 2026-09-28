@@ -3,7 +3,7 @@ import { clearSave, waitForActiveScene, pressAndWait, getCtxSave } from "./helpe
 
 /** 011 US1: collecting a per-slot armor pickup on floor-01 raises defence by that slot's exact
  * value and shows up in the side panel's matching slot row. */
-test("collecting a cloth armor piece raises defence and shows in the side panel", async ({ page }) => {
+test("collecting a leather armor piece raises defence and shows in the side panel", async ({ page }) => {
   await clearSave(page);
   await page.goto("/");
   await waitForActiveScene(page, "MainMenuScene");
@@ -15,8 +15,8 @@ test("collecting a cloth armor piece raises defence and shows in the side panel"
 
   // Entrance (0,7) -> compulsory goblin at (3,7) -> lava at (4,7) -> bronze key at (5,6) ->
   // bronze door at (6,7) -> gold pile at (7,7) -> right into the post-door area -> up into
-  // the upper pocket -> cloth helm at (9,4). Mirrors the critical-path route used by
-  // floorPlay.spec.ts / keyedDoorOpen.spec.ts.
+  // the upper pocket -> leather helm at (9,4) (018: the weakest tier, formerly cloth).
+  // Mirrors the critical-path route used by floorPlay.spec.ts / keyedDoorOpen.spec.ts.
   await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
   await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
   await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
@@ -37,17 +37,17 @@ test("collecting a cloth armor piece raises defence and shows in the side panel"
   await pressAndWait(page, "ArrowRight"); // (8,7) -> (9,7)
   await pressAndWait(page, "ArrowUp"); // (9,7) -> (9,6)
   await pressAndWait(page, "ArrowUp"); // (9,6) -> (9,5)
-  await pressAndWait(page, "ArrowUp"); // (9,5) -> (9,4), cloth helm
+  await pressAndWait(page, "ArrowUp"); // (9,5) -> (9,4), leather helm
 
   const save = await getCtxSave(page);
-  expect(save.character.equippedArmor.helm).toBe("cloth");
+  expect(save.character.equippedArmor.helm).toBe("leather");
   expect(save.character.baseStats.defence).toBe(baseDefence); // baseStats itself is unchanged...
   // ...the +3 shows up in effective defence via the side panel instead.
   const rows = page.locator('[data-testid="side-panel-rows"]');
   await expect(rows).toContainText("Def: 5");
-  const helmImg = rows.locator('img[src="/icons/armor-cloth-helm.svg"]');
-  await expect(helmImg).toHaveCount(1);
-  await expect(helmImg.locator("xpath=..")).toHaveAttribute("title", /Cloth Helm/);
+  // 018: side panel icons are generated data: URLs (spriteDataUrl), not static /icons/*.svg
+  // paths, so this asserts by title rather than by src.
+  await expect(rows.locator('div[title*="Leather Helm"]')).toHaveCount(1);
 });
 
 /** 011 US3: Attack/Defense potions apply a permanent, immediately-visible bonus and persist
