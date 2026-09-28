@@ -24,14 +24,25 @@ function posLiteral(p: { x: number; y: number }): string {
   return `{ x: ${p.x}, y: ${p.y} }`;
 }
 
+/** JSON.stringify always drops an object key whose value is `undefined` (e.g. a payload-less
+ * item's `payload: undefined` — see floorExportToDefinition's normalization comment), which
+ * would silently produce an invalid `{ id, position, kind }` TS literal missing the key
+ * `ItemDefinition.payload` requires. The replacer swaps `undefined` for a sentinel string
+ * (kept, not dropped) that the second pass turns into a literal, unquoted `undefined`. */
+const UNDEFINED_SENTINEL = "__SYNC_TOWER_UNDEFINED__";
+
 /** Nested arrays (enemies/items/etc.) are serialized via JSON.stringify — valid TS object/
  * array literal syntax, just with quoted keys. Simpler and just as correct as a bespoke
  * pretty-printer for every one of FloorDefinition's several placed-element shapes; only the
  * grid (research.md #4) and the top-level entrance/exit need their own hand-picked format to
  * keep a synced floor file's grid readable/diffable like a hand-authored one. */
 function arrayField(name: string, value: unknown, indent = "  "): string {
-  const json = JSON.stringify(value, null, 2);
-  const reindented = json.split("\n").join("\n" + indent);
+  const json = JSON.stringify(value, (_key, v) => (v === undefined ? UNDEFINED_SENTINEL : v), 2);
+  const reindented = json
+    .split("\n")
+    .join("\n" + indent)
+    .split(`"${UNDEFINED_SENTINEL}"`)
+    .join("undefined");
   return `${indent}${name}: ${reindented},`;
 }
 

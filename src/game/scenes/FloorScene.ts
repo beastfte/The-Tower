@@ -547,7 +547,15 @@ export class FloorScene extends Phaser.Scene {
     if (item) {
       ctx.save.character = applyItemPickup(ctx.save.character, item);
       ctx.save.currentFloorState = markItemCollected(ctx.save.currentFloorState, item.id);
-      pendingPickup = this.describeItemPickup(item);
+      // bug fix: currency-not-logged — a standalone (non-chest) currency pickup now gets its
+      // own log entry, same as a key, but must never trigger a blocking modal (FR-018
+      // unchanged) — so it's logged directly here instead of going through
+      // describeItemPickup/launchPickupModals.
+      if (item.kind === "currency") {
+        ctx.logPickup("currency", `${item.payload} gold`);
+      } else {
+        pendingPickup = this.describeItemPickup(item);
+      }
     }
 
     const hazard = findHazardAt(floor, target);

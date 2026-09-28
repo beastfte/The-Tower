@@ -8,14 +8,65 @@ import { applyItemPickup } from "../../src/domain/floor/itemCollection";
 import { computeEffectiveStats } from "../../src/domain/character/combatStats";
 import { completeCurrentFloor } from "../../src/domain/progress/towerProgress";
 import { isWinningDefeat, triggerWin } from "../../src/domain/progress/winState";
-import { TOWER } from "../../src/data/floors";
+import { createTower } from "../../src/domain/floor/tower";
 import { WEAPONS } from "../../src/data/weapons";
 import { ARMOR_PIECES } from "../../src/data/armorPieces";
-import type { ArmorPickupPayload } from "../../src/domain/floor/types";
+import type { ArmorPickupPayload, FloorDefinition } from "../../src/domain/floor/types";
 import type { ArmorPieceDefinition, WeaponDefinition, WeaponId } from "../../src/domain/character/types";
 
 const weaponCatalog: ReadonlyMap<WeaponId, WeaponDefinition> = new Map(Object.entries(WEAPONS) as [WeaponId, WeaponDefinition][]);
 const armorCatalog: ReadonlyMap<string, ArmorPieceDefinition> = new Map(Object.entries(ARMOR_PIECES));
+
+// Tests must not depend on the live tower's authored content (src/data/floors) — it's
+// replaced wholesale whenever the tower is redesigned. This fixture exercises the same
+// domain logic (blocking, pickups, floor completion, win state) without caring what the
+// shipped tower actually contains.
+const FIRST_FLOOR: FloorDefinition = {
+  id: "test-floor-1",
+  grid: [[{ walkable: true }, { walkable: true }]],
+  entrance: { x: 0, y: 0 },
+  exit: { x: 1, y: 0 },
+  enemies: [{ id: "test-goblin", position: { x: 1, y: 0 }, species: "goblin", stats: { damage: 4, defence: 1, hp: 12 } }],
+  items: [
+    { id: "test-sword", position: { x: 0, y: 0 }, kind: "weapon", payload: "sword" },
+    { id: "test-leather-chest", position: { x: 0, y: 0 }, kind: "armor", payload: { material: "leather", slot: "chest" } },
+  ],
+  keyedDoors: [],
+  hazardTiles: [],
+  spikePits: [],
+  lavaTiles: [],
+  levers: [],
+  waterTiles: [],
+  crackedWalls: [],
+  torches: [],
+  wallZoneOverrides: [],
+};
+const FINAL_FLOOR: FloorDefinition = {
+  id: "test-floor-final",
+  grid: [[{ walkable: true }, { walkable: true }]],
+  entrance: { x: 0, y: 0 },
+  exit: { x: 1, y: 0 },
+  enemies: [
+    {
+      id: "test-boss",
+      position: { x: 1, y: 0 },
+      species: "ogre",
+      stats: { damage: 5, defence: 3, hp: 25 },
+      isEndBoss: true,
+    },
+  ],
+  items: [],
+  keyedDoors: [],
+  hazardTiles: [],
+  spikePits: [],
+  lavaTiles: [],
+  levers: [],
+  waterTiles: [],
+  crackedWalls: [],
+  torches: [],
+  wallZoneOverrides: [],
+};
+const TOWER = createTower([FIRST_FLOOR, FINAL_FLOOR]);
 
 describe("gameplay integration", () => {
   it("persists and resumes mid-floor exactly as left (FR-010)", () => {
@@ -39,24 +90,20 @@ describe("gameplay integration", () => {
     const blocked = checkEngagementAllowed(save.character, weaponCatalog, armorCatalog, unbeatable);
     expect(blocked.allowed).toBe(false);
 
-    // 017: placement is computed, not authored — select the same enemy by its stable id
-    // (floor-01's one geometrically-unavoidable enemy, confirmed by research.md R7).
-    const compulsoryEnemy = floor.enemies.find((e) => e.id === "floor01-goblin")!;
-    const allowed = checkEngagementAllowed(save.character, weaponCatalog, armorCatalog, compulsoryEnemy.stats);
+    const testEnemy = floor.enemies.find((e) => e.id === "test-goblin")!;
+    const allowed = checkEngagementAllowed(save.character, weaponCatalog, armorCatalog, testEnemy.stats);
     expect(allowed.allowed).toBe(true);
   });
 
   it("permanently removes a defeated enemy and allows advancing (FR-009, FR-010a)", () => {
     const floor = TOWER.floors[0]!;
     let save = createInitialPlayerSave(floor.id, floor.entrance);
-    // 017: placement is computed, not authored — select the same enemy by its stable id
-    // (floor-01's one geometrically-unavoidable enemy, confirmed by research.md R7).
-    const compulsoryEnemy = floor.enemies.find((e) => e.id === "floor01-goblin")!;
+    const testEnemy = floor.enemies.find((e) => e.id === "test-goblin")!;
 
-    const afterDefeat = applyEnemyDefeat(save.currentFloorState, save.character, compulsoryEnemy);
+    const afterDefeat = applyEnemyDefeat(save.currentFloorState, save.character, testEnemy);
     save.currentFloorState = afterDefeat.floorProgress;
     save.character = afterDefeat.character;
-    expect(save.currentFloorState.defeatedEnemyIds).toContain(compulsoryEnemy.id);
+    expect(save.currentFloorState.defeatedEnemyIds).toContain(testEnemy.id);
 
     save.currentFloorState = updatePlayerPosition(save.currentFloorState, floor.exit);
     save = completeCurrentFloor(save, TOWER);

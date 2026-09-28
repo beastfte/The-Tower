@@ -4,6 +4,7 @@ import { syncUiRootToCanvas } from "./game/ui/domOverlay";
 import { GameContext } from "./game/GameContext";
 import { LocalStoragePersistenceService } from "./persistence/localStorageAdapter";
 import { createInitialPlayerSave } from "./domain/character/initialState";
+import { ensureCheckpointCharacter } from "./domain/character/save";
 import { TOWER } from "./data/floors";
 import { MainMenuScene } from "./game/scenes/MainMenuScene";
 import { FloorScene } from "./game/scenes/FloorScene";
@@ -18,7 +19,9 @@ import { PauseMenuScene } from "./game/scenes/PauseMenuScene";
 const persistence = new LocalStoragePersistenceService();
 const firstFloor = TOWER.floors[0]!;
 const existingSave = persistence.load();
-const save = existingSave ?? createInitialPlayerSave(firstFloor.id, firstFloor.entrance);
+const save = existingSave
+  ? ensureCheckpointCharacter(existingSave)
+  : createInitialPlayerSave(firstFloor.id, firstFloor.entrance);
 
 const ctx = new GameContext(TOWER, persistence, save);
 

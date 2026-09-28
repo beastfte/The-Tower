@@ -2,8 +2,32 @@ import { describe, expect, it } from "vitest";
 import { GameContext } from "../../src/game/GameContext";
 import { InMemoryPersistenceService } from "../../src/persistence/PersistenceService";
 import { createInitialPlayerSave } from "../../src/domain/character/initialState";
-import { TOWER } from "../../src/data/floors";
+import { createTower } from "../../src/domain/floor/tower";
 import { simulateEncounter } from "../../src/domain/combat/simulateEncounter";
+import type { FloorDefinition } from "../../src/domain/floor/types";
+
+// Tests must not depend on the live tower's authored content (src/data/floors) — it's
+// replaced wholesale whenever the tower is redesigned. A minimal fixture floor exercises
+// GameContext's logging behavior without caring what the shipped tower actually contains.
+const FIXTURE_ENEMY = { id: "test-enemy", position: { x: 1, y: 0 }, species: "goblin" as const, stats: { damage: 4, defence: 1, hp: 12 } };
+const FIXTURE_FLOOR: FloorDefinition = {
+  id: "test-floor",
+  grid: [[{ walkable: true }, { walkable: true }]],
+  entrance: { x: 0, y: 0 },
+  exit: { x: 1, y: 0 },
+  enemies: [FIXTURE_ENEMY],
+  items: [],
+  keyedDoors: [],
+  hazardTiles: [],
+  spikePits: [],
+  lavaTiles: [],
+  levers: [],
+  waterTiles: [],
+  crackedWalls: [],
+  torches: [],
+  wallZoneOverrides: [],
+};
+const TOWER = createTower([FIXTURE_FLOOR]);
 
 describe("GameContext event log (002 FR-015, FR-017)", () => {
   it("starts empty on a fresh context (simulating a reload clearing the session-only log)", () => {
@@ -18,8 +42,7 @@ describe("GameContext event log (002 FR-015, FR-017)", () => {
     const save = createInitialPlayerSave(floor.id, floor.entrance);
     const ctx = new GameContext(TOWER, new InMemoryPersistenceService(), save);
 
-    // 017: placement is computed, not authored — select by stable id instead.
-    const enemy = floor.enemies.find((e) => e.id === "floor01-goblin")!;
+    const enemy = floor.enemies.find((e) => e.id === FIXTURE_ENEMY.id)!;
     const encounter = simulateEncounter(
       { damage: 10, defence: 2, hp: 30 },
       enemy.stats,
@@ -40,7 +63,7 @@ describe("GameContext event log (002 FR-015, FR-017)", () => {
     const persistence = new InMemoryPersistenceService();
     const ctx = new GameContext(TOWER, persistence, save);
 
-    const enemy = floor.enemies.find((e) => e.id === "floor01-rat")!;
+    const enemy = floor.enemies.find((e) => e.id === FIXTURE_ENEMY.id)!;
     ctx.logCombatEncounter(enemy.id, simulateEncounter({ damage: 10, defence: 2, hp: 30 }, enemy.stats));
     ctx.logPickup("currency", "20 gold");
     ctx.persist();

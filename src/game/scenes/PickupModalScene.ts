@@ -3,6 +3,7 @@ import { PLAY_AREA, DESIGN_PLAY_AREA } from "../gameConfig";
 import { createUiText, getUiRoot } from "../ui/domOverlay";
 import { createMenuOption } from "../ui/MenuOption";
 import { scalePx } from "../scaleConfig";
+import { pickupModalTitle } from "../pickupModalTitle";
 
 export interface PickupModalData {
   kind: "key" | "potion" | "currency";
@@ -47,8 +48,7 @@ export class PickupModalScene extends Phaser.Scene {
       coinIcon.setDisplaySize(scalePx(24), scalePx(24));
     }
 
-    const title =
-      this.data_.kind === "key" ? "Key acquired!" : this.data_.kind === "potion" ? "Health Potion!" : "Gold found!";
+    const title = pickupModalTitle(this.data_.kind, this.data_.label);
     const titleEl = createUiText(title, { x: dcx, y: dcy - 30, fontSize: 11, color: "#8ecae6" });
     const labelEl = createUiText(this.data_.label, { x: dcx, y: dcy - 12, fontSize: 10, color: "#e0c9a6" });
     const descriptionEl = createUiText(this.data_.description, {

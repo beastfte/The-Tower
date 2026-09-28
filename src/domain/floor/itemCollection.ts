@@ -31,8 +31,13 @@ export function findAvailableItemAt(
 export function applyItemPickup(character: PlayerCharacterState, item: ItemDefinition): PlayerCharacterState {
   switch (item.kind) {
     case "key": {
+      // bug fix: duplicate-key-pickup-dropped — keyIds is a multiset (one entry per held
+      // key, consumed one at a time by applyDoorOpen), not a deduplicated set. A previous
+      // guard here silently dropped a second key of an already-held type, permanently
+      // locking any second door of that type since it never actually held two keys to
+      // begin with. Re-collecting the *same* item twice is already prevented upstream via
+      // FloorProgress.collectedItemIds, so no dedup is needed here.
       const key = item.payload as KeyDefinition;
-      if (character.keyIds.includes(key.keyType)) return character;
       return { ...character, keyIds: [...character.keyIds, key.keyType] };
     }
     case "loot": {

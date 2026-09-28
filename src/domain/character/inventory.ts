@@ -22,9 +22,9 @@ export function applyDropTable(
     next = { ...next, currency: next.currency + drops.currency };
   }
   if (drops.key) {
-    if (!next.keyIds.includes(drops.key.keyType)) {
-      next = { ...next, keyIds: [...next.keyIds, drops.key.keyType] };
-    }
+    // bug fix: duplicate-key-pickup-dropped — keyIds is a multiset, not a deduplicated set
+    // (see the matching fix in itemCollection.ts's key-pickup case for the full rationale).
+    next = { ...next, keyIds: [...next.keyIds, drops.key.keyType] };
   }
 
   return next;

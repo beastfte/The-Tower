@@ -48,6 +48,14 @@ export interface PlayerSave {
   completedFloorIds: string[];
   completedFloorStates: Record<string, FloorProgress>;
   character: PlayerCharacterState;
+  /** bug fix: checkpoint-restart-stat-exploit — a snapshot of `character` as it stood the
+   * moment the current floor attempt began (set in `createInitialPlayerSave` and
+   * `completeCurrentFloor`'s advance branch). FR-005 (003-pause-menu/spec.md): "Restart at
+   * last checkpoint" must undo everything gained during the current attempt, not just
+   * floor-local state — `resumeFromCheckpoint` restores `character` from this field. Absent
+   * on a save persisted before this field existed; callers must tolerate that (see
+   * `resumeFromCheckpoint`). */
+  checkpointCharacter?: PlayerCharacterState;
   hasWon: boolean;
   isDead: boolean;
 }
@@ -62,4 +70,22 @@ export function emptyFloorProgress(floorId: string, playerPosition: Position): F
     openedDoorIds: [],
     crackedWallHitCounts: {},
   };
+}
+
+/**
+ * bug fix: checkpoint-restart-stat-exploit (reopened) — a save persisted before
+ * `checkpointCharacter` existed has it as `undefined` forever, since it's only ever set on a
+ * *new* floor attempt (`createInitialPlayerSave`/`completeCurrentFloor`), never retroactively.
+ * `resumeFromCheckpoint`'s own `?? save.character` fallback made "restart at checkpoint" a
+ * complete no-op for any such save, indefinitely — silently reopening the exploit the field
+ * was added to close, for every pre-existing save. Called once at load time (`main.ts`,
+ * right after `persistence.load()`), this backfills the checkpoint from the character as it
+ * stands *right now*, so the exploit is closed from this load onward — it cannot recover a
+ * true historical snapshot for a save that never had one. Idempotent: a save that already has
+ * a `checkpointCharacter` is returned untouched, never overwritten with the current (possibly
+ * already-farmed) character.
+ */
+export function ensureCheckpointCharacter(save: PlayerSave): PlayerSave {
+  if (save.checkpointCharacter) return save;
+  return { ...save, checkpointCharacter: { ...save.character } };
 }

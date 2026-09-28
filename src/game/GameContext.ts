@@ -47,9 +47,11 @@ export class GameContext {
     this.persistence.save(this.save);
   }
 
-  /** 002 FR-015: appends a combat-encounter entry to the session-only event log. */
-  logCombatEncounter(enemyId: string, result: EncounterResult): void {
-    this.eventLog.push(formatCombatEntry(enemyId, result));
+  /** 002 FR-015: appends a combat-encounter entry to the session-only event log.
+   * bug fix: currency-not-logged — `currencyGained` folds a kill's currency drop into this
+   * same entry (see `formatCombatEntry`). */
+  logCombatEncounter(enemyId: string, result: EncounterResult, currencyGained?: number): void {
+    this.eventLog.push(formatCombatEntry(enemyId, result, currencyGained));
   }
 
   /** 002 FR-015, 005 FR-006/FR-007: appends a key/potion/currency pickup entry to

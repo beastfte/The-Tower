@@ -69,7 +69,12 @@ export function floorExportToDefinition(fe: FloorExport): FloorDefinition {
     entrance: fe.entrance,
     exit: fe.exit,
     enemies: fe.enemies,
-    items: fe.items,
+    // A tool export may omit `payload` entirely for a payload-less item kind (e.g. a plain
+    // "potion"), but `ItemDefinition.payload` is a required key (its value, not its presence,
+    // is optional — `undefined` is one of `ItemPayload`'s member types). Normalize so the key
+    // always exists; otherwise a synced floor file compiles a `{ id, position, kind }` literal
+    // TS2741-rejects for missing `payload`.
+    items: fe.items.map((item) => ({ ...item, payload: item.payload })),
     keyedDoors: fe.keyedDoors,
     hazardTiles: fe.hazardTiles,
     spikePits: fe.spikePits,

@@ -28,6 +28,10 @@ export function completeCurrentFloor(save: PlayerSave, tower: Tower): PlayerSave
     completedFloorStates,
     currentFloorId: next.id,
     currentFloorState: emptyFloorProgress(next.id, next.entrance),
+    // bug fix: checkpoint-restart-stat-exploit — the checkpoint for this new attempt is the
+    // character exactly as it stands at the moment the new floor begins; a later "restart at
+    // last checkpoint" on this floor must undo everything gained after this point.
+    checkpointCharacter: save.character,
   };
 }
 

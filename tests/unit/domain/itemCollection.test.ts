@@ -76,6 +76,41 @@ describe("attack/defense potion pickups (011 FR-007/FR-008)", () => {
   });
 });
 
+// bug fix: duplicate-key-pickup-dropped — keyIds is a multiset (010 spec Acceptance Scenario
+// 4: two keys of the same type must open two doors of that type), not a deduplicated set.
+describe("key pickup (010 FR-001, bug fix: duplicate-key-pickup-dropped)", () => {
+  it("adds the key type to keyIds", () => {
+    const save = createInitialPlayerSave("floor-01", position);
+    const key: ItemDefinition = { id: "test-key-1", position, kind: "key", payload: { id: "key-bronze-1", keyType: "bronze" } };
+
+    const character = applyItemPickup(save.character, key);
+
+    expect(character.keyIds).toEqual(["bronze"]);
+  });
+
+  it("a second key of the same type adds a second entry, not a no-op", () => {
+    const save = createInitialPlayerSave("floor-01", position);
+    const key1: ItemDefinition = { id: "test-key-1", position, kind: "key", payload: { id: "key-bronze-1", keyType: "bronze" } };
+    const key2: ItemDefinition = { id: "test-key-2", position, kind: "key", payload: { id: "key-bronze-2", keyType: "bronze" } };
+
+    let character = applyItemPickup(save.character, key1);
+    character = applyItemPickup(character, key2);
+
+    expect(character.keyIds).toEqual(["bronze", "bronze"]);
+  });
+
+  it("a key of a different type is added independently", () => {
+    const save = createInitialPlayerSave("floor-01", position);
+    const bronze: ItemDefinition = { id: "test-key-bronze", position, kind: "key", payload: { id: "key-bronze", keyType: "bronze" } };
+    const silver: ItemDefinition = { id: "test-key-silver", position, kind: "key", payload: { id: "key-silver", keyType: "silver" } };
+
+    let character = applyItemPickup(save.character, bronze);
+    character = applyItemPickup(character, silver);
+
+    expect(character.keyIds).toEqual(["bronze", "silver"]);
+  });
+});
+
 describe("chest pickup applies the exact same effect as its revealed reward (005 FR-005, contract invariant 16)", () => {
   it("a currency-reward chest matches a plain currency pickup", () => {
     const save = createInitialPlayerSave("floor-01", position);

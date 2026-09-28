@@ -8,8 +8,9 @@ import { clearSave, waitForActiveScene, isSceneActive, getEventLog, getCtxSave, 
  *    staying visible throughout.
  *  - US4 (FR-018/FR-019): a blocking pickup modal for the bronze key (not for the plain
  *    currency pile, which must NOT trigger one).
- *  - US5 (FR-015-FR-017): the event log gets exactly one "combat" entry and one "pickup"
- *    entry, in that order, and no entries for the currency pickup.
+ *  - US5 (FR-015-FR-017): the event log gets a "combat" entry (folding in the goblin's
+ *    currency drop, bug fix currency-not-logged), a "pickup" entry for the bronze key, and a
+ *    second "pickup" entry for the standalone gold pile, in that order.
  *
  * Path: (0,7) start -> right x2 -> engage goblin at (3,7) -> right through the (4,7) lava
  * tile -> right to the safe (5,7) tile -> up to collect the bronze key at (5,6) -> down ->
@@ -42,6 +43,8 @@ test("floor-01 walkthrough: combat, blocking pickup modal, and event log populat
   let log = await getEventLog(page);
   expect(log).toHaveLength(1);
   expect(log[0]!.kind).toBe("combat");
+  // bug fix: currency-not-logged — the goblin's currency drop is folded into this entry.
+  expect(log[0]!.message).toContain("Found 15 gold.");
 
   await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7), goblin defeated
   await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava damage (survivable)
@@ -66,11 +69,14 @@ test("floor-01 walkthrough: combat, blocking pickup modal, and event log populat
   await pressAndWait(page, "ArrowRight"); // (5,7) -> (6,7), bronze door now unlocked
   await pressAndWait(page, "ArrowRight"); // (6,7) -> (7,7), plain currency pile (no modal)
 
-  // FR-018: no modal, and no new log entry, for the plain currency pickup.
+  // FR-018: still no modal for the plain currency pickup. bug fix: currency-not-logged — it
+  // now gets its own standalone log entry, same as a key.
   expect(await isSceneActive(page, "FloorScene")).toBe(true);
   expect(await isSceneActive(page, "PickupModalScene")).toBe(false);
   log = await getEventLog(page);
-  expect(log).toHaveLength(2);
+  expect(log).toHaveLength(3);
+  expect(log[2]!.kind).toBe("pickup");
+  expect(log[2]!.message).toContain("10 gold");
 
   save = await getCtxSave(page);
   expect(save.character.currency).toBe(25); // 15 (goblin drop) + 10 (gold pile)

@@ -48,6 +48,30 @@ describe("previousFloor (bug fix: backtrack-stairs-no-effect, FR-009a)", () => {
   });
 });
 
+describe("completeCurrentFloor (bug fix: checkpoint-restart-stat-exploit)", () => {
+  const tower = createTower([floor("f1"), floor("f2")]);
+
+  it("stamps checkpointCharacter to the character exactly as it stood entering the new floor", () => {
+    let save = createInitialPlayerSave("f1", tower.floors[0]!.entrance);
+    // Simulate having farmed some progress on f1 before reaching its exit.
+    save.character = { ...save.character, currency: 40, bonusDamage: 5 };
+
+    save = completeCurrentFloor(save, tower);
+
+    expect(save.currentFloorId).toBe("f2");
+    expect(save.checkpointCharacter).toEqual(save.character);
+    expect(save.checkpointCharacter?.currency).toBe(40);
+    expect(save.checkpointCharacter?.bonusDamage).toBe(5);
+  });
+
+  it("leaves checkpointCharacter untouched on the tower's last floor (no next floor to check into)", () => {
+    let save = createInitialPlayerSave("f2", tower.floors[1]!.entrance);
+    const before = save.checkpointCharacter;
+    save = completeCurrentFloor(save, tower);
+    expect(save.checkpointCharacter).toBe(before);
+  });
+});
+
 describe("returnToPreviousFloor (bug fix: backtrack-stairs-no-effect, FR-009a/FR-010a)", () => {
   const tower = createTower([floor("f1"), floor("f2")]);
 

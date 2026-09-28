@@ -118,10 +118,12 @@ export class CombatOverlay extends Phaser.Scene {
     this.time.delayedCall(TURN_DELAY_MS, () => this.playTurns(index + 1, playerHp, enemyHp, nextLog));
   }
 
-  /** 002 FR-013: clearly presents the final outcome before resuming; 002 FR-015: logs the encounter. */
+  /** 002 FR-013: clearly presents the final outcome before resuming; 002 FR-015: logs the
+   * encounter. bug fix: currency-not-logged — the enemy's currency drop (if any) is passed
+   * through so it's folded into this same log entry. */
   private showOutcome(): void {
     const ctx = this.registry.get("ctx") as GameContext | undefined;
-    ctx?.logCombatEncounter(this.data_.enemy.id, this.data_.encounter);
+    ctx?.logCombatEncounter(this.data_.enemy.id, this.data_.encounter, this.data_.enemy.drops?.currency);
 
     const won = this.data_.encounter.winner === "player";
     this.outcomeText.textContent = won ? "Victory!" : "Defeat...";

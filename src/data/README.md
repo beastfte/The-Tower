@@ -35,6 +35,23 @@ See `specs/012-tower-mapping-tool/quickstart.md` for the full walkthrough. In sh
   Only `ItemKind` stays hand-maintained in the tool's own `ITEM_KINDS` list (no runtime catalog
   to derive it from) — update that one by hand, same as before.
 
+## Testing against the tower
+
+The tower's actual content (`floors/*.ts`, `TOWER`) is replaced wholesale every time it's
+redesigned via the mapping tool's `sync-tower` script — the file names, floor ids, enemy/item
+ids, geometry, and even the end boss's placement can all change on the next import.
+**Unit and integration tests must never assert facts about the live `TOWER`'s content** (exact
+walkable-tile counts, "floor X has a potion", a hardcoded enemy/item id like `"floor01-goblin"`,
+`TOWER.floors[0].id === "floor-01"`, etc.) — those assertions go stale the next time someone
+re-syncs the tower, for reasons that have nothing to do with a real regression.
+
+Instead, build a small local `FloorDefinition`/`Tower` fixture in the test file itself (see
+`tests/unit/domain/lever.test.ts`'s `makeFloor` or `tests/unit/domain/floorContent.test.ts` for
+the pattern) and exercise the logic under test against that. A test may still import the live
+`TOWER` when it genuinely doesn't care what it contains — e.g. proving a script round-trips
+*whatever* real data exists without dropping fields — but never to assert a specific fact about
+that content.
+
 ## Art direction (FR-014, FR-015)
 
 - **Visual style**: pixel art / retro 2D. Sprites should be authored at a low, fixed pixel

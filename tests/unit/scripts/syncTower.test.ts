@@ -130,16 +130,20 @@ describe("runSync — the validate-before-write gate (contracts/sync-cli-contrac
   it("no partial writes: an invalid tower touches none of the repo's real floor files even when passed the real repo root", () => {
     // Uses the actual repo root (this test file's own checkout) but an intentionally invalid
     // export, to prove the gate never writes anything on failure regardless of repoRoot.
+    // Targets whichever real floor id happens to be first in the live TOWER — never a
+    // hardcoded filename — so this test survives the tower being redesigned/renamed.
     const repoRoot = join(THIS_DIR, "../../..");
-    const before = readFileSync(join(repoRoot, "src/data/floors/floor-final.ts"), "utf-8");
+    const realFloorId = TOWER.floors[0]!.id;
+    const realFloorPath = join(repoRoot, `src/data/floors/${realFloorId}.ts`);
+    const before = readFileSync(realFloorPath, "utf-8");
 
     const result = runSync(
-      { floors: [validFloorExport({ id: "floor-final", keyedDoors: [{ id: "d", position: { x: 1, y: 1 }, doorType: "unobtainable" }] })] },
+      { floors: [validFloorExport({ id: realFloorId, keyedDoors: [{ id: "d", position: { x: 1, y: 1 }, doorType: "unobtainable" }] })] },
       repoRoot,
     );
 
     expect(result.ok).toBe(false);
-    const after = readFileSync(join(repoRoot, "src/data/floors/floor-final.ts"), "utf-8");
+    const after = readFileSync(realFloorPath, "utf-8");
     expect(after).toBe(before);
   });
 

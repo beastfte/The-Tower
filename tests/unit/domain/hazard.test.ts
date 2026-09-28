@@ -34,6 +34,20 @@ describe("death and recovery", () => {
     wallZoneOverrides: [],
   };
 
+  // bug fix: checkpoint-restart-stat-exploit — `checkpointCharacter` is the character as it
+  // stood when this floor attempt began; `character` is the same character after farming
+  // extra currency/a potion/a key/a weapon/armor *during* this attempt. A restart must
+  // revert to `checkpointCharacter`, not leave the farmed `character` in place.
+  const checkpointCharacter = {
+    baseStats: { damage: 10, defence: 2, hp: 30 },
+    currentHp: 12,
+    inventory: [],
+    currency: 0,
+    keyIds: [],
+    equippedArmor: {},
+    bonusDamage: 0,
+  };
+
   function buildSave(): PlayerSave {
     return {
       currentFloorId: floor.id,
@@ -45,14 +59,16 @@ describe("death and recovery", () => {
       completedFloorIds: [],
       completedFloorStates: {},
       character: {
-        baseStats: { damage: 10, defence: 2, hp: 30 },
+        ...checkpointCharacter,
         currentHp: 0,
-        inventory: [],
-        currency: 0,
-        keyIds: [],
-        equippedArmor: {},
-        bonusDamage: 0,
+        currency: 40,
+        keyIds: ["bronze"],
+        equippedWeaponId: "sword",
+        equippedArmor: { chest: "leather" },
+        bonusDamage: 5,
+        baseStats: { ...checkpointCharacter.baseStats, defence: 4 },
       },
+      checkpointCharacter,
       hasWon: false,
       isDead: false,
     };
@@ -75,6 +91,34 @@ describe("death and recovery", () => {
     expect(save.currentFloorState.defeatedEnemyIds).toEqual([]);
     expect(save.currentFloorState.collectedItemIds).toEqual([]);
     expect(save.currentFloorState.playerPosition).toEqual(floor.entrance);
+    expect(save.character.currentHp).toBe(30);
+  });
+
+  // bug fix: checkpoint-restart-stat-exploit — a restart must undo everything the character
+  // gained during the current attempt (currency, keys, equipment, potion bonuses), not just
+  // floor-local state, otherwise repeatedly collecting a respawned potion and restarting lets
+  // a player farm unbounded stats.
+  it("resumeFromCheckpoint reverts inventory/currency/keys/equipment/potion bonuses to the checkpoint, not the farmed values", () => {
+    const save = resumeFromCheckpoint(buildSave(), floor);
+    expect(save.character.currency).toBe(0);
+    expect(save.character.keyIds).toEqual([]);
+    expect(save.character.equippedWeaponId).toBeUndefined();
+    expect(save.character.equippedArmor).toEqual({});
+    expect(save.character.bonusDamage).toBe(0);
+    expect(save.character.baseStats.defence).toBe(2);
+  });
+
+  // bug fix: checkpoint-restart-stat-exploit (reopened) — this fallback should no longer be
+  // reachable in normal play, since `main.ts` now calls `ensureCheckpointCharacter` at load
+  // time before a save is ever used. It's kept as a last-resort defensive backstop only (e.g.
+  // against some other code path constructing a PlayerSave outside the normal load flow); see
+  // `tests/unit/domain/save.test.ts` for the actual fix (the backfill itself).
+  it("resumeFromCheckpoint falls back to the current character when checkpointCharacter is missing (defensive backstop, not normally reachable)", () => {
+    const legacySave: PlayerSave = { ...buildSave(), checkpointCharacter: undefined };
+    const save = resumeFromCheckpoint(legacySave, floor);
+    // No checkpoint to revert to — behaves as it always did: floor state resets, HP maxes out,
+    // farmed character fields are left as they were.
+    expect(save.character.currency).toBe(40);
     expect(save.character.currentHp).toBe(30);
   });
 

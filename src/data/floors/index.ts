@@ -1,6 +1,6 @@
 import { createTower } from "../../domain/floor/tower";
-import { FLOOR_01 } from "./floor-01";
-import { FLOOR_FINAL } from "./floor-final";
+import { FLOOR_1 } from "./floor-1";
+import { FLOOR_2 } from "./floor-2";
 
 /** The tower's ordered floor list (FR-001), registering every authored floor. */
-export const TOWER = createTower([FLOOR_01, FLOOR_FINAL]);
+export const TOWER = createTower([FLOOR_1, FLOOR_2]);

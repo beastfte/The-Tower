@@ -168,14 +168,22 @@ test.describe("Pause menu — restart at last checkpoint", () => {
     expect(afterRestart.character.currentHp).toBe(30);
   });
 
-  test("leaves earlier completed floors and permanent progress untouched", async ({ page }) => {
+  // bug fix: checkpoint-restart-stat-exploit — a key (or any other pickup) collected during
+  // the *current, not-yet-completed* floor attempt is not "permanent" progress per FR-005
+  // ("undoing only what happened during the current attempt at this floor"); only progress
+  // from floors already frozen into completedFloorStates is permanent. This test previously
+  // asserted the opposite (that an in-attempt key pickup survives a restart) and so was
+  // itself encoding the exploit as intended behavior — see specs/bugs/checkpoint-restart-stat-exploit.
+  test("reverts a key (or any other pickup) collected during the current, uncompleted attempt", async ({
+    page,
+  }) => {
     await clearSave(page);
     await page.goto("/");
     await waitForActiveScene(page, "MainMenuScene");
     await page.keyboard.press("KeyN");
     await waitForActiveScene(page, "FloorScene");
 
-    // Collect the bronze key (permanent character progress) before restarting.
+    // Collect the bronze key during this (not-yet-completed) floor attempt.
     await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
     await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
     await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
@@ -198,7 +206,9 @@ test.describe("Pause menu — restart at last checkpoint", () => {
     await waitForActiveScene(page, "FloorScene");
 
     const afterRestart = await getCtxSave(page);
-    expect(afterRestart.character.keyIds).toContain("bronze"); // permanent, untouched by a floor restart
+    // Reverted: this key was picked up during the attempt that just got undone, not earned on
+    // a previously completed floor.
+    expect(afterRestart.character.keyIds).not.toContain("bronze");
   });
 });
 
