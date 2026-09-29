@@ -3,27 +3,20 @@
  * src/game/render/spriteData.ts. The reference HTML lives outside this repo (user's choice), so
  * this script — not a build step — is how its art gets into version control (research R2).
  *
- * Usage: npx tsx scripts/extract-sprites.ts "<path to reference sheet .html>"
+ * Usage: npx tsx scripts/extract-sprites.ts "<path to reference sheet.html>"
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 
-const TARGET_UUID = "c3afcadb-fda3-4264-a1d0-ce7f68a0d6ff";
 const OUTPUT_PATH = "src/game/render/spriteData.ts";
+const AL = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const RLE = /(\d+)(.)/g;
 
 interface RawGrid {
-  length: number;
-  hb?: boolean;
-  map?: Record<string, string | string[]>;
-  [index: number]: string[];
-}
-
-interface SpriteGridOut {
   w: number;
   h: number;
+  pal: string[];
   rows: string[];
-  hb: boolean;
-  map?: Record<string, string | string[]>;
 }
 
 function fail(message: string): never {
@@ -31,152 +24,144 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-function loadTowerSprites(htmlPath: string): { TS: Record<string, unknown>; C: Record<string, string> } {
+/** Asset UUIDs are per-revision (research R10) — a pinned one breaks on every new sheet. Scan
+ * every manifest entry and identify the sprite library by what it defines, not by name. */
+function loadTowerSprites(htmlPath: string): Record<string, unknown> {
   const html = readFileSync(htmlPath, "utf8");
   const manifestMatch = html.match(/<script type="__bundler\/manifest">([\s\S]*?)<\/script>/);
   if (!manifestMatch) fail("no <script type=\"__bundler/manifest\"> block found in the reference HTML");
   const manifest = JSON.parse(manifestMatch![1]!) as Record<string, { mime: string; compressed: boolean; data: string }>;
-  const entry = manifest[TARGET_UUID];
-  if (!entry) fail(`manifest has no asset ${TARGET_UUID}`);
-  if (!entry.compressed) fail(`asset ${TARGET_UUID} is not marked compressed`);
-  const src = gunzipSync(Buffer.from(entry.data, "base64")).toString("utf8");
 
-  const window: Record<string, unknown> = {};
-  new Function("window", src)(window);
-  const TS = window.TowerSprites as Record<string, unknown> | undefined;
-  if (!TS) fail("decoded asset did not set window.TowerSprites");
-
-  const cMatch = src.match(/var C = (\{[\s\S]*?\});/);
-  if (!cMatch) fail("could not find the high-bit palette (`var C = {...}`) in the decoded source");
-  const C = new Function(`return ${cMatch![1]}`)() as Record<string, string>;
-
-  return { TS: TS!, C };
-}
-
-function toSpriteGrid(grid: RawGrid, expectSize: number, name: string): SpriteGridOut {
-  const h = grid.length;
-  const w = (grid[0] as unknown as string[]).length;
-  if (h !== expectSize || w !== expectSize) {
-    fail(`sprite '${name}' is ${w}x${h}, expected ${expectSize}x${expectSize}`);
-  }
-  const rows: string[] = [];
-  for (let y = 0; y < h; y++) {
-    const row = grid[y] as unknown as string[];
-    if (row.length !== w) fail(`sprite '${name}' row ${y} has ${row.length} cells, expected ${w}`);
-    // One character per pixel — not run-length. The sheet's alphabet includes digit characters
-    // ('1'/'2'/'3' as map keys on several hb sprites), which makes a "<count><char>" RLE decode
-    // genuinely ambiguous (greedy digit-run parsing can't tell where the count ends and a
-    // digit-valued char begins). Rows are short enough (<=32) that RLE buys nothing anyway.
-    rows.push(row.join(""));
-  }
-  const hb = Boolean(grid.hb);
-  const out: SpriteGridOut = { w, h, rows, hb };
-  if (hb) out.map = grid.map ?? {};
-  return out;
-}
-
-function validateClassic(name: string, grid: SpriteGridOut, pal: Record<string, string>): void {
-  for (const row of grid.rows) {
-    for (const ch of row) {
-      if (ch !== "." && !(ch in pal)) fail(`classic sprite '${name}' uses letter '${ch}' not present in PAL`);
+  const matches: { uuid: string; TS: Record<string, unknown> }[] = [];
+  for (const [uuid, entry] of Object.entries(manifest)) {
+    if (!entry.compressed) continue;
+    let src: string;
+    try {
+      src = gunzipSync(Buffer.from(entry.data, "base64")).toString("utf8");
+    } catch {
+      continue;
     }
+    const window: Record<string, unknown> = {};
+    try {
+      new Function("window", src)(window);
+    } catch {
+      continue;
+    }
+    if (window.TowerSprites) matches.push({ uuid, TS: window.TowerSprites as Record<string, unknown> });
   }
+
+  if (matches.length === 0) fail("no manifest asset defines window.TowerSprites");
+  if (matches.length > 1) fail(`${matches.length} manifest assets define window.TowerSprites (${matches.map((m) => m.uuid).join(", ")}) — expected exactly one`);
+  return matches[0]!.TS;
 }
 
-function validateHighBit(name: string, grid: SpriteGridOut, cPal: Record<string, string>): void {
-  const map = grid.map ?? {};
-  for (const row of grid.rows) {
-    for (const ch of row) {
-      if (ch === ".") continue;
-      const v = map[ch] ?? ch;
-      if (Array.isArray(v)) continue;
-      if (v.startsWith("#")) continue;
-      if (!(v in cPal)) fail(`high-bit sprite '${name}' letter '${ch}' resolves to unknown key '${v}'`);
+/** Generation-time validation only (contract C1/C6) — the RLE decode itself is `paintSprite` at
+ * runtime, but a bad sprite must fail here, not silently mispaint at render time. */
+function validateGrid(name: string, grid: RawGrid): void {
+  if (grid.h !== grid.rows.length) fail(`sprite '${name}' has ${grid.rows.length} rows, expected h=${grid.h}`);
+  for (let y = 0; y < grid.rows.length; y++) {
+    let width = 0;
+    for (const [, count, ch] of grid.rows[y]!.matchAll(RLE)) {
+      width += Number(count);
+      if (ch !== "." && AL.indexOf(ch!) >= grid.pal.length) {
+        fail(`sprite '${name}' row ${y} uses letter '${ch}', which has no entry in its own pal (length ${grid.pal.length})`);
+      }
     }
+    if (width !== grid.w) fail(`sprite '${name}' row ${y} decodes to ${width} pixels, expected w=${grid.w}`);
   }
+  for (const c of grid.pal) if (!/^#[0-9a-fA-F]{6}$/.test(c)) fail(`sprite '${name}' has a non-hex pal entry '${c}'`);
+}
+
+function grid(name: string, raw: RawGrid | undefined): RawGrid {
+  if (!raw) fail(`expected sprite '${name}' not found in the sheet`);
+  validateGrid(name, raw!);
+  return raw!;
 }
 
 function main(): void {
   const htmlPath = process.argv[2];
   if (!htmlPath) fail("usage: extract-sprites.ts <path-to-reference-sheet.html>");
-  const { TS, C } = loadTowerSprites(htmlPath!);
+  const TS = loadTowerSprites(htmlPath!);
 
-  // The sheet's own PAL carries a "." -> null placeholder entry (the transparent marker is
-  // handled structurally, never looked up) — drop it so PAL is genuinely letter -> colour.
-  const rawPal = TS.PAL as Record<string, string | null>;
-  const PAL: Record<string, string> = {};
-  for (const [k, v] of Object.entries(rawPal)) if (k !== "." && v != null) PAL[k] = v;
-  const CHARS = TS.CHARS as Record<string, { front: RawGrid; armour?: { front: RawGrid } }>;
+  const PLAYER = TS.PLAYER as Record<string, { front: { idle: RawGrid } }>;
+  const MONSTER_SPRITES = TS.MONSTER_SPRITES as Record<string, { idle: RawGrid }>;
   const WEAPONS = TS.WEAPONS as Record<string, RawGrid>;
   const ARMOUR = TS.ARMOUR as Record<string, RawGrid>;
   const ITEMS = TS.ITEMS as Record<string, RawGrid>;
   const PROPS = TS.PROPS as Record<string, RawGrid>;
   const TILES = TS.TILES as Record<string, RawGrid>;
-  const TIERS = TS.TIERS as Record<string, { label: string; regions: string; mid?: string; dark?: string; accent?: string }>;
-  const ZONES = TS.ZONES as Record<string, { swap: Record<string, string> }>;
+  const ZONE_TILES = TS.ZONE_TILES as Record<string, Record<string, RawGrid>>;
 
-  const sprites: Record<string, SpriteGridOut> = {};
+  const sprites: Record<string, RawGrid> = {};
 
-  const classicChars = ["player", "goblin", "ogre", "wizard"];
-  for (const name of classicChars) {
-    const grid = toSpriteGrid(CHARS[name]!.front, 32, name);
-    validateClassic(name, grid, PAL);
-    sprites[name] = grid;
-  }
-  // Worn-armour overlay: letters are tier region codes, not direct PAL keys — skip the PAL check.
-  const playerArmourGrid = toSpriteGrid(CHARS.player!.armour!.front, 32, "playerArmour");
-  sprites.playerArmour = playerArmourGrid;
+  // Every family below is allow-listed by name (research R15) — never Object.keys() over a sheet
+  // family. ITEMS is a superset of ARMOUR and TILES carries 9 out-of-scope keys on this revision;
+  // an allow-list is what keeps adopted scope a property of this repo, not of the sheet.
+  const playerTiers = ["none", "leather", "mail", "plate"];
+  for (const tier of playerTiers) sprites[`player${capitalize(tier)}`] = grid(`PLAYER.${tier}.front.idle`, PLAYER[tier]?.front.idle);
 
-  const tileNames = ["floorSlab", "floorCracked", "wallBlock", "crackedWall", "water", "spikesOff", "spikesHalf", "spikesOn", "lava"];
-  for (const name of tileNames) {
-    const grid = toSpriteGrid(TILES[name]!, 16, name);
-    validateClassic(name, grid, PAL);
-    sprites[name] = grid;
-  }
+  const monsterNames = ["goblin", "ogre", "wizard"];
+  for (const name of monsterNames) sprites[name] = grid(`MONSTER_SPRITES.${name}.idle`, MONSTER_SPRITES[name]?.idle);
 
   const weaponNames = ["woodSword", "sword", "goldSword", "diamondSword"];
-  for (const name of weaponNames) {
-    const grid = toSpriteGrid(WEAPONS[name]!, 16, name);
-    validateHighBit(name, grid, C);
-    sprites[name] = grid;
+  for (const name of weaponNames) sprites[name] = grid(name, WEAPONS[name]);
+
+  const armourNames = [
+    "leatherHelm", "leatherChest", "leatherLegs", "leatherBoots",
+    "mailHelm", "mailChest", "mailLegs", "mailBoots",
+    "plateHelm", "plateChest", "plateLegs", "plateBoots",
+  ];
+  for (const name of armourNames) sprites[name] = grid(name, ARMOUR[name]);
+
+  // Explicit item names only — ITEMS also carries all 12 armour keys (byte-identical to ARMOUR),
+  // which a wholesale read would double-emit.
+  const itemNames = ["potion", "potionAttack", "potionDefense", "keyBronze", "keySilver", "keyGold", "coin"];
+  for (const name of itemNames) sprites[name] = grid(name, ITEMS[name]);
+
+  const propNames = ["doorBronze", "doorSilver", "doorGold", "stairsUp", "stairsDown", "chest"];
+  for (const name of propNames) sprites[name] = grid(name, PROPS[name]);
+
+  // Explicit base-tile names only — TILES also carries `rubble`, `vaultDoor` and `lava1`-`lava7`,
+  // all out of scope (spec Out of Scope).
+  const tileNames = ["floorSlab", "floorCracked", "wallBlock", "crackedWall", "water", "spikesOff", "spikesHalf", "spikesOn", "lava"];
+  for (const name of tileNames) sprites[name] = grid(name, TILES[name]);
+
+  const expectedCount = playerTiers.length + monsterNames.length + weaponNames.length + armourNames.length + itemNames.length + propNames.length + tileNames.length;
+  if (Object.keys(sprites).length !== expectedCount) {
+    fail(`allow-list mismatch: expected ${expectedCount} sprites, extracted ${Object.keys(sprites).length}`);
   }
 
-  for (const name of Object.keys(ARMOUR)) {
-    const grid = toSpriteGrid(ARMOUR[name]!, 16, name);
-    validateHighBit(name, grid, C);
-    sprites[name] = grid;
+  // Zone variants: only the 8 base tile keys that ever carry a zone variant (lava never does).
+  // Sparse per zone by construction — a zone that doesn't restyle a tile simply omits it, which
+  // is the normal fallback path (research R13), not an error.
+  const zoneNames = ["cistern", "ruin", "forge", "crypt", "throne"];
+  const zoneableTiles = tileNames.filter((n) => n !== "lava");
+  const zoneTiles: Record<string, Record<string, RawGrid>> = {};
+  let zoneVariantCount = 0;
+  for (const zone of zoneNames) {
+    const source = ZONE_TILES[zone];
+    if (!source) fail(`expected zone '${zone}' not found in ZONE_TILES`);
+    const variants: Record<string, RawGrid> = {};
+    for (const tileName of zoneableTiles) {
+      const raw = source[tileName];
+      if (!raw) continue;
+      variants[tileName] = grid(`ZONE_TILES.${zone}.${tileName}`, raw);
+      zoneVariantCount++;
+    }
+    zoneTiles[zone] = variants;
   }
 
-  const itemNames = ["keyBronze", "keySilver", "keyGold", "potion", "potionAttack", "potionDefense", "coin"];
-  for (const name of itemNames) {
-    const grid = toSpriteGrid(ITEMS[name]!, 16, name);
-    validateHighBit(name, grid, C);
-    sprites[name] = grid;
-  }
+  // Lava's glow frame has no derivation mechanism left (research R14) — take one of the sheet's
+  // own lava1-lava7 frames directly, kept outside the adopted-84 count exactly as the swap-derived
+  // glow frame was kept outside the adopted-43 count on the previous revision.
+  const lavaGlow = grid("lava2", TILES.lava2);
 
-  for (const name of Object.keys(PROPS)) {
-    const grid = toSpriteGrid(PROPS[name]!, 32, name);
-    validateHighBit(name, grid, C);
-    sprites[name] = grid;
-  }
-
-  const expectedCount = classicChars.length + 1 + tileNames.length + weaponNames.length + Object.keys(ARMOUR).length + itemNames.length + Object.keys(PROPS).length;
-  if (Object.keys(sprites).length !== expectedCount || expectedCount !== 43) {
-    fail(`expected 43 sprites, extracted ${Object.keys(sprites).length}`);
-  }
-
-  const armourTiers: Record<string, { label: string; regions: string; mid?: string; dark?: string; accent?: string }> = {};
-  for (const [id, t] of Object.entries({ none: TIERS.none!, leather: TIERS.leather!, mail: TIERS.mail!, plate: TIERS.plate! })) {
-    armourTiers[id] = { label: t.label, regions: t.regions, mid: t.mid, dark: t.dark, accent: t.accent };
-  }
-
-  const sheetZones = ["stone", "cistern", "ruin", "forge", "crypt", "throne"];
-  const zoneSwaps: Record<string, Record<string, string>> = {};
-  for (const z of sheetZones) zoneSwaps[z] = ZONES[z]!.swap;
+  const totalCount = Object.keys(sprites).length + zoneVariantCount;
+  console.log(`extract-sprites: wrote ${totalCount} sprites (${Object.keys(sprites).length} + ${zoneVariantCount} zone variants) to ${OUTPUT_PATH}`);
 
   const banner = `/**
  * GENERATED FILE — do not hand-edit. Produced by scripts/extract-sprites.ts from the reference
- * sprite sheet ("The Tower - Sprite Sheet (7).html", section 10 "THE SHEET"). Regenerate with:
+ * sprite sheet ("The Tower - Sprite Sheet (9).html", section 10 "THE SHEET"). Regenerate with:
  *   npx tsx scripts/extract-sprites.ts "<path to reference sheet.html>"
  */
 `;
@@ -185,39 +170,31 @@ function main(): void {
 export interface SpriteGrid {
   readonly w: number;
   readonly h: number;
+  readonly pal: readonly string[];
   readonly rows: readonly string[];
-  readonly hb: boolean;
-  readonly map?: Readonly<Record<string, string | readonly string[]>>;
 }
 
 export type SheetZone = "stone" | "cistern" | "ruin" | "forge" | "crypt" | "throne";
 
 export type ArmourTierId = "none" | "leather" | "mail" | "plate";
 
-export interface ArmourTierDef {
-  readonly label: string;
-  readonly regions: string;
-  readonly mid?: string;
-  readonly dark?: string;
-  readonly accent?: string;
-}
-
-export const PAL: Readonly<Record<string, string>> = ${JSON.stringify(PAL, null, 2)};
-
-export const C: Readonly<Record<string, string>> = ${JSON.stringify(C, null, 2)};
-
-export const ARMOUR_TIERS: Readonly<Record<ArmourTierId, ArmourTierDef>> = ${JSON.stringify(armourTiers, null, 2)};
-
-export const ZONE_SWAPS: Readonly<Record<SheetZone, Readonly<Record<string, string>>>> = ${JSON.stringify(zoneSwaps, null, 2)};
-
-/** Not a sheet sprite (research R9) — promotes lava's own ramp one step for its glow frame. */
-export const LAVA_GLOW_SWAP: Readonly<Record<string, string>> = { x: "o", o: "f" };
-
 export const SPRITES: Readonly<Record<string, SpriteGrid>> = ${JSON.stringify(sprites, null, 2)};
+
+/** Pre-baked per-zone tile variants (research R13). \`stone\` carries none — it *is* the base
+ * \`SPRITES\` set, not an identity variant. Resolution mirrors the sheet's own \`tile(key, zone)\`:
+ * \`ZONE_TILES[zone]?.[tileKey] ?? SPRITES[tileKey]\`. */
+export const ZONE_TILES: Readonly<Record<Exclude<SheetZone, "stone">, Readonly<Record<string, SpriteGrid>>>> = ${JSON.stringify(zoneTiles, null, 2)};
+
+/** Not an adopted sprite (research R14) — one of the sheet's own lava frames, bound to the
+ * existing two-state flicker timing in trapAnimation.ts. */
+export const LAVA_GLOW_FRAME: SpriteGrid = ${JSON.stringify(lavaGlow, null, 2)};
 `;
 
   writeFileSync(OUTPUT_PATH, banner + body, "utf8");
-  console.log(`extract-sprites: wrote ${Object.keys(sprites).length} sprites to ${OUTPUT_PATH}`);
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 main();

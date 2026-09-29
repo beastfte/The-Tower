@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import type { ZoneThemeId } from "../../domain/floor/types";
-import { paintArmourOverlay, paintClassic, paintHighBit, paintPixelsTo, type PixelGrid } from "./painters";
-import { ARMOUR_TIERS, LAVA_GLOW_SWAP, SPRITES, ZONE_SWAPS, type ArmourTierId, type SheetZone } from "./spriteData";
+import { paintPixelsTo, paintSprite, type PixelGrid } from "./painters";
+import { LAVA_GLOW_FRAME, SPRITES, ZONE_TILES, type ArmourTierId, type SheetZone, type SpriteGrid } from "./spriteData";
 
 /** Maps this game's zone themes onto the sheet's own 6 named zones by closest visual/thematic
  * fit (research R5 / data-model.md), same mapping wallSprites.ts already used for walls. */
@@ -18,6 +18,21 @@ export function sheetZoneFor(zone: ZoneThemeId): SheetZone {
   return GAME_ZONE_TO_SHEET[zone];
 }
 
+/** Mirrors the sheet's own `tile(key, zone)`: a zone's pre-baked variant, falling back to the
+ * base tile when that zone doesn't restyle it (contract C5). `stone` always falls through, since
+ * it carries no variants of its own. */
+export function zoneTileGrid(tileKey: string, zone: ZoneThemeId): SpriteGrid {
+  const sheetZone = sheetZoneFor(zone);
+  const variant = sheetZone === "stone" ? undefined : ZONE_TILES[sheetZone]?.[tileKey];
+  return variant ?? requireGrid(tileKey);
+}
+
+function requireGrid(spriteKey: string): SpriteGrid {
+  const grid = SPRITES[spriteKey];
+  if (!grid) throw new Error(`Unknown sprite key: ${spriteKey}`);
+  return grid;
+}
+
 export function paintPixelsToTexture(scene: Phaser.Scene, key: string, pixels: PixelGrid): string {
   const height = pixels.length;
   const width = pixels[0]?.length ?? 0;
@@ -28,21 +43,14 @@ export function paintPixelsToTexture(scene: Phaser.Scene, key: string, pixels: P
   return key;
 }
 
-function paintGrid(spriteKey: string, swap?: Record<string, string>): PixelGrid {
-  const grid = SPRITES[spriteKey];
-  if (!grid) throw new Error(`Unknown sprite key: ${spriteKey}`);
-  return grid.hb ? paintHighBit(grid) : paintClassic(grid, swap);
-}
-
 /** For DOM-rendered icons outside Phaser's own canvas (SidePanelScene) — the same sprite data,
  * painted onto a plain `<canvas>` and read back as a data URL an `<img src>` can use directly. */
 export function spriteDataUrl(spriteKey: string): string {
-  const grid = SPRITES[spriteKey];
-  if (!grid) throw new Error(`Unknown sprite key: ${spriteKey}`);
+  const grid = requireGrid(spriteKey);
   const canvas = document.createElement("canvas");
   canvas.width = grid.w;
   canvas.height = grid.h;
-  paintPixelsTo(canvas.getContext("2d")!, paintGrid(spriteKey));
+  paintPixelsTo(canvas.getContext("2d")!, paintSprite(grid));
   return canvas.toDataURL();
 }
 
@@ -51,43 +59,36 @@ export function spriteDataUrl(spriteKey: string): string {
  * loaded by some other means (the lever's kept SVG art, FR-025 — not in `SPRITES`) pass through
  * untouched: if it already exists, this is a no-op. */
 export function ensureSpriteTexture(scene: Phaser.Scene, spriteKey: string): string {
-  if (!scene.textures.exists(spriteKey)) paintPixelsToTexture(scene, spriteKey, paintGrid(spriteKey));
+  if (!scene.textures.exists(spriteKey)) paintPixelsToTexture(scene, spriteKey, paintSprite(requireGrid(spriteKey)));
   return spriteKey;
 }
 
 export function ensureZoneTileTexture(scene: Phaser.Scene, tileKey: string, zone: ZoneThemeId): string {
   const key = `sprite-${tileKey}-${zone}`;
-  if (!scene.textures.exists(key)) {
-    paintPixelsToTexture(scene, key, paintGrid(tileKey, ZONE_SWAPS[sheetZoneFor(zone)]));
-  }
+  if (!scene.textures.exists(key)) paintPixelsToTexture(scene, key, paintSprite(zoneTileGrid(tileKey, zone)));
   return key;
 }
 
-/** Composes base player + tier-recoloured armour overlay into one image (contract C3). Tier
- * "none" draws the base only — the overlay is skipped, not drawn transparent. */
+const PLAYER_SPRITE_KEY: Record<ArmourTierId, string> = {
+  none: "playerNone",
+  leather: "playerLeather",
+  mail: "playerMail",
+  plate: "playerPlate",
+};
+
+/** Direct lookup — the sheet ships four pre-composed bodies, so there is no overlay and no
+ * recolour step (contract C3). `tier: "none"` is a sprite like any other. */
 export function ensurePlayerTexture(scene: Phaser.Scene, tier: ArmourTierId): string {
   const key = `sprite-player-${tier}`;
-  if (!scene.textures.exists(key)) {
-    const base = SPRITES.player!;
-    const pixels = paintClassic(base);
-    if (tier !== "none") {
-      const overlay = paintArmourOverlay(SPRITES.playerArmour!, tier, ARMOUR_TIERS);
-      for (let y = 0; y < overlay.length; y++) {
-        for (let x = 0; x < overlay[y]!.length; x++) {
-          const c = overlay[y]![x];
-          if (c != null) pixels[y]![x] = c;
-        }
-      }
-    }
-    paintPixelsToTexture(scene, key, pixels);
-  }
+  if (!scene.textures.exists(key)) paintPixelsToTexture(scene, key, paintSprite(requireGrid(PLAYER_SPRITE_KEY[tier])));
   return key;
 }
 
-/** Not a sheet sprite — see research R9. Promotes `lava`'s own ramp one step via the classic
- * painter's swap mechanism, reused outside the zone context (contract C5). */
+/** Not a sheet sprite the way the rest of the inventory is — one of the sheet's own `lava1`-
+ * `lava7` frames, bound to the existing two-frame flicker timing in trapAnimation.ts (research
+ * R14; the swap-derived version this replaced no longer has a mechanism to run on). */
 export function ensureLavaGlowTexture(scene: Phaser.Scene): string {
   const key = "sprite-lava-glow";
-  if (!scene.textures.exists(key)) paintPixelsToTexture(scene, key, paintClassic(SPRITES.lava!, LAVA_GLOW_SWAP));
+  if (!scene.textures.exists(key)) paintPixelsToTexture(scene, key, paintSprite(LAVA_GLOW_FRAME));
   return key;
 }

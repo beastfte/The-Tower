@@ -1,15 +1,14 @@
 import Phaser from "phaser";
 import type { ZoneThemeId } from "../../domain/floor/types";
-import { paintClassic, paintHighBit } from "./painters";
-import { SPRITES, ZONE_SWAPS } from "./spriteData";
-import { paintPixelsToTexture, sheetZoneFor } from "./spriteTextures";
+import { paintSprite } from "./painters";
+import { SPRITES } from "./spriteData";
+import { paintPixelsToTexture, zoneTileGrid } from "./spriteTextures";
 
 /**
  * Wall and door textures, sourced from the reference sprite sheet ("The Tower - Sprite Sheet
- * (7).html", section 10 "THE SHEET") via the generated `spriteData.ts` and the shared painters —
- * the same data and paint path every other sprite in the game now uses. Walls/floors stay on the
- * classic painter with a zone palette swap; doors moved to the sheet's high-bit encoding, where
- * each tier is already its own distinct sprite (no swap needed) — see research R5.
+ * (9).html", section 10 "THE SHEET") via the generated `spriteData.ts` and the shared painter —
+ * the same data and paint path every other sprite in the game uses. Walls resolve through the
+ * same pre-baked zone-tile lookup as floors; doors have no zone variation, one sprite per tier.
  */
 
 export type DoorTier = "bronze" | "silver" | "gold";
@@ -24,8 +23,8 @@ const DOOR_SPRITE_KEY: Record<DoorTier, string> = {
 export function ensureWallTexture(scene: Phaser.Scene, zone: ZoneThemeId, cracked: boolean): string {
   const key = `wall-sprite-${zone}-${cracked ? "cracked" : "normal"}`;
   if (!scene.textures.exists(key)) {
-    const grid = SPRITES[cracked ? "crackedWall" : "wallBlock"]!;
-    paintPixelsToTexture(scene, key, paintClassic(grid, ZONE_SWAPS[sheetZoneFor(zone)]));
+    const tileKey = cracked ? "crackedWall" : "wallBlock";
+    paintPixelsToTexture(scene, key, paintSprite(zoneTileGrid(tileKey, zone)));
   }
   return key;
 }
@@ -34,7 +33,7 @@ export function ensureWallTexture(scene: Phaser.Scene, zone: ZoneThemeId, cracke
 export function ensureDoorTexture(scene: Phaser.Scene, tier: DoorTier): string {
   const key = `door-sprite-${tier}`;
   if (!scene.textures.exists(key)) {
-    paintPixelsToTexture(scene, key, paintHighBit(SPRITES[DOOR_SPRITE_KEY[tier]]!));
+    paintPixelsToTexture(scene, key, paintSprite(SPRITES[DOOR_SPRITE_KEY[tier]]!));
   }
   return key;
 }

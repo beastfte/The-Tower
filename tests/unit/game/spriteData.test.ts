@@ -1,92 +1,97 @@
 import { describe, expect, it } from "vitest";
-import { ARMOUR_TIERS, PAL, SPRITES, ZONE_SWAPS, type SheetZone } from "../../../src/game/render/spriteData";
+import { paintSprite } from "../../../src/game/render/painters";
+import { LAVA_GLOW_FRAME, SPRITES, ZONE_TILES, type SheetZone, type SpriteGrid } from "../../../src/game/render/spriteData";
 
-const CLASSIC_FAMILIES = {
-  characters: ["player", "goblin", "ogre", "wizard"],
-  playerArmourOverlay: ["playerArmour"],
-  tiles: ["floorSlab", "floorCracked", "wallBlock", "crackedWall", "water", "spikesOff", "spikesHalf", "spikesOn", "lava"],
-};
-
-const HIGH_BIT_FAMILIES = {
+const FAMILIES = {
+  playerBodies: ["playerNone", "playerLeather", "playerMail", "playerPlate"],
+  monsters: ["goblin", "ogre", "wizard"],
   weapons: ["woodSword", "sword", "goldSword", "diamondSword"],
   armour: [
     "leatherHelm", "leatherChest", "leatherLegs", "leatherBoots",
     "mailHelm", "mailChest", "mailLegs", "mailBoots",
     "plateHelm", "plateChest", "plateLegs", "plateBoots",
   ],
-  items: ["keyBronze", "keySilver", "keyGold", "potion", "potionAttack", "potionDefense", "coin"],
+  items: ["potion", "potionAttack", "potionDefense", "keyBronze", "keySilver", "keyGold", "coin"],
   props: ["doorBronze", "doorSilver", "doorGold", "stairsUp", "stairsDown", "chest"],
+  baseTiles: ["floorSlab", "floorCracked", "wallBlock", "crackedWall", "water", "spikesOff", "spikesHalf", "spikesOn", "lava"],
 };
 
-const ALL_CLASSIC = Object.values(CLASSIC_FAMILIES).flat();
-const ALL_HIGH_BIT = Object.values(HIGH_BIT_FAMILIES).flat();
+const ALL_ADOPTED = Object.values(FAMILIES).flat();
+const ZONE_NAMES: Exclude<SheetZone, "stone">[] = ["cistern", "ruin", "forge", "crypt", "throne"];
+const ZONEABLE_TILES = FAMILIES.baseTiles.filter((t) => t !== "lava");
+
+function opaqueMask(grid: SpriteGrid): boolean[][] {
+  return paintSprite(grid).map((row) => row.map((cell) => cell !== null));
+}
 
 describe("SPRITES inventory (contract C6)", () => {
-  it("has exactly 43 sprites", () => {
-    expect(Object.keys(SPRITES)).toHaveLength(43);
+  it("has exactly the 45 non-zone adopted sprites", () => {
+    expect(new Set(Object.keys(SPRITES))).toEqual(new Set(ALL_ADOPTED));
+    expect(Object.keys(SPRITES)).toHaveLength(45);
   });
 
-  it("has exactly the documented families and keys", () => {
-    expect(new Set(Object.keys(SPRITES))).toEqual(new Set([...ALL_CLASSIC, ...ALL_HIGH_BIT]));
+  it("has no out-of-scope tile key", () => {
+    const outOfScope = ["rubble", "vaultDoor", "lava1", "lava2", "lava3", "lava4", "lava5", "lava6", "lava7"];
+    for (const key of outOfScope) expect(SPRITES).not.toHaveProperty(key);
   });
 
-  it.each(ALL_CLASSIC)("classic sprite '%s' has hb: false and no map", (key) => {
-    const grid = SPRITES[key]!;
-    expect(grid.hb).toBe(false);
-    expect(grid.map).toBeUndefined();
-  });
-
-  it.each(ALL_HIGH_BIT)("high-bit sprite '%s' has hb: true and a map", (key) => {
-    const grid = SPRITES[key]!;
-    expect(grid.hb).toBe(true);
-    expect(grid.map).toBeDefined();
+  it("has no duplicated armour icon between ARMOUR and ITEMS adoption", () => {
+    const keys = Object.keys(SPRITES);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
   it.each(Object.keys(SPRITES))("sprite '%s' rows all decode to its declared width and row count", (key) => {
     const grid = SPRITES[key]!;
     expect(grid.rows).toHaveLength(grid.h);
-    for (const row of grid.rows) expect(row).toHaveLength(grid.w);
+    expect(() => paintSprite(grid)).not.toThrow();
+    for (const row of paintSprite(grid)) expect(row).toHaveLength(grid.w);
   });
 
-  it.each(ALL_CLASSIC.filter((k) => k !== "playerArmour"))("classic sprite '%s' references only PAL letters", (key) => {
-    const grid = SPRITES[key]!;
-    for (const row of grid.rows) {
-      for (const ch of row) {
-        if (ch !== ".") expect(PAL[ch], `letter '${ch}' in '${key}'`).toBeDefined();
+  it.each(Object.keys(SPRITES))("sprite '%s' pal entries are literal #rrggbb", (key) => {
+    for (const c of SPRITES[key]!.pal) expect(c).toMatch(/^#[0-9a-fA-F]{6}$/);
+  });
+});
+
+describe("ZONE_TILES (contract C5, FR-008)", () => {
+  it("has exactly the 5 non-stone sheet zones", () => {
+    expect(Object.keys(ZONE_TILES).sort()).toEqual([...ZONE_NAMES].sort());
+  });
+
+  it("has exactly 39 zone tile variants, all valid RLE", () => {
+    let count = 0;
+    for (const zone of ZONE_NAMES) {
+      for (const [key, grid] of Object.entries(ZONE_TILES[zone]!)) {
+        expect(ZONEABLE_TILES).toContain(key);
+        expect(() => paintSprite(grid)).not.toThrow();
+        count++;
       }
     }
+    expect(count).toBe(39);
   });
 
-  it.each(ALL_HIGH_BIT)("high-bit sprite '%s' resolves every non-'.' letter via map", (key) => {
-    const grid = SPRITES[key]!;
-    const map = grid.map!;
-    for (const row of grid.rows) {
-      for (const ch of row) {
-        if (ch === ".") continue;
-        expect(map[ch] ?? ch, `letter '${ch}' in '${key}' has no resolvable entry`).toBeDefined();
-      }
+  it("no zone restyles lava", () => {
+    for (const zone of ZONE_NAMES) expect(ZONE_TILES[zone]).not.toHaveProperty("lava");
+  });
+
+  it.each(ZONE_NAMES)("every variant in zone '%s' shares its base tile's opaque mask (FR-008)", (zone) => {
+    for (const [tileKey, variant] of Object.entries(ZONE_TILES[zone]!)) {
+      const base = SPRITES[tileKey];
+      expect(base, `zone '${zone}' variant '${tileKey}' has no base tile`).toBeDefined();
+      expect(opaqueMask(variant), `zone '${zone}' tile '${tileKey}' silhouette differs from base`).toEqual(opaqueMask(base!));
     }
   });
 });
 
-describe("ARMOUR_TIERS", () => {
-  it("has all four tiers and 'none' has no regions", () => {
-    expect(Object.keys(ARMOUR_TIERS).sort()).toEqual(["leather", "mail", "none", "plate"]);
-    expect(ARMOUR_TIERS.none.regions).toBe("");
+describe("LAVA_GLOW_FRAME", () => {
+  it("is a valid, distinct sprite from the base lava tile", () => {
+    expect(() => paintSprite(LAVA_GLOW_FRAME)).not.toThrow();
+    expect(LAVA_GLOW_FRAME.w).toBe(SPRITES.lava!.w);
+    expect(LAVA_GLOW_FRAME.h).toBe(SPRITES.lava!.h);
   });
 });
 
-describe("ZONE_SWAPS", () => {
-  const SHEET_ZONES: SheetZone[] = ["stone", "cistern", "ruin", "forge", "crypt", "throne"];
-
-  it("has exactly the six sheet zones, stone as identity", () => {
-    expect(Object.keys(ZONE_SWAPS).sort()).toEqual([...SHEET_ZONES].sort());
-    expect(ZONE_SWAPS.stone).toEqual({});
-  });
-
-  it("every game ZoneThemeId maps to exactly one sheet zone (FR-026)", async () => {
-    // Mirrors the mapping spriteTextures.ts uses — pinned here so a change to either side is
-    // caught, without importing the Phaser-dependent module into a plain data test.
+describe("game zone mapping (FR-026)", () => {
+  it("every game ZoneThemeId maps to exactly one sheet zone that resolves (directly or via fallback)", () => {
     const GAME_ZONE_TO_SHEET: Record<string, SheetZone> = {
       stone: "stone",
       crypt: "crypt",
@@ -96,7 +101,8 @@ describe("ZONE_SWAPS", () => {
       arcane: "throne",
     };
     for (const sheetZone of Object.values(GAME_ZONE_TO_SHEET)) {
-      expect(ZONE_SWAPS[sheetZone]).toBeDefined();
+      if (sheetZone === "stone") continue;
+      expect(ZONE_TILES[sheetZone as Exclude<SheetZone, "stone">]).toBeDefined();
     }
   });
 });
