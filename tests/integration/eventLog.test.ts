@@ -46,12 +46,12 @@ describe("GameContext event log (002 FR-015, FR-017)", () => {
       { damage: 10, defence: 2, hp: 30 },
       enemy.stats,
     );
-    ctx.logCombatEncounter(enemy.id, encounter);
+    ctx.logCombatEncounter("Goblin", encounter);
     ctx.logPickup("key", "bronze key");
 
     expect(ctx.eventLog).toHaveLength(2);
     expect(ctx.eventLog[0]!.kind).toBe("combat");
-    expect(ctx.eventLog[0]!.message).toContain(enemy.id);
+    expect(ctx.eventLog[0]!.message).toContain("Goblin");
     expect(ctx.eventLog[1]!.kind).toBe("pickup");
     expect(ctx.eventLog[1]!.message).toContain("bronze key");
   });
@@ -63,7 +63,7 @@ describe("GameContext event log (002 FR-015, FR-017)", () => {
     const ctx = new GameContext(TOWER, persistence, save);
 
     const enemy = floor.enemies.find((e) => e.id === FIXTURE_ENEMY.id)!;
-    ctx.logCombatEncounter(enemy.id, simulateEncounter({ damage: 10, defence: 2, hp: 30 }, enemy.stats));
+    ctx.logCombatEncounter("Goblin", simulateEncounter({ damage: 10, defence: 2, hp: 30 }, enemy.stats));
     ctx.logPickup("currency", "20 gold");
     ctx.persist();
 

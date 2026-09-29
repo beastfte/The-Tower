@@ -41,8 +41,10 @@ export function computeMaxHp(character: PlayerCharacterState): number {
   return character.baseStats.hp;
 }
 
-/** Restores the character to full HP (005 FR-002), i.e. whatever `computeMaxHp` currently
- * reports. */
-export function restoreToFullHp(character: PlayerCharacterState): PlayerCharacterState {
-  return { ...character, currentHp: computeMaxHp(character) };
+/** Heals the character by a fixed amount, never exceeding `computeMaxHp` (019 FR-007) — the
+ * single funnel every HP-ceiling check reads from. Calling this at full HP is a well-defined
+ * no-op, not an error. Checkpoint death-recovery (`src/domain/hazard/recovery.ts`) restores to
+ * full via `computeMaxHp` directly and does not go through this function. */
+export function healBy(character: PlayerCharacterState, amount: number): PlayerCharacterState {
+  return { ...character, currentHp: Math.min(character.currentHp + amount, computeMaxHp(character)) };
 }

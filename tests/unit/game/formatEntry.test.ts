@@ -12,9 +12,9 @@ describe("formatCombatEntry", () => {
         { attacker: "player", damageDealt: 5, defenderHpAfter: 0 },
       ],
     };
-    const entry = formatCombatEntry("floor01-goblin", result);
+    const entry = formatCombatEntry("Goblin", result);
     expect(entry.kind).toBe("combat");
-    expect(entry.message).toContain("Defeated floor01-goblin");
+    expect(entry.message).toContain("Defeated Goblin");
     expect(entry.message).toContain("3 turn(s)");
   });
 
@@ -23,9 +23,9 @@ describe("formatCombatEntry", () => {
       winner: "enemy",
       turns: [{ attacker: "enemy", damageDealt: 10, defenderHpAfter: 0 }],
     };
-    const entry = formatCombatEntry("floor-final-boss", result);
+    const entry = formatCombatEntry("Wizard", result);
     expect(entry.kind).toBe("combat");
-    expect(entry.message).toContain("Lost the encounter with floor-final-boss");
+    expect(entry.message).toContain("Lost the encounter with Wizard");
   });
 
   // bug fix: currency-not-logged — a defeated enemy's currency drop is folded into this same
@@ -35,8 +35,8 @@ describe("formatCombatEntry", () => {
       winner: "player",
       turns: [{ attacker: "player", damageDealt: 20, defenderHpAfter: 0 }],
     };
-    const entry = formatCombatEntry("floor-1-enemy-1", result, 100);
-    expect(entry.message).toBe("Defeated floor-1-enemy-1 (1 turn(s)). Found 100 gold.");
+    const entry = formatCombatEntry("Ogre", result, 100);
+    expect(entry.message).toBe("Defeated Ogre (1 turn(s)). Found 100 gold.");
   });
 
   it("does not mention gold when the enemy had no currency drop", () => {
@@ -44,8 +44,8 @@ describe("formatCombatEntry", () => {
       winner: "player",
       turns: [{ attacker: "player", damageDealt: 20, defenderHpAfter: 0 }],
     };
-    const entry = formatCombatEntry("floor01-goblin", result);
-    expect(entry.message).toBe("Defeated floor01-goblin (1 turn(s)).");
+    const entry = formatCombatEntry("Goblin", result);
+    expect(entry.message).toBe("Defeated Goblin (1 turn(s)).");
   });
 
   it("does not mention gold on a loss, even if the enemy has a currency drop", () => {
@@ -53,8 +53,8 @@ describe("formatCombatEntry", () => {
       winner: "enemy",
       turns: [{ attacker: "enemy", damageDealt: 10, defenderHpAfter: 0 }],
     };
-    const entry = formatCombatEntry("floor-final-boss", result, 100);
-    expect(entry.message).toBe("Lost the encounter with floor-final-boss.");
+    const entry = formatCombatEntry("Wizard", result, 100);
+    expect(entry.message).toBe("Lost the encounter with Wizard.");
   });
 });
 
@@ -69,5 +69,17 @@ describe("formatPickupEntry", () => {
     const entry = formatPickupEntry("currency", "30 gold");
     expect(entry.kind).toBe("pickup");
     expect(entry.message).toBe("Picked up gold: 30 gold.");
+  });
+
+  it("describes a weapon pickup", () => {
+    const entry = formatPickupEntry("weapon", "Gold Sword");
+    expect(entry.kind).toBe("pickup");
+    expect(entry.message).toBe("Picked up weapon: Gold Sword.");
+  });
+
+  it("describes an armor pickup", () => {
+    const entry = formatPickupEntry("armor", "Leather Helm");
+    expect(entry.kind).toBe("pickup");
+    expect(entry.message).toBe("Picked up armor: Leather Helm.");
   });
 });

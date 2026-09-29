@@ -8,6 +8,9 @@ import { scalePx } from "../scaleConfig";
 
 export interface CombatOverlayData {
   enemy: EnemyDefinition;
+  /** 019 FR-003: the monster's display name (e.g. "Goblin"), resolved by the caller —
+   * never `enemy.id`, which is an internal placement identifier. */
+  enemyName: string;
   encounter: EncounterResult;
   /** The player's HP at the moment the encounter was simulated (research.md turn-display design). */
   playerStartHp: number;
@@ -46,7 +49,7 @@ export class CombatOverlay extends Phaser.Scene {
       .rectangle(cx, cy, width - scalePx(12), height - scalePx(12), 0x120a10, 0.94)
       .setDepth(0);
 
-    const encounterLabel = createUiText(`Encounter: ${this.data_.enemy.id}`, {
+    const encounterLabel = createUiText(`Encounter: ${this.data_.enemyName}`, {
       x: dcx,
       y: DESIGN_PLAY_AREA.y + 8,
       originX: 0.5,
@@ -110,8 +113,8 @@ export class CombatOverlay extends Phaser.Scene {
     } else {
       playerHp = turn.defenderHpAfter;
     }
-    const attackerLabel = turn.attacker === "player" ? "You" : this.data_.enemy.id;
-    const line = `${attackerLabel} attack for ${turn.damageDealt} dmg — You: ${playerHp} HP | ${this.data_.enemy.id}: ${enemyHp} HP\n`;
+    const attackerLabel = turn.attacker === "player" ? "You" : this.data_.enemyName;
+    const line = `${attackerLabel} attack for ${turn.damageDealt} dmg — You: ${playerHp} HP | ${this.data_.enemyName}: ${enemyHp} HP\n`;
     const nextLog = logSoFar + line;
     this.logText.textContent = nextLog;
     this.logText.scrollTop = this.logText.scrollHeight;
@@ -123,7 +126,7 @@ export class CombatOverlay extends Phaser.Scene {
    * through so it's folded into this same log entry. */
   private showOutcome(): void {
     const ctx = this.registry.get("ctx") as GameContext | undefined;
-    ctx?.logCombatEncounter(this.data_.enemy.id, this.data_.encounter, this.data_.enemy.drops?.currency);
+    ctx?.logCombatEncounter(this.data_.enemyName, this.data_.encounter, this.data_.enemy.drops?.currency);
 
     const won = this.data_.encounter.winner === "player";
     this.outcomeText.textContent = won ? "Victory!" : "Defeat...";

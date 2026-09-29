@@ -49,14 +49,15 @@ export class GameContext {
 
   /** 002 FR-015: appends a combat-encounter entry to the session-only event log.
    * bug fix: currency-not-logged — `currencyGained` folds a kill's currency drop into this
-   * same entry (see `formatCombatEntry`). */
-  logCombatEncounter(enemyId: string, result: EncounterResult, currencyGained?: number): void {
-    this.eventLog.push(formatCombatEntry(enemyId, result, currencyGained));
+   * same entry (see `formatCombatEntry`). 019 FR-003/FR-004: `enemyName` is a display name
+   * (e.g. "Goblin"), never the enemy's internal placement id. */
+  logCombatEncounter(enemyName: string, result: EncounterResult, currencyGained?: number): void {
+    this.eventLog.push(formatCombatEntry(enemyName, result, currencyGained));
   }
 
-  /** 002 FR-015, 005 FR-006/FR-007: appends a key/potion/currency pickup entry to
-   * the session-only event log. */
-  logPickup(kind: "key" | "potion" | "currency", label: string): void {
+  /** 002 FR-015, 005 FR-006/FR-007, 019 FR-001/FR-002: appends a key/potion/currency/weapon/
+   * armor pickup entry to the session-only event log. */
+  logPickup(kind: "key" | "potion" | "currency" | "weapon" | "armor", label: string): void {
     this.eventLog.push(formatPickupEntry(kind, label));
   }
 }

@@ -463,8 +463,18 @@ export class FloorScene extends Phaser.Scene {
       // own log entry, same as a key, but must never trigger a blocking modal (FR-018
       // unchanged) — so it's logged directly here instead of going through
       // describeItemPickup/launchPickupModals.
+      // 019 FR-001/FR-002: weapon/armor pickups follow the same inline-log, no-modal path —
+      // a catalog miss (018 FR-022 save compatibility) skips the log entry rather than
+      // logging a blank label.
       if (item.kind === "currency") {
         ctx.logPickup("currency", `${item.payload} gold`);
+      } else if (item.kind === "weapon") {
+        const weapon = ctx.weaponCatalog.get(item.payload as WeaponId);
+        if (weapon) ctx.logPickup("weapon", weapon.name);
+      } else if (item.kind === "armor") {
+        const pickup = item.payload as ArmorPickupPayload;
+        const armor = ctx.armorCatalog.get(`${pickup.material}:${pickup.slot}`);
+        if (armor) ctx.logPickup("armor", armor.name);
       } else {
         pendingPickup = this.describeItemPickup(item);
       }
@@ -558,8 +568,12 @@ export class FloorScene extends Phaser.Scene {
     }
 
     this.canMove = false;
+    // 019 FR-003: resolve the display name here, once, rather than teaching CombatOverlay to
+    // look it up — mirrors the species lookup already used for enemy rendering above.
+    const species = ctx.monsterSpeciesCatalog.get(enemy.species);
     const data: CombatOverlayData = {
       enemy,
+      enemyName: species?.name ?? "Unknown creature",
       encounter: result.encounter,
       playerStartHp: ctx.save.character.currentHp,
       onComplete: () => this.onCombatResolved(enemy, result.encounter),

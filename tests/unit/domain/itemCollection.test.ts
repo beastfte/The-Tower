@@ -14,15 +14,15 @@ function damagedCharacter() {
   return { ...save.character, currentHp: save.character.currentHp - 12 };
 }
 
-describe("potion pickup (005 FR-001/FR-002, contract invariant 17)", () => {
-  it("restores a damaged character to full HP", () => {
+describe("potion pickup (005 FR-001/FR-002, 019 FR-007, contract invariant 17)", () => {
+  it("heals a damaged character by exactly 10 HP, capped at maximum", () => {
     const character = damagedCharacter();
     const potion: ItemDefinition = { id: "test-potion", position, kind: "potion", payload: undefined };
 
     const healed = applyItemPickup(character, potion);
 
-    expect(healed.currentHp).toBe(computeMaxHp(character));
-    expect(healed.currentHp).toBeGreaterThan(character.currentHp);
+    expect(healed.currentHp).toBe(character.currentHp + 10);
+    expect(healed.currentHp).toBeLessThanOrEqual(computeMaxHp(character));
   });
 
   it("is harmless (still consumed, HP unchanged) when already at full HP", () => {
@@ -40,25 +40,25 @@ describe("attack/defense potion pickups (011 FR-007/FR-008)", () => {
   const armorCatalog: ReadonlyMap<string, ArmorPieceDefinition> = new Map(Object.entries(ARMOR_PIECES));
   const weaponCatalog = new Map(Object.entries(WEAPONS) as [WeaponId, (typeof WEAPONS)[WeaponId]][]);
 
-  it("attack potion permanently adds 5 to bonusDamage, cumulative across repeated pickups", () => {
+  it("attack potion permanently adds 2 to bonusDamage, cumulative across repeated pickups", () => {
     const save = createInitialPlayerSave("floor-01", position);
     const potion: ItemDefinition = { id: "test-atk-potion", position, kind: "potionAttack", payload: undefined };
 
     let character = applyItemPickup(save.character, potion);
-    expect(character.bonusDamage).toBe(5);
+    expect(character.bonusDamage).toBe(2);
     character = applyItemPickup(character, potion);
-    expect(character.bonusDamage).toBe(10);
+    expect(character.bonusDamage).toBe(4);
   });
 
-  it("defense potion permanently adds 2 to baseStats.defence, cumulative across repeated pickups", () => {
+  it("defense potion permanently adds 1 to baseStats.defence, cumulative across repeated pickups", () => {
     const save = createInitialPlayerSave("floor-01", position);
     const potion: ItemDefinition = { id: "test-def-potion", position, kind: "potionDefense", payload: undefined };
     const startingDefence = save.character.baseStats.defence;
 
     let character = applyItemPickup(save.character, potion);
-    expect(character.baseStats.defence).toBe(startingDefence + 2);
+    expect(character.baseStats.defence).toBe(startingDefence + 1);
     character = applyItemPickup(character, potion);
-    expect(character.baseStats.defence).toBe(startingDefence + 4);
+    expect(character.baseStats.defence).toBe(startingDefence + 2);
   });
 
   it("attack potion bonus stays visible even while a weapon is equipped (weapon replaces base damage)", () => {
@@ -72,7 +72,7 @@ describe("attack/defense potion pickups (011 FR-007/FR-008)", () => {
     character = applyItemPickup(character, potion);
     const afterPotion = computeEffectiveStats(character, weaponCatalog, armorCatalog);
 
-    expect(afterPotion.damage).toBe(beforePotion.damage + 5);
+    expect(afterPotion.damage).toBe(beforePotion.damage + 2);
   });
 });
 

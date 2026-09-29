@@ -108,9 +108,9 @@ test("attack and defense potions permanently raise stats and persist across relo
   await waitForActiveScene(page, "FloorScene");
 
   let save = await getCtxSave(page);
-  expect(save.character.bonusDamage).toBe(5);
+  expect(save.character.bonusDamage).toBe(2);
   const rows = page.locator('[data-testid="side-panel-rows"]');
-  await expect(rows).toContainText("Dmg: 15");
+  await expect(rows).toContainText("Dmg: 12");
 
   await pressAndWait(page, "ArrowRight"); // (8,13) -> (9,13)
   await pressAndWait(page, "ArrowRight"); // (9,13) -> (10,13), defense potion
@@ -119,8 +119,8 @@ test("attack and defense potions permanently raise stats and persist across relo
   await waitForActiveScene(page, "FloorScene");
 
   save = await getCtxSave(page);
-  expect(save.character.baseStats.defence).toBe(4); // base 2 + defense potion 2
-  await expect(rows).toContainText("Def: 4");
+  expect(save.character.baseStats.defence).toBe(3); // base 2 + defense potion 1
+  await expect(rows).toContainText("Def: 3");
 
   await page.reload();
   await waitForActiveScene(page, "MainMenuScene");
@@ -128,6 +128,6 @@ test("attack and defense potions permanently raise stats and persist across relo
   await waitForActiveScene(page, "FloorScene");
 
   const afterResume = await getCtxSave(page);
-  expect(afterResume.character.bonusDamage).toBe(5);
-  expect(afterResume.character.baseStats.defence).toBe(4);
+  expect(afterResume.character.bonusDamage).toBe(2);
+  expect(afterResume.character.baseStats.defence).toBe(3);
 });

@@ -1,7 +1,7 @@
 import { positionKey, type Position } from "../types";
 import type { PlayerCharacterState } from "../character/save";
 import { ARMOR_MATERIAL_ORDER, type KeyDefinition, type LootItem, type WeaponId } from "../character/types";
-import { restoreToFullHp } from "../character/combatStats";
+import { healBy } from "../character/combatStats";
 import type { ArmorPickupPayload, ChestReward, ItemDefinition, FloorDefinition } from "./types";
 
 /** Returns the not-yet-collected item at a position, if any. */
@@ -22,8 +22,8 @@ export function findAvailableItemAt(
  * - armor (011 FR-001/FR-004): equips the pickup's slot with its material only if strictly
  *   higher-tier than whatever's already equipped there — independent per slot, override not
  *   additive
- * - potion (005 FR-002): restores HP to full via restoreToFullHp
- * - potionAttack / potionDefense (011 FR-007/FR-008): permanently adds to bonusDamage /
+ * - potion (019 FR-007): heals 10 HP, capped at maximum, via healBy
+ * - potionAttack / potionDefense (019 FR-005/FR-006): permanently adds 2 / 1 to bonusDamage /
  *   baseStats.defence — cumulative across repeated pickups, no cap
  * - chest (005 FR-005): applies the exact same effect as its revealed reward, by reusing
  *   the matching case's own logic rather than re-deriving it
@@ -64,15 +64,15 @@ export function applyItemPickup(character: PlayerCharacterState, item: ItemDefin
       };
     }
     case "potion": {
-      return restoreToFullHp(character);
+      return healBy(character, 10);
     }
     case "potionAttack": {
-      return { ...character, bonusDamage: character.bonusDamage + 5 };
+      return { ...character, bonusDamage: character.bonusDamage + 2 };
     }
     case "potionDefense": {
       return {
         ...character,
-        baseStats: { ...character.baseStats, defence: character.baseStats.defence + 2 },
+        baseStats: { ...character.baseStats, defence: character.baseStats.defence + 1 },
       };
     }
     case "chest": {
@@ -81,7 +81,7 @@ export function applyItemPickup(character: PlayerCharacterState, item: ItemDefin
         case "currency":
           return { ...character, currency: character.currency + reward.amount };
         case "potion":
-          return restoreToFullHp(character);
+          return healBy(character, 10);
       }
     }
   }
