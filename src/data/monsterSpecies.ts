@@ -8,7 +8,7 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     name: "Goblin",
     baselineStats: { damage: 4, defence: 1, hp: 12 },
     textureKey: "goblin",
-    spriteScale: 0.55,
+    spriteScale: 0.8,
   },
   ogre: {
     id: "ogre",
@@ -22,6 +22,6 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     name: "Wizard",
     baselineStats: { damage: 8, defence: 0, hp: 10 },
     textureKey: "wizard",
-    spriteScale: 0.55,
+    spriteScale: 0.8,
   },
 };

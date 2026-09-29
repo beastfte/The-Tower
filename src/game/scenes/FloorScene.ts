@@ -690,23 +690,23 @@ export class FloorScene extends Phaser.Scene {
       if (collected.has(item.id)) continue;
       let marker: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image | undefined;
       if (item.kind === "weapon") {
-        // 014 FR-010: weapon/armor pickups render at ~55% of the tile (Assumptions —
+        // 014 FR-010: weapon/armor pickups render at ~70% of the tile (Assumptions —
         // weapons follow armor's ratio, since both are equipment rather than small icons).
         const weapon = ctx.weaponCatalog.get(item.payload as WeaponId);
-        if (weapon) marker = this.addTextureMarker(item.position, weapon.textureKey, 0.55);
+        if (weapon) marker = this.addTextureMarker(item.position, weapon.textureKey, 0.7);
       } else if (item.kind === "armor") {
         const pickup = item.payload as ArmorPickupPayload;
         const armor = ctx.armorCatalog.get(`${pickup.material}:${pickup.slot}`);
-        if (armor) marker = this.addTextureMarker(item.position, armor.textureKey, 0.55);
+        if (armor) marker = this.addTextureMarker(item.position, armor.textureKey, 0.7);
       } else if (item.kind === "currency") {
-        // 014 FR-010: currency/keys/potions render as small icons at ~35% of the tile.
-        marker = this.addTextureMarker(item.position, "coin", 0.35);
+        // 014 FR-010: currency renders as a small icon at ~50% of the tile.
+        marker = this.addTextureMarker(item.position, "coin", 0.5);
       } else if (item.kind === "potion") {
-        marker = this.addTextureMarker(item.position, "potion", 0.35);
+        marker = this.addTextureMarker(item.position, "potion", 0.7);
       } else if (item.kind === "potionAttack") {
-        marker = this.addTextureMarker(item.position, "potionAttack", 0.35);
+        marker = this.addTextureMarker(item.position, "potionAttack", 0.7);
       } else if (item.kind === "potionDefense") {
-        marker = this.addTextureMarker(item.position, "potionDefense", 0.35);
+        marker = this.addTextureMarker(item.position, "potionDefense", 0.7);
       } else if (item.kind === "chest") {
         marker = this.addTextureMarker(item.position, "chest", 0.8);
       } else if (item.kind === "key") {
@@ -715,16 +715,16 @@ export class FloorScene extends Phaser.Scene {
         const key = item.payload as KeyDefinition;
         const textureKey = KEY_TEXTURE_KEYS[key.keyType];
         marker = textureKey
-          ? this.addTextureMarker(item.position, textureKey, 0.35) // 014 FR-010: small icon
-          : this.addMarker(item.position, COLORS.key, 0.5);
+          ? this.addTextureMarker(item.position, textureKey, 0.7) // 014 FR-010: icon
+          : this.addMarker(item.position, COLORS.key, 0.7);
       } else {
         // item.kind === "loot" (006 FR-009): real art for ids with a baked icon (LOOT_TEXTURE_KEYS),
         // falling back to the plain colored marker for any other loot id (FR-007).
         const loot = item.payload as LootItem;
         const textureKey = LOOT_TEXTURE_KEYS[loot.id];
         marker = textureKey
-          ? this.addTextureMarker(item.position, textureKey, 0.6)
-          : this.addMarker(item.position, COLORS.loot, 0.5);
+          ? this.addTextureMarker(item.position, textureKey, 0.8)
+          : this.addMarker(item.position, COLORS.loot, 0.8);
       }
     }
 

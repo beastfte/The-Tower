@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MONSTER_SPECIES } from "../../../src/data/monsterSpecies";
 
 /** 014 contract invariant 22: a "large" monster's spriteScale reads ~0.85-0.95, a
- * "small/medium" one's ~0.5-0.65 — guards against a future edit silently drifting out of
+ * "small/medium" one's ~0.75-0.85 — guards against a future edit silently drifting out of
  * either band. Only `ogre` is "large" today; every other species is "small/medium". */
 describe("MONSTER_SPECIES spriteScale bounds (014 contract invariant 22)", () => {
   const LARGE_SPECIES = new Set(["ogre"]);
@@ -12,8 +12,8 @@ describe("MONSTER_SPECIES spriteScale bounds (014 contract invariant 22)", () =>
       expect(species.spriteScale).toBeGreaterThanOrEqual(0.85);
       expect(species.spriteScale).toBeLessThanOrEqual(0.95);
     } else {
-      expect(species.spriteScale).toBeGreaterThanOrEqual(0.5);
-      expect(species.spriteScale).toBeLessThanOrEqual(0.65);
+      expect(species.spriteScale).toBeGreaterThanOrEqual(0.75);
+      expect(species.spriteScale).toBeLessThanOrEqual(0.85);
     }
   });
 });
