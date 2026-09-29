@@ -21,7 +21,9 @@ describe("sync-tool-palette — palette generation matches the game's source cat
 
   it("includes every monster species, weapon, armor material/slot, door/key tier, lever effect kind, item kind, and hazard kind the game currently defines", () => {
     const palette = buildPalette();
-    expect(palette.monsters.map((m) => m.id).sort()).toEqual(["goblin", "ogre", "wizard"]);
+    expect(palette.monsters.map((m) => m.id).sort()).toEqual([
+      "bandit", "bat", "goblin", "necromancer", "ogre", "skeleton", "slime", "voidwalker", "wizard",
+    ]);
     expect(palette.weapons.map((w) => w.id).sort()).toEqual(["diamondSword", "goldSword", "sword", "woodSword"]);
     expect(palette.armorMaterials.sort()).toEqual(["leather", "mail", "plate"]);
     expect(palette.armorSlots.sort()).toEqual(["boots", "chest", "helm", "legs"]);
@@ -38,6 +40,30 @@ describe("sync-tool-palette — palette generation matches the game's source cat
     for (const k of [...palette.itemKinds, ...palette.hazardKinds]) {
       expect(k.name, `expected a display name for "${k.id}"`).toBeTruthy();
     }
+  });
+});
+
+/** 020 research R7: MONSTER_COLOR and MONSTER_GLYPH are hand-maintained (not part of the
+ * generated PALETTE block), and previously had zero test coverage — a missing entry rendered
+ * a grey circle or a duplicate letter rather than failing anything. This closes that gap. */
+describe("MONSTER_COLOR / MONSTER_GLYPH — hand-maintained, but completeness is checked", () => {
+  function readHandMaintainedMonsterMap(html: string, constName: "MONSTER_COLOR" | "MONSTER_GLYPH"): Record<string, string> {
+    const match = html.match(new RegExp(`const ${constName} = (\\{[\\s\\S]*?\\});`));
+    if (!match) throw new Error(`Could not find "const ${constName} = ...;" in the tool HTML`);
+    return new Function(`"use strict"; return (${match[1]});`)() as Record<string, string>;
+  }
+
+  it("has one MONSTER_COLOR and one MONSTER_GLYPH entry per species in the palette, with no duplicate glyph", () => {
+    const html = readFileSync(TOOL_HTML_PATH, "utf-8");
+    const speciesIds = buildPalette().monsters.map((m) => m.id).sort();
+    const color = readHandMaintainedMonsterMap(html, "MONSTER_COLOR");
+    const glyph = readHandMaintainedMonsterMap(html, "MONSTER_GLYPH");
+
+    expect(Object.keys(color).sort()).toEqual(speciesIds);
+    expect(Object.keys(glyph).sort()).toEqual(speciesIds);
+
+    const glyphValues = Object.values(glyph);
+    expect(new Set(glyphValues).size, "no two species may share a glyph").toBe(glyphValues.length);
   });
 });
 

@@ -83,7 +83,7 @@ function main(): void {
   if (!htmlPath) fail("usage: extract-sprites.ts <path-to-reference-sheet.html>");
   const TS = loadTowerSprites(htmlPath!);
 
-  const PLAYER = TS.PLAYER as Record<string, { front: { idle: RawGrid } }>;
+  const PLAYER = TS.PLAYER as Record<string, Record<string, Record<string, RawGrid>>>;
   const MONSTER_SPRITES = TS.MONSTER_SPRITES as Record<string, { idle: RawGrid }>;
   const WEAPONS = TS.WEAPONS as Record<string, RawGrid>;
   const ARMOUR = TS.ARMOUR as Record<string, RawGrid>;
@@ -97,10 +97,25 @@ function main(): void {
   // Every family below is allow-listed by name (research R15) — never Object.keys() over a sheet
   // family. ITEMS is a superset of ARMOUR and TILES carries 9 out-of-scope keys on this revision;
   // an allow-list is what keeps adopted scope a property of this repo, not of the sheet.
+  // 021 research R1/R2: the sheet ships genuine per-direction, multi-frame player art — `left`
+  // is hand-placed, not a mirror of `right` (verified by decoding both and comparing pixels).
+  // All 4 tiers x 4 directions x 4 frames are adopted so movement/animation has real art for
+  // every combination, named player<Tier><Dir><Frame> (e.g. playerMailLeftStepA).
   const playerTiers = ["none", "leather", "mail", "plate"];
-  for (const tier of playerTiers) sprites[`player${capitalize(tier)}`] = grid(`PLAYER.${tier}.front.idle`, PLAYER[tier]?.front.idle);
+  const playerDirections = ["front", "right", "back", "left"];
+  const playerFrames = ["idle", "stepA", "stepB", "breath"];
+  let playerSpriteCount = 0;
+  for (const tier of playerTiers) {
+    for (const dir of playerDirections) {
+      for (const frame of playerFrames) {
+        const key = `player${capitalize(tier)}${capitalize(dir)}${capitalize(frame)}`;
+        sprites[key] = grid(`PLAYER.${tier}.${dir}.${frame}`, PLAYER[tier]?.[dir]?.[frame]);
+        playerSpriteCount++;
+      }
+    }
+  }
 
-  const monsterNames = ["goblin", "ogre", "wizard"];
+  const monsterNames = ["goblin", "ogre", "wizard", "bat", "slime", "skeleton", "necromancer", "bandit", "voidwalker"];
   for (const name of monsterNames) sprites[name] = grid(`MONSTER_SPRITES.${name}.idle`, MONSTER_SPRITES[name]?.idle);
 
   const weaponNames = ["woodSword", "sword", "goldSword", "diamondSword"];
@@ -126,7 +141,7 @@ function main(): void {
   const tileNames = ["floorSlab", "floorCracked", "wallBlock", "crackedWall", "water", "spikesOff", "spikesHalf", "spikesOn", "lava"];
   for (const name of tileNames) sprites[name] = grid(name, TILES[name]);
 
-  const expectedCount = playerTiers.length + monsterNames.length + weaponNames.length + armourNames.length + itemNames.length + propNames.length + tileNames.length;
+  const expectedCount = playerSpriteCount + monsterNames.length + weaponNames.length + armourNames.length + itemNames.length + propNames.length + tileNames.length;
   if (Object.keys(sprites).length !== expectedCount) {
     fail(`allow-list mismatch: expected ${expectedCount} sprites, extracted ${Object.keys(sprites).length}`);
   }
@@ -152,8 +167,8 @@ function main(): void {
   }
 
   // Lava's glow frame has no derivation mechanism left (research R14) — take one of the sheet's
-  // own lava1-lava7 frames directly, kept outside the adopted-84 count exactly as the swap-derived
-  // glow frame was kept outside the adopted-43 count on the previous revision.
+  // own lava1-lava7 frames directly, kept outside the adopted-111 count exactly as the swap-derived
+  // glow frame was kept outside the adopted-43/84/90 counts on earlier revisions.
   const lavaGlow = grid("lava2", TILES.lava2);
 
   const totalCount = Object.keys(sprites).length + zoneVariantCount;
@@ -177,6 +192,10 @@ export interface SpriteGrid {
 export type SheetZone = "stone" | "cistern" | "ruin" | "forge" | "crypt" | "throne";
 
 export type ArmourTierId = "none" | "leather" | "mail" | "plate";
+
+/** 021: the sheet's four player-sprite facings — \`left\` is genuine hand-placed art, not a
+ * mirror of \`right\` (research R1). */
+export type PlayerDirection = "front" | "right" | "back" | "left";
 
 export const SPRITES: Readonly<Record<string, SpriteGrid>> = ${JSON.stringify(sprites, null, 2)};
 

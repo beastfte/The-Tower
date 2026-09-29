@@ -1,13 +1,21 @@
 import { test, expect } from "@playwright/test";
-import { clearSave, waitForActiveScene, isSceneActive, getEventLog, getCtxSave, pressAndWait } from "./helpers";
+import {
+  clearSave,
+  waitForActiveScene,
+  isSceneActive,
+  getEventLog,
+  getCtxSave,
+  pressAndWait,
+  dismissCombat,
+} from "./helpers";
 
 /**
  * Plays a deterministic path through `floor-01` (src/data/floors/floor-01.ts, resized to
  * 15x15 by feature 014) to exercise, with real gameplay rather than seeded state:
  *  - US3 (FR-012/FR-013): the compulsory goblin fight, and the side panel (US1/FR-007)
  *    staying visible throughout.
- *  - US4 (FR-018/FR-019): a blocking pickup modal for the bronze key (not for the plain
- *    currency pile, which must NOT trigger one).
+ *  - 022 US1: no blocking pickup modal for the bronze key or the plain currency pile — both are
+ *    logged only, and play never pauses for either.
  *  - US5 (FR-015-FR-017): the event log gets a "combat" entry (folding in the goblin's
  *    currency drop, bug fix currency-not-logged), a "pickup" entry for the bronze key, and a
  *    second "pickup" entry for the standalone gold pile, in that order.
@@ -18,7 +26,7 @@ import { clearSave, waitForActiveScene, isSceneActive, getEventLog, getCtxSave, 
  * Deliberately stops short of the exit to avoid floor completion/restart, which is out of
  * this test's scope.
  */
-test("floor-01 walkthrough: combat, blocking pickup modal, and event log population", async ({ page }) => {
+test("floor-01 walkthrough: combat, uninterrupted pickups, and event log population", async ({ page }) => {
   await clearSave(page);
   await page.goto("/");
   await waitForActiveScene(page, "MainMenuScene");
@@ -37,7 +45,9 @@ test("floor-01 walkthrough: combat, blocking pickup modal, and event log populat
   expect(await isSceneActive(page, "EventLogScene")).toBe(true);
   expect(await isSceneActive(page, "FloorScene")).toBe(false); // paused, not stopped
 
-  // Combat plays out turn-by-turn (CombatOverlay.ts) and resumes FloorScene on completion.
+  // Combat plays out turn-by-turn (CombatOverlay.ts); 022 US2: it no longer closes itself, so a
+  // key press is needed before FloorScene resumes.
+  await dismissCombat(page);
   await waitForActiveScene(page, "FloorScene", 10_000);
 
   let log = await getEventLog(page);
@@ -50,13 +60,9 @@ test("floor-01 walkthrough: combat, blocking pickup modal, and event log populat
   await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava damage (survivable)
   await pressAndWait(page, "ArrowRight"); // (4,7) -> (5,7), safe
 
-  // (5,7) -> (5,6): the bronze key. A blocking pickup modal must appear before play resumes.
-  await page.keyboard.press("ArrowUp");
-  await waitForActiveScene(page, "PickupModalScene");
-  expect(await isSceneActive(page, "FloorScene")).toBe(false); // FR-019: blocked until dismissed
-
-  await page.keyboard.press("Enter"); // dismiss
-  await waitForActiveScene(page, "FloorScene");
+  // (5,7) -> (5,6): the bronze key. 022 US1: no modal — logged only, play continues at once.
+  await pressAndWait(page, "ArrowUp");
+  expect(await isSceneActive(page, "FloorScene")).toBe(true);
 
   log = await getEventLog(page);
   expect(log).toHaveLength(2);
@@ -69,10 +75,8 @@ test("floor-01 walkthrough: combat, blocking pickup modal, and event log populat
   await pressAndWait(page, "ArrowRight"); // (5,7) -> (6,7), bronze door now unlocked
   await pressAndWait(page, "ArrowRight"); // (6,7) -> (7,7), plain currency pile (no modal)
 
-  // FR-018: still no modal for the plain currency pickup. bug fix: currency-not-logged — it
-  // now gets its own standalone log entry, same as a key.
+  // 022 US1: still no modal for the plain currency pickup — logged only, same as the key above.
   expect(await isSceneActive(page, "FloorScene")).toBe(true);
-  expect(await isSceneActive(page, "PickupModalScene")).toBe(false);
   log = await getEventLog(page);
   expect(log).toHaveLength(3);
   expect(log[2]!.kind).toBe("pickup");

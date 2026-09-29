@@ -83,6 +83,17 @@ export async function getCtxSave(page: Page): Promise<PlayerSave> {
   });
 }
 
+/** 022 US2 (contract C6/C7): CombatOverlay never closes itself — it always waits for a key
+ * press. If the log hasn't finished revealing yet, the first press only reveals it instantly
+ * (contract C6); a second press is then needed to actually close the encounter. Pressing twice
+ * unconditionally is always safe: once revealed, a further press just closes it sooner. */
+export async function dismissCombat(page: Page): Promise<void> {
+  await page.keyboard.press("Enter");
+  if (!(await isSceneActive(page, "FloorScene"))) {
+    await page.keyboard.press("Enter");
+  }
+}
+
 /** Presses a key and waits long enough for FloorScene's MOVE_COOLDOWN_MS (160ms) to clear.
  * 014 grew every floor tile to a fixed, much larger 64px, and initially made this flaky under
  * this sandbox's software-WebGL fallback (SwiftShader) — full-tile-layer redraws scaled with

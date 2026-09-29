@@ -2,9 +2,23 @@ import { describe, expect, it } from "vitest";
 import { paintSprite } from "../../../src/game/render/painters";
 import { LAVA_GLOW_FRAME, SPRITES, ZONE_TILES, type SheetZone, type SpriteGrid } from "../../../src/game/render/spriteData";
 
+/** 021: mirrors extract-sprites.ts's own player<Tier><Dir><Frame> naming exactly — 4 tiers x 4
+ * directions x 4 frames = 64 grids, replacing the 4 old flat front-idle-only keys. */
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+const PLAYER_TIERS = ["none", "leather", "mail", "plate"];
+const PLAYER_DIRECTIONS = ["front", "right", "back", "left"];
+const PLAYER_FRAMES = ["idle", "stepA", "stepB", "breath"];
+const PLAYER_BODIES = PLAYER_TIERS.flatMap((tier) =>
+  PLAYER_DIRECTIONS.flatMap((dir) =>
+    PLAYER_FRAMES.map((frame) => `player${capitalize(tier)}${capitalize(dir)}${capitalize(frame)}`),
+  ),
+);
+
 const FAMILIES = {
-  playerBodies: ["playerNone", "playerLeather", "playerMail", "playerPlate"],
-  monsters: ["goblin", "ogre", "wizard"],
+  playerBodies: PLAYER_BODIES,
+  monsters: ["goblin", "ogre", "wizard", "bat", "slime", "skeleton", "necromancer", "bandit", "voidwalker"],
   weapons: ["woodSword", "sword", "goldSword", "diamondSword"],
   armour: [
     "leatherHelm", "leatherChest", "leatherLegs", "leatherBoots",
@@ -25,9 +39,9 @@ function opaqueMask(grid: SpriteGrid): boolean[][] {
 }
 
 describe("SPRITES inventory (contract C6)", () => {
-  it("has exactly the 45 non-zone adopted sprites", () => {
+  it("has exactly the 111 non-zone adopted sprites", () => {
     expect(new Set(Object.keys(SPRITES))).toEqual(new Set(ALL_ADOPTED));
-    expect(Object.keys(SPRITES)).toHaveLength(45);
+    expect(Object.keys(SPRITES)).toHaveLength(111);
   });
 
   it("has no out-of-scope tile key", () => {

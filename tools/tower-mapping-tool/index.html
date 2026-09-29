@@ -640,6 +640,60 @@
               "defence": 0,
               "hp": 10
             }
+          },
+          {
+            "id": "bat",
+            "name": "Bat",
+            "baseline": {
+              "damage": 3,
+              "defence": 0,
+              "hp": 6
+            }
+          },
+          {
+            "id": "slime",
+            "name": "Slime",
+            "baseline": {
+              "damage": 2,
+              "defence": 2,
+              "hp": 14
+            }
+          },
+          {
+            "id": "skeleton",
+            "name": "Skeleton Soldier",
+            "baseline": {
+              "damage": 5,
+              "defence": 2,
+              "hp": 16
+            }
+          },
+          {
+            "id": "necromancer",
+            "name": "Necromancer",
+            "baseline": {
+              "damage": 7,
+              "defence": 1,
+              "hp": 12
+            }
+          },
+          {
+            "id": "bandit",
+            "name": "Bandit",
+            "baseline": {
+              "damage": 6,
+              "defence": 2,
+              "hp": 14
+            }
+          },
+          {
+            "id": "voidwalker",
+            "name": "Voidwalker",
+            "baseline": {
+              "damage": 9,
+              "defence": 3,
+              "hp": 20
+            }
           }
         ],
         "weapons": [
@@ -741,7 +795,30 @@
       // legible at both editor and thumbnail scale. Intentionally simplified vs. the live
       // game's own art (spec Assumptions).
       // ---------------------------------------------------------------------------------------
-      const MONSTER_COLOR = { goblin: "#5c6b2e", ogre: "#7a3438", wizard: "#463a7a" };
+      const MONSTER_COLOR = {
+        goblin: "#5c6b2e",
+        ogre: "#7a3438",
+        wizard: "#463a7a",
+        bat: "#35313f",
+        slime: "#4fae5e",
+        skeleton: "#cfc7a8",
+        necromancer: "#2e5c3d",
+        bandit: "#9a6a32",
+        voidwalker: "#1f1330",
+      };
+      // 020: replaces the old id[0].toUpperCase() derivation, which collided at nine species
+      // (bat/bandit both "B", slime/skeleton both "S" — research R7).
+      const MONSTER_GLYPH = {
+        goblin: "G",
+        ogre: "O",
+        wizard: "W",
+        bat: "A",
+        slime: "L",
+        skeleton: "S",
+        necromancer: "N",
+        bandit: "D",
+        voidwalker: "V",
+      };
       const ITEM_COLOR = {
         currency: "#b8932e",
         potion: "#2f7a72",
@@ -1051,7 +1128,7 @@
         drawGlyph(ctx, floor.exit, tileSize, "U", EXIT_COLOR);
 
         for (const e of floor.enemies) {
-          drawShape(ctx, e.position, tileSize, "circle", MONSTER_COLOR[e.species] || "#666", e.species[0].toUpperCase());
+          drawShape(ctx, e.position, tileSize, "circle", MONSTER_COLOR[e.species] || "#666", MONSTER_GLYPH[e.species] || e.species[0].toUpperCase());
         }
         for (const it of floor.items) {
           const itemColor = it.kind === "key" ? keyColorForTier(it.payload.keyType) : ITEM_COLOR[it.kind] || "#888";
@@ -1578,7 +1655,7 @@
 
         group(
           "Monsters",
-          PALETTE.monsters.map((m) => placeBtn("enemy", m.id, m.name, MONSTER_COLOR[m.id], m.id[0].toUpperCase())),
+          PALETTE.monsters.map((m) => placeBtn("enemy", m.id, m.name, MONSTER_COLOR[m.id], MONSTER_GLYPH[m.id])),
         );
         group("Items", [
           ...PALETTE.itemKinds
@@ -1645,7 +1722,7 @@
         row(ENTRANCE_COLOR, "A", "Arrival tile", "circle");
         row(EXIT_COLOR, "U", "Stairs up (exit)", "circle");
         cat("Monsters");
-        for (const m of PALETTE.monsters) row(MONSTER_COLOR[m.id], m.id[0].toUpperCase(), m.name, "circle");
+        for (const m of PALETTE.monsters) row(MONSTER_COLOR[m.id], MONSTER_GLYPH[m.id], m.name, "circle");
         cat("Items");
         for (const k of PALETTE.itemKinds) {
           if (k.id === "key") continue;

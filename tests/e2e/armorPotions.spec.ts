@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { clearSave, waitForActiveScene, pressAndWait, getCtxSave } from "./helpers";
+import { clearSave, waitForActiveScene, pressAndWait, getCtxSave, dismissCombat } from "./helpers";
 
 /** 011 US1: collecting a per-slot armor pickup on floor-01 raises defence by that slot's exact
  * value and shows up in the side panel's matching slot row. */
@@ -21,15 +21,13 @@ test("collecting a leather armor piece raises defence and shows in the side pane
   await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
   await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
   await waitForActiveScene(page, "CombatOverlay");
+  await dismissCombat(page); // 022 US2: combat no longer closes itself
   await waitForActiveScene(page, "FloorScene", 10_000);
 
   await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7)
   await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava entry damage
   await pressAndWait(page, "ArrowRight"); // (4,7) -> (5,7), safe
-  await pressAndWait(page, "ArrowUp"); // (5,7) -> (5,6), bronze key
-  await waitForActiveScene(page, "PickupModalScene");
-  await page.keyboard.press("Enter");
-  await waitForActiveScene(page, "FloorScene");
+  await pressAndWait(page, "ArrowUp"); // (5,7) -> (5,6), bronze key (022 US1: logged only, no modal)
   await pressAndWait(page, "ArrowDown"); // (5,6) -> (5,7)
   await pressAndWait(page, "ArrowRight"); // (5,7) -> (6,7), opens the bronze door
   await pressAndWait(page, "ArrowRight"); // (6,7) -> (7,7), gold pile
@@ -70,6 +68,7 @@ test("attack and defense potions permanently raise stats and persist across relo
   await pressAndWait(page, "ArrowDown"); // (1,8) -> (1,9)
   await page.keyboard.press("ArrowDown"); // engage the optional rat at (1,10)
   await waitForActiveScene(page, "CombatOverlay");
+  await dismissCombat(page); // 022 US2: combat no longer closes itself
   await waitForActiveScene(page, "FloorScene", 10_000);
 
   await pressAndWait(page, "ArrowDown"); // (1,9) -> (1,10), rat gone
@@ -79,15 +78,13 @@ test("attack and defense potions permanently raise stats and persist across relo
   await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
   await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
   await waitForActiveScene(page, "CombatOverlay");
+  await dismissCombat(page); // 022 US2: combat no longer closes itself
   await waitForActiveScene(page, "FloorScene", 10_000);
 
   await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7)
   await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava entry damage
   await pressAndWait(page, "ArrowRight"); // (4,7) -> (5,7), safe
-  await pressAndWait(page, "ArrowUp"); // (5,7) -> (5,6), bronze key
-  await waitForActiveScene(page, "PickupModalScene");
-  await page.keyboard.press("Enter");
-  await waitForActiveScene(page, "FloorScene");
+  await pressAndWait(page, "ArrowUp"); // (5,7) -> (5,6), bronze key (022 US1: logged only, no modal)
   await pressAndWait(page, "ArrowDown"); // (5,6) -> (5,7)
   await pressAndWait(page, "ArrowRight"); // (5,7) -> (6,7), opens the bronze door
   await pressAndWait(page, "ArrowRight"); // (6,7) -> (7,7), gold pile
@@ -96,16 +93,10 @@ test("attack and defense potions permanently raise stats and persist across relo
   await pressAndWait(page, "ArrowDown"); // (7,8) -> (7,9)
   await pressAndWait(page, "ArrowDown"); // (7,9) -> (7,10)
   await pressAndWait(page, "ArrowDown"); // (7,10) -> (7,11)
-  await pressAndWait(page, "ArrowDown"); // (7,11) -> (7,12), the existing floor01-chest (currency)
-  await waitForActiveScene(page, "PickupModalScene");
-  await page.keyboard.press("Enter");
-  await waitForActiveScene(page, "FloorScene");
+  await pressAndWait(page, "ArrowDown"); // (7,11) -> (7,12), the existing floor01-chest (currency, logged only)
 
   await pressAndWait(page, "ArrowDown"); // (7,12) -> (7,13)
-  await pressAndWait(page, "ArrowRight"); // (7,13) -> (8,13), attack potion
-  await waitForActiveScene(page, "PickupModalScene");
-  await page.keyboard.press("Enter");
-  await waitForActiveScene(page, "FloorScene");
+  await pressAndWait(page, "ArrowRight"); // (7,13) -> (8,13), attack potion (logged only)
 
   let save = await getCtxSave(page);
   expect(save.character.bonusDamage).toBe(2);
@@ -113,10 +104,7 @@ test("attack and defense potions permanently raise stats and persist across relo
   await expect(rows).toContainText("Dmg: 12");
 
   await pressAndWait(page, "ArrowRight"); // (8,13) -> (9,13)
-  await pressAndWait(page, "ArrowRight"); // (9,13) -> (10,13), defense potion
-  await waitForActiveScene(page, "PickupModalScene");
-  await page.keyboard.press("Enter");
-  await waitForActiveScene(page, "FloorScene");
+  await pressAndWait(page, "ArrowRight"); // (9,13) -> (10,13), defense potion (logged only)
 
   save = await getCtxSave(page);
   expect(save.character.baseStats.defence).toBe(3); // base 2 + defense potion 1

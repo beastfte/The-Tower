@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { clearSave, waitForActiveScene, pressAndWait } from "./helpers";
+import { clearSave, waitForActiveScene, pressAndWait, dismissCombat } from "./helpers";
 
 /** 010 US1/US2: opening a keyed door consumes its key and permanently marks it open; an open
  * door then renders with no marker at all, while still-locked doors keep showing theirs. */
@@ -35,16 +35,15 @@ test("opening the bronze door on floor-01 consumes the key and makes the door di
   await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
   await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
   await waitForActiveScene(page, "CombatOverlay");
+  await dismissCombat(page); // 022 US2: combat no longer closes itself
   await waitForActiveScene(page, "FloorScene", 10_000);
 
   await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7)
   await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava entry damage
   await pressAndWait(page, "ArrowRight"); // (4,7) -> (5,7), safe
 
-  await page.keyboard.press("ArrowUp"); // (5,7) -> (5,6), the bronze key
-  await waitForActiveScene(page, "PickupModalScene");
-  await page.keyboard.press("Enter");
-  await waitForActiveScene(page, "FloorScene");
+  // 022 US1: no modal — the key is logged and play continues on the very next input.
+  await pressAndWait(page, "ArrowUp"); // (5,7) -> (5,6), the bronze key
 
   let save = await page.evaluate(() => {
     const win = window as unknown as { __game: { registry: { get: (k: string) => { save: { character: { keyIds: string[] } } } } } };

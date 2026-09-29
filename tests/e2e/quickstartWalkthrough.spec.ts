@@ -2,7 +2,16 @@ import { test, expect } from "@playwright/test";
 import { TOWER } from "../../src/data/floors";
 import { createInitialPlayerSave } from "../../src/domain/character/initialState";
 import type { PlayerSave } from "../../src/domain/character/save";
-import { clearSave, seedSave, waitForActiveScene, isSceneActive, getCtxSave, readSave, pressAndWait } from "./helpers";
+import {
+  clearSave,
+  seedSave,
+  waitForActiveScene,
+  isSceneActive,
+  getCtxSave,
+  readSave,
+  pressAndWait,
+  dismissCombat,
+} from "./helpers";
 
 const firstFloor = TOWER.floors[0]!;
 
@@ -85,6 +94,7 @@ test("scenario 6: quit and resume mid-floor (FR-010)", async ({ page }) => {
   await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
   await page.keyboard.press("ArrowRight"); // engage and defeat the goblin (base stats win easily)
   await waitForActiveScene(page, "CombatOverlay");
+  await dismissCombat(page); // 022 US2: combat no longer closes itself
   await waitForActiveScene(page, "FloorScene", 10_000);
   await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7), goblin gone
   await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava damage (survivable)
@@ -120,14 +130,12 @@ test("scenario 9: organic hazard death, checkpoint-resume, then a second death r
   await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
   await page.keyboard.press("ArrowRight"); // engage goblin: HP 30 -> 28
   await waitForActiveScene(page, "CombatOverlay");
+  await dismissCombat(page); // 022 US2: combat no longer closes itself
   await waitForActiveScene(page, "FloorScene", 10_000);
   await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7)
   await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), hazard: HP 28 -> 22
   await pressAndWait(page, "ArrowRight"); // (4,7) -> (5,7)
-  await page.keyboard.press("ArrowUp"); // collect the bronze key at (5,6)
-  await waitForActiveScene(page, "PickupModalScene");
-  await page.keyboard.press("Enter");
-  await waitForActiveScene(page, "FloorScene");
+  await pressAndWait(page, "ArrowUp"); // collect the bronze key at (5,6) (022 US1: logged only, no modal)
   await pressAndWait(page, "ArrowDown"); // (5,6) -> (5,7)
   await pressAndWait(page, "ArrowLeft"); // (5,7) -> (4,7), hazard: HP 22 -> 16
   await pressAndWait(page, "ArrowLeft"); // (4,7) -> (3,7)
@@ -161,6 +169,7 @@ test("scenario 9: organic hazard death, checkpoint-resume, then a second death r
   await pressAndWait(page, "ArrowRight");
   await page.keyboard.press("ArrowRight"); // engage goblin again: HP 30 -> 28
   await waitForActiveScene(page, "CombatOverlay");
+  await dismissCombat(page); // 022 US2: combat no longer closes itself
   await waitForActiveScene(page, "FloorScene", 10_000);
   await pressAndWait(page, "ArrowRight");
   await pressAndWait(page, "ArrowRight"); // hazard: HP 28 -> 22
@@ -206,14 +215,12 @@ test("scenario 11: organically defeating the end boss triggers the win state (FR
   await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
   await page.keyboard.press("ArrowRight"); // engage goblin
   await waitForActiveScene(page, "CombatOverlay");
+  await dismissCombat(page); // 022 US2: combat no longer closes itself
   await waitForActiveScene(page, "FloorScene", 10_000);
   await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7)
   await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava damage (survivable)
   await pressAndWait(page, "ArrowRight"); // (4,7) -> (5,7)
-  await page.keyboard.press("ArrowUp"); // collect bronze key at (5,6)
-  await waitForActiveScene(page, "PickupModalScene");
-  await page.keyboard.press("Enter");
-  await waitForActiveScene(page, "FloorScene");
+  await pressAndWait(page, "ArrowUp"); // collect bronze key at (5,6) (022 US1: logged only, no modal)
   await pressAndWait(page, "ArrowDown"); // (5,6) -> (5,7)
   await pressAndWait(page, "ArrowRight"); // (5,7) -> (6,7), bronze door now unlocked
   await pressAndWait(page, "ArrowRight"); // (6,7) -> (7,7), gold pile
@@ -233,6 +240,10 @@ test("scenario 11: organically defeating the end boss triggers the win state (FR
   }
   await page.keyboard.press("ArrowRight"); // engage the end boss
   await waitForActiveScene(page, "CombatOverlay");
+  // 022 US2: combat no longer closes itself. dismissCombat's own check looks for FloorScene,
+  // which this fight never resumes into (it wins the game instead) — press twice unconditionally.
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
   await waitForActiveScene(page, "WinScreenScene", 10_000);
 
   save = await getCtxSave(page);

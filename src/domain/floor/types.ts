@@ -1,15 +1,25 @@
 import type { CombatStats, Position, Tile } from "../types";
 import type { ArmorMaterialId, ArmorSlotId, KeyDefinition, LootItem, WeaponId } from "../character/types";
 
-export type MonsterSpeciesId = "goblin" | "ogre" | "wizard";
+export type MonsterSpeciesId =
+  | "goblin"
+  | "ogre"
+  | "wizard"
+  | "bat"
+  | "slime"
+  | "skeleton"
+  | "necromancer"
+  | "bandit"
+  | "voidwalker";
 
 export interface MonsterSpecies {
   id: MonsterSpeciesId;
   name: string;
   baselineStats: CombatStats;
   textureKey: string;
-  /** Fraction of a tile's size (0-1) this species' sprite renders at (014 FR-010) — "large"
-   * monsters read ~0.85-0.95, "small/medium" ones ~0.5-0.65. */
+  /** Fraction of a tile's size (0-1) this species' sprite renders at (014 FR-010, restored to
+   * three tiers by 020 research R3) — "large" monsters read ~0.85-0.95, "medium" (human-scale)
+   * ones ~0.75-0.85, and "small" ones ~0.5-0.65. */
   spriteScale: number;
 }
 

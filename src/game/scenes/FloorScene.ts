@@ -25,16 +25,13 @@ import { checkEngagementAllowed } from "../../domain/combat/blockingCheck";
 import { isWinningDefeat, triggerWin } from "../../domain/progress/winState";
 import { completeCurrentFloor, returnToPreviousFloor } from "../../domain/progress/towerProgress";
 import type { CombatOverlayData } from "./CombatOverlay";
-import type { PickupModalData } from "./PickupModalScene";
 import type { PauseMenuData } from "./PauseMenuScene";
 import { resumeFromCheckpoint, returnToMainMenu } from "../../domain/hazard/recovery";
 import type { EncounterResult } from "../../domain/combat/simulateEncounter";
 import type {
   ArmorPickupPayload,
   ChestReward,
-  DropTable,
   EnemyDefinition,
-  ItemDefinition,
   LavaTileDefinition,
   SpikePitDefinition,
   ZoneThemeId,
@@ -42,13 +39,8 @@ import type {
 import { ARMOR_MATERIAL_ORDER } from "../../domain/character/types";
 import type { ArmorMaterialId, KeyDefinition, LootItem, WeaponId } from "../../domain/character/types";
 import { ensureLavaGlowTexture, ensurePlayerTexture, ensureSpriteTexture, ensureZoneTileTexture } from "../render/spriteTextures";
-import type { ArmourTierId } from "../render/spriteData";
-import {
-  keyTypeDescriptions,
-  potionDescription,
-  attackPotionDescription,
-  defensePotionDescription,
-} from "../uiContent/itemDescriptions";
+import type { ArmourTierId, PlayerDirection } from "../render/spriteData";
+import { computePlayerIdleFrame, computePlayerWalkFrame, facingForDirection } from "../playerAnimation";
 import { PLAY_AREA, DESIGN_PLAY_AREA, TILE_SIZE } from "../gameConfig";
 import { createUiText, getUiRoot } from "../ui/domOverlay";
 import { scalePx } from "../scaleConfig";
@@ -62,6 +54,9 @@ import {
 } from "../trapAnimation";
 
 const MOVE_COOLDOWN_MS = 160;
+/** 021 US1: repeat-fire interval while a directional key is held continuously — exactly half
+ * of the single-tap cooldown above, satisfying "twice as fast" (research.md R5, contract C2). */
+const HELD_MOVE_COOLDOWN_MS = MOVE_COOLDOWN_MS / 2;
 /** 007: shared cadence for "damage while standing" checks (spike pit, lava), decoupled
  * from the spike pit's own visual arm/retract cycle (research.md #3). */
 const TRAP_TICK_MS = 1000;
@@ -114,15 +109,20 @@ export const COLORS = {
   key: 0xf4d35e,
 } as const;
 
-interface PendingPickup {
-  kind: "key" | "potion" | "currency";
-  label: string;
-  description: string;
-}
-
 export class FloorScene extends Phaser.Scene {
   private ctx!: GameContext;
   private canMove = true;
+  /** 021 US1: which direction is currently held down, driving repeat-fire in update() — last
+   * key pressed wins (contract C7), cleared on its matching keyup or when an overlay opens. */
+  private heldDirection: CardinalDirection | null = null;
+  private lastHeldMoveAt = 0;
+  /** 021 US2: which way the character sprite currently faces, updated on every successful move
+   * (contract C5). Render-only — never persisted (research R7), resets to "front" on floor load. */
+  private playerFacing: PlayerDirection = "front";
+  /** 021 US2: while `time` is before this timestamp, update() plays the walk animation instead
+   * of idle — refreshed on every move, so continuous held movement never flickers to idle
+   * between repeat-fire ticks. */
+  private playerMovingUntil: number | null = null;
   private playerSprite!: Phaser.GameObjects.Image;
   private tileLayer!: Phaser.GameObjects.Container;
   private messageText!: HTMLDivElement;
@@ -162,6 +162,12 @@ export class FloorScene extends Phaser.Scene {
   create(): void {
     this.ctx = this.registry.get("ctx") as GameContext;
     this.canMove = true;
+    // 021: field initializers only run once per scene instance, but Phaser reuses this same
+    // instance across scene.restart() — reset explicitly, same reason canMove is reset above.
+    this.heldDirection = null;
+    this.lastHeldMoveAt = 0;
+    this.playerFacing = "front";
+    this.playerMovingUntil = null;
 
     const grid = this.ctx.currentFloor.grid;
     const rows = grid.length;
@@ -207,6 +213,17 @@ export class FloorScene extends Phaser.Scene {
       const direction = this.directionFromKey(event.key);
       if (!direction) return;
       this.attemptMove(direction);
+      // 021 US1: start (or switch) the held-repeat direction; update() continues firing this
+      // direction every HELD_MOVE_COOLDOWN_MS for as long as the key stays down.
+      this.heldDirection = direction;
+      this.lastHeldMoveAt = this.time.now;
+    });
+    // 021 US1 (contract C7): only clears heldDirection if the released key matches the
+    // currently active direction — a stale, already-superseded key's release must not affect
+    // whichever direction is currently in control (last-key-wins).
+    this.input.keyboard!.on("keyup", (event: KeyboardEvent) => {
+      const direction = this.directionFromKey(event.key);
+      if (direction && direction === this.heldDirection) this.heldDirection = null;
     });
   }
 
@@ -243,6 +260,10 @@ export class FloorScene extends Phaser.Scene {
         this.scene.start("MainMenuScene");
       },
     };
+    // 021 US1 (contract C3): pause never touches canMove (it stops input dispatch entirely
+    // instead), so held-repeat state needs its own explicit clear here — otherwise a key still
+    // physically down when the menu closes would resume movement without a fresh press.
+    this.heldDirection = null;
     this.scene.launch("PauseMenuScene", data);
     this.scene.pause();
   }
@@ -278,81 +299,6 @@ export class FloorScene extends Phaser.Scene {
     });
   }
 
-  /** 002 FR-018: describes a single floor-placed item pickup as a pending pickup-modal entry, if it's a key. */
-  private describeItemPickup(item: ItemDefinition): PendingPickup | null {
-    if (item.kind === "key") {
-      const key = item.payload as KeyDefinition;
-      return {
-        kind: "key",
-        label: `${key.keyType} key`,
-        description: keyTypeDescriptions[key.keyType] ?? "",
-      };
-    }
-    if (item.kind === "potion") {
-      return { kind: "potion", label: "Health Potion", description: potionDescription };
-    }
-    if (item.kind === "potionAttack") {
-      return { kind: "potion", label: "Attack Potion", description: attackPotionDescription };
-    }
-    if (item.kind === "potionDefense") {
-      return { kind: "potion", label: "Defense Potion", description: defensePotionDescription };
-    }
-    if (item.kind === "chest") {
-      return this.describeChestReward(item.payload as ChestReward);
-    }
-    return null;
-  }
-
-  /** 005 FR-005/FR-006: describes a chest's revealed reward exactly as if it were the
-   * matching plain pickup — the same modal a direct currency/potion pickup would show,
-   * so "what did I find" messaging never drifts from what collecting it did. */
-  private describeChestReward(reward: ChestReward): PendingPickup {
-    switch (reward.kind) {
-      case "currency":
-        return { kind: "currency", label: `${reward.amount} gold`, description: "A pile of gold coins." };
-      case "potion":
-        return { kind: "potion", label: "Health Potion", description: potionDescription };
-    }
-  }
-
-  /** 002 FR-018: describes an enemy's drop table's key as a pending pickup-modal entry. */
-  private describeDropPickups(drops: DropTable | undefined): PendingPickup[] {
-    if (!drops) return [];
-    const pickups: PendingPickup[] = [];
-    if (drops.key) {
-      pickups.push({
-        kind: "key",
-        label: `${drops.key.keyType} key`,
-        description: keyTypeDescriptions[drops.key.keyType] ?? "",
-      });
-    }
-    return pickups;
-  }
-
-  /**
-   * 002 FR-018/FR-019: logs and shows a blocking pickup modal for each pending pickup in
-   * turn (queued one after another per this feature's Assumptions), then calls onDone.
-   * A pickup is logged (FR-015) at the moment it's shown, not merely queued.
-   */
-  private launchPickupModals(pickups: PendingPickup[], onDone: () => void): void {
-    if (pickups.length === 0) {
-      onDone();
-      return;
-    }
-    const [next, ...rest] = pickups;
-    this.ctx.logPickup(next!.kind, next!.label);
-    const data: PickupModalData = {
-      kind: next!.kind,
-      label: next!.label,
-      description: next!.description,
-      onDismiss: () => {
-        this.scene.resume();
-        this.launchPickupModals(rest, onDone);
-      },
-    };
-    this.scene.launch("PickupModalScene", data);
-    this.scene.pause();
-  }
 
   private checkFloorCompletion(target: Position): void {
     const ctx = this.ctx;
@@ -375,12 +321,16 @@ export class FloorScene extends Phaser.Scene {
     }
   }
 
-  private attemptMove(direction: CardinalDirection): void {
+  /** 021 US1: `cooldownMs` defaults to the single-tap cooldown (contract C1, unchanged) — the
+   * held-repeat call site in update() passes HELD_MOVE_COOLDOWN_MS instead (contract C2).
+   * Without this, every call re-locked canMove for the full 160ms regardless of trigger source,
+   * which would have capped held movement at the same rate as tapping instead of doubling it. */
+  private attemptMove(direction: CardinalDirection, cooldownMs: number = MOVE_COOLDOWN_MS): void {
     const ctx = this.ctx;
     if (ctx.save.hasWon || ctx.save.isDead) return;
 
     this.canMove = false;
-    this.time.delayedCall(MOVE_COOLDOWN_MS, () => {
+    this.time.delayedCall(cooldownMs, () => {
       this.canMove = true;
     });
 
@@ -433,6 +383,14 @@ export class FloorScene extends Phaser.Scene {
 
     // Movement is allowed.
     ctx.save.currentFloorState = updatePlayerPosition(progress, target);
+    // 021 US2 (contract C5): facing updates on every tile actually entered, even one that
+    // immediately triggers combat/pickup/hazard below — the character visibly turns to face
+    // that direction even if the resulting overlay then pauses the scene. Reusing
+    // MOVE_COOLDOWN_MS as the "still mid-step" window means a single tap briefly shows a walk
+    // frame before settling to idle, and continuous holding (which re-triggers this every
+    // HELD_MOVE_COOLDOWN_MS) never lets the window lapse, so there's no idle flicker mid-hold.
+    this.playerFacing = facingForDirection(direction);
+    this.playerMovingUntil = this.time.now + MOVE_COOLDOWN_MS;
 
     // 007 US3 (FR-007, FR-008): toggling a lever is a one-time, permanent effect of walking
     // onto its tile — re-derive leverEffects after this so the hazard checks below already
@@ -455,17 +413,13 @@ export class FloorScene extends Phaser.Scene {
 
     const collected = new Set(ctx.save.currentFloorState.collectedItemIds);
     const item = findAvailableItemAt(floor, target, collected);
-    let pendingPickup: PendingPickup | null = null;
     if (item) {
       ctx.save.character = applyItemPickup(ctx.save.character, item);
       ctx.save.currentFloorState = markItemCollected(ctx.save.currentFloorState, item.id);
-      // bug fix: currency-not-logged — a standalone (non-chest) currency pickup now gets its
-      // own log entry, same as a key, but must never trigger a blocking modal (FR-018
-      // unchanged) — so it's logged directly here instead of going through
-      // describeItemPickup/launchPickupModals.
-      // 019 FR-001/FR-002: weapon/armor pickups follow the same inline-log, no-modal path —
-      // a catalog miss (018 FR-022 save compatibility) skips the log entry rather than
-      // logging a blank label.
+      // 022 US1: every pickup kind is announced only in the event log — no blocking banner,
+      // so every branch logs directly instead of deferring to a pickup-modal queue. A catalog
+      // miss (018 FR-022 save compatibility) skips the log entry rather than logging a blank
+      // label; that's pre-existing behavior, unchanged here.
       if (item.kind === "currency") {
         ctx.logPickup("currency", `${item.payload} gold`);
       } else if (item.kind === "weapon") {
@@ -475,8 +429,22 @@ export class FloorScene extends Phaser.Scene {
         const pickup = item.payload as ArmorPickupPayload;
         const armor = ctx.armorCatalog.get(`${pickup.material}:${pickup.slot}`);
         if (armor) ctx.logPickup("armor", armor.name);
-      } else {
-        pendingPickup = this.describeItemPickup(item);
+      } else if (item.kind === "key") {
+        const key = item.payload as KeyDefinition;
+        ctx.logPickup("key", `${key.keyType} key`);
+      } else if (item.kind === "potion") {
+        ctx.logPickup("potion", "Health Potion");
+      } else if (item.kind === "potionAttack") {
+        ctx.logPickup("potion", "Attack Potion");
+      } else if (item.kind === "potionDefense") {
+        ctx.logPickup("potion", "Defense Potion");
+      } else if (item.kind === "chest") {
+        const reward = item.payload as ChestReward;
+        if (reward.kind === "currency") {
+          ctx.logPickup("currency", `${reward.amount} gold`);
+        } else {
+          ctx.logPickup("potion", "Health Potion");
+        }
       }
     }
 
@@ -506,15 +474,7 @@ export class FloorScene extends Phaser.Scene {
     ctx.persist();
     this.redraw();
 
-    if (pendingPickup) {
-      this.canMove = false;
-      this.launchPickupModals([pendingPickup], () => {
-        this.canMove = true;
-        this.checkFloorCompletion(target);
-      });
-    } else {
-      this.checkFloorCompletion(target);
-    }
+    this.checkFloorCompletion(target);
   }
 
   /** Applies a computed newHp to the player and, if it's fatal, persists and transitions to
@@ -567,6 +527,9 @@ export class FloorScene extends Phaser.Scene {
       return;
     }
 
+    // 021 US1 (contract C3): combat pauses the scene — clear held-repeat state for the same
+    // reason as the pickup-modal and pause-menu branches.
+    this.heldDirection = null;
     this.canMove = false;
     // 019 FR-003: resolve the display name here, once, rather than teaching CombatOverlay to
     // look it up — mirrors the species lookup already used for enemy rendering above.
@@ -588,7 +551,11 @@ export class FloorScene extends Phaser.Scene {
     this.scene.resume();
     this.canMove = true;
 
-    const dropPickups = this.describeDropPickups(enemy.drops);
+    // 022 US1: an enemy's dropped key is announced only in the event log, same as every other
+    // pickup — no blocking banner.
+    if (enemy.drops?.key) {
+      ctx.logPickup("key", `${enemy.drops.key.keyType} key`);
+    }
 
     const update = applyEnemyDefeat(ctx.save.currentFloorState, ctx.save.character, enemy);
     ctx.save.currentFloorState = update.floorProgress;
@@ -620,13 +587,6 @@ export class FloorScene extends Phaser.Scene {
     }
 
     this.redraw();
-
-    if (dropPickups.length > 0) {
-      this.canMove = false;
-      this.launchPickupModals(dropPickups, () => {
-        this.canMove = true;
-      });
-    }
   }
 
   private redraw(): void {
@@ -845,11 +805,19 @@ export class FloorScene extends Phaser.Scene {
     return image;
   }
 
-  /** 008: applies the shared idle bob to every tracked living-entity marker (monsters only —
+  /** 021 US1: repeat-fires attemptMove for the currently held direction every
+   * HELD_MOVE_COOLDOWN_MS. Naturally stops while an overlay is open — Phaser doesn't call
+   * update() on a paused scene, so this loop freezes for free during combat/pickup/pause,
+   * exactly like the bob/spike/lava effects below already do (research.md R5).
+   * 008: applies the shared idle bob to every tracked living-entity marker (monsters only —
    * the player is excluded, see the field comment above) each frame.
    * 007 US1: swaps each spike pit's texture to match its current cycle segment.
    * 007 US2: swaps each lava tile's texture between its base and glow frames. */
   override update(time: number): void {
+    if (this.heldDirection && this.canMove && time - this.lastHeldMoveAt >= HELD_MOVE_COOLDOWN_MS) {
+      this.attemptMove(this.heldDirection, HELD_MOVE_COOLDOWN_MS);
+      this.lastHeldMoveAt = time;
+    }
     for (const { gameObject, baseY, phase } of this.livingMarkers) {
       gameObject.y = baseY + computeBobOffset(time, phase);
     }
@@ -862,6 +830,14 @@ export class FloorScene extends Phaser.Scene {
       const frame = computeLavaFrame(lava, time);
       const textureKey = frame === "lava" ? ensureSpriteTexture(this, "lava") : ensureLavaGlowTexture(this);
       if (gameObject.texture.key !== textureKey) gameObject.setTexture(textureKey);
+    }
+    // 021 US2 (contract C4): walk animation while still "mid-step" (playerMovingUntil in the
+    // future), otherwise the idle-breathing loop (this feature's clarification).
+    if (this.playerSprite) {
+      const moving = time < (this.playerMovingUntil ?? 0);
+      const frame = moving ? computePlayerWalkFrame(time) : computePlayerIdleFrame(time);
+      const key = ensurePlayerTexture(this, this.playerTier(), this.playerFacing, frame);
+      if (this.playerSprite.texture.key !== key) this.playerSprite.setTexture(key);
     }
   }
 
@@ -887,7 +863,9 @@ export class FloorScene extends Phaser.Scene {
     const px = position.x * size + size / 2;
     const py = position.y * size + size / 2;
 
-    const key = ensurePlayerTexture(this, this.playerTier());
+    // 021 US2: seed with the idle frame for the current facing — update() corrects to the
+    // walk frame on the very next tick if the move that triggered this redraw is still active.
+    const key = ensurePlayerTexture(this, this.playerTier(), this.playerFacing, "idle");
     this.playerSprite = this.add.image(px, py, key);
     this.playerSprite.setDisplaySize(displaySize, displaySize);
     this.tileLayer.add(this.playerSprite);

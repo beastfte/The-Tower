@@ -13,7 +13,6 @@ import { DeathScreenScene } from "./game/scenes/DeathScreenScene";
 import { WinScreenScene } from "./game/scenes/WinScreenScene";
 import { SidePanelScene } from "./game/scenes/SidePanelScene";
 import { EventLogScene } from "./game/scenes/EventLogScene";
-import { PickupModalScene } from "./game/scenes/PickupModalScene";
 import { PauseMenuScene } from "./game/scenes/PauseMenuScene";
 
 const persistence = new LocalStoragePersistenceService();
@@ -32,7 +31,6 @@ const game = new Phaser.Game(
     CombatOverlay,
     SidePanelScene,
     EventLogScene,
-    PickupModalScene,
     PauseMenuScene,
     DeathScreenScene,
     WinScreenScene,

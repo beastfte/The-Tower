@@ -6,11 +6,13 @@ import {
   getCtxSave,
   readSave,
   pressAndWait,
+  dismissCombat,
 } from "./helpers";
 
 /** 003 US1 (FR-001-FR-004, FR-007-FR-009, SC-001, SC-002): opening/closing the pause menu,
  * via both the side-panel control and ESC, leaves gameplay state completely unchanged, and
- * has no effect while another blocking screen (combat, a pickup modal) is already showing. */
+ * has no effect while another blocking screen (combat) is already showing. 022 US1 removed the
+ * pickup modal entirely, so there is no longer a second blocking-screen case to cover here. */
 test.describe("Pause menu — open and close", () => {
   test("opens via the side-panel button, blocks movement, and Resume leaves state unchanged", async ({
     page,
@@ -93,44 +95,17 @@ test.describe("Pause menu — open and close", () => {
     await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
     await waitForActiveScene(page, "CombatOverlay");
 
+    // 022 US2 (contract C8): Escape is now also a valid combat skip/close key — this press
+    // lands on CombatOverlay's own listener (reveals the still-in-progress log), not the pause
+    // menu. The assertions below are about the pause menu specifically having no effect here.
     await page.keyboard.press("Escape");
     await page.locator('[data-testid="pause-button"]').click();
     await page.waitForTimeout(200);
     expect(await isSceneActive(page, "PauseMenuScene")).toBe(false);
     expect(await isSceneActive(page, "CombatOverlay")).toBe(true);
 
-    await waitForActiveScene(page, "FloorScene", 10_000); // let combat resolve normally
-  });
-
-  test("neither the side-panel button nor ESC has any effect during a pickup modal (FR-008)", async ({
-    page,
-  }) => {
-    await clearSave(page);
-    await page.goto("/");
-    await waitForActiveScene(page, "MainMenuScene");
-    await page.keyboard.press("KeyN");
-    await waitForActiveScene(page, "FloorScene");
-
-    await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
-    await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
-    await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
-    await waitForActiveScene(page, "CombatOverlay");
+    await dismissCombat(page); // 022 US2: combat no longer closes itself
     await waitForActiveScene(page, "FloorScene", 10_000);
-
-    await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7), goblin defeated
-    await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava damage
-    await pressAndWait(page, "ArrowRight"); // (4,7) -> (5,7), safe
-    await page.keyboard.press("ArrowUp"); // (5,7) -> (5,6), bronze key
-    await waitForActiveScene(page, "PickupModalScene");
-
-    await page.keyboard.press("Escape");
-    await page.locator('[data-testid="pause-button"]').click();
-    await page.waitForTimeout(200);
-    expect(await isSceneActive(page, "PauseMenuScene")).toBe(false);
-    expect(await isSceneActive(page, "PickupModalScene")).toBe(true);
-
-    await page.keyboard.press("Enter"); // dismiss
-    await waitForActiveScene(page, "FloorScene");
   });
 });
 
@@ -150,6 +125,7 @@ test.describe("Pause menu — restart at last checkpoint", () => {
     await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
     await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
     await waitForActiveScene(page, "CombatOverlay");
+    await dismissCombat(page); // 022 US2: combat no longer closes itself
     await waitForActiveScene(page, "FloorScene", 10_000);
     await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7), goblin defeated
 
@@ -188,14 +164,12 @@ test.describe("Pause menu — restart at last checkpoint", () => {
     await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
     await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
     await waitForActiveScene(page, "CombatOverlay");
+    await dismissCombat(page); // 022 US2: combat no longer closes itself
     await waitForActiveScene(page, "FloorScene", 10_000);
     await pressAndWait(page, "ArrowRight"); // (2,7) -> (3,7)
     await pressAndWait(page, "ArrowRight"); // (3,7) -> (4,7), lava
     await pressAndWait(page, "ArrowRight"); // (4,7) -> (5,7), safe
-    await page.keyboard.press("ArrowUp"); // (5,7) -> (5,6), bronze key
-    await waitForActiveScene(page, "PickupModalScene");
-    await page.keyboard.press("Enter"); // dismiss
-    await waitForActiveScene(page, "FloorScene");
+    await pressAndWait(page, "ArrowUp"); // (5,7) -> (5,6), bronze key (022 US1: logged only, no modal)
 
     const beforeRestart = await getCtxSave(page);
     expect(beforeRestart.character.keyIds).toContain("bronze");

@@ -1,7 +1,16 @@
 import Phaser from "phaser";
 import type { ZoneThemeId } from "../../domain/floor/types";
+import type { PlayerFrame } from "../playerAnimation";
 import { paintPixelsTo, paintSprite, type PixelGrid } from "./painters";
-import { LAVA_GLOW_FRAME, SPRITES, ZONE_TILES, type ArmourTierId, type SheetZone, type SpriteGrid } from "./spriteData";
+import {
+  LAVA_GLOW_FRAME,
+  SPRITES,
+  ZONE_TILES,
+  type ArmourTierId,
+  type PlayerDirection,
+  type SheetZone,
+  type SpriteGrid,
+} from "./spriteData";
 
 /** Maps this game's zone themes onto the sheet's own 6 named zones by closest visual/thematic
  * fit (research R5 / data-model.md), same mapping wallSprites.ts already used for walls. */
@@ -69,18 +78,26 @@ export function ensureZoneTileTexture(scene: Phaser.Scene, tileKey: string, zone
   return key;
 }
 
-const PLAYER_SPRITE_KEY: Record<ArmourTierId, string> = {
-  none: "playerNone",
-  leather: "playerLeather",
-  mail: "playerMail",
-  plate: "playerPlate",
-};
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
-/** Direct lookup — the sheet ships four pre-composed bodies, so there is no overlay and no
- * recolour step (contract C3). `tier: "none"` is a sprite like any other. */
-export function ensurePlayerTexture(scene: Phaser.Scene, tier: ArmourTierId): string {
-  const key = `sprite-player-${tier}`;
-  if (!scene.textures.exists(key)) paintPixelsToTexture(scene, key, paintSprite(requireGrid(PLAYER_SPRITE_KEY[tier])));
+/** Direct lookup — the sheet ships one pre-composed body per (tier, facing, frame), so there is
+ * no overlay and no recolour step (contract C3). `tier: "none"` is a sprite like any other.
+ * 021: extended from a tier-only key to also carry facing and animation frame (contract C6) —
+ * the sprite-data key is derived at call time (`player<Tier><Facing><Frame>`), mirroring exactly
+ * how `extract-sprites.ts` names the 64 grids it generates. */
+export function ensurePlayerTexture(
+  scene: Phaser.Scene,
+  tier: ArmourTierId,
+  facing: PlayerDirection,
+  frame: PlayerFrame,
+): string {
+  const key = `sprite-player-${tier}-${facing}-${frame}`;
+  if (!scene.textures.exists(key)) {
+    const spriteKey = `player${capitalize(tier)}${capitalize(facing)}${capitalize(frame)}`;
+    paintPixelsToTexture(scene, key, paintSprite(requireGrid(spriteKey)));
+  }
   return key;
 }
 
