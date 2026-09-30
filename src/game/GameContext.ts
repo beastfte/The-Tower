@@ -8,7 +8,7 @@ import { WEAPONS } from "../data/weapons";
 import { ARMOR_PIECES } from "../data/armorPieces";
 import type { EncounterResult } from "../domain/combat/simulateEncounter";
 import type { EventLogEntry } from "./eventLog/types";
-import { formatCombatEntry, formatPickupEntry } from "./eventLog/formatEntry";
+import { formatCombatEntry, formatPickupEntry, formatPurchaseEntry } from "./eventLog/formatEntry";
 
 /**
  * Shared runtime state bridging domain logic and Phaser scenes. Single-player,
@@ -59,5 +59,10 @@ export class GameContext {
    * armor pickup entry to the session-only event log. */
   logPickup(kind: "key" | "potion" | "currency" | "weapon" | "armor", label: string): void {
     this.eventLog.push(formatPickupEntry(kind, label));
+  }
+
+  /** 023 FR-014: appends a completed merchant-upgrade purchase to the session-only event log. */
+  logPurchase(label: string, price: number): void {
+    this.eventLog.push(formatPurchaseEntry(label, price));
   }
 }

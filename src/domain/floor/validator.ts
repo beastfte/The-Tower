@@ -34,9 +34,12 @@ function allRevealedPathwayPositions(floor: FloorDefinition, excludeLeverId?: st
  * progressed player can pass every gate, levers included). 017: enemy tiles are no longer
  * treated as blocked here — whether an enemy is avoidable is now a computed per-enemy fact
  * (see `classifyEnemyPlacement`), not something this floor-wide completability check decides;
- * walls, grid shape, and unkeyed doors remain the only real obstacles. */
+ * walls, grid shape, and unkeyed doors remain the only real obstacles. 023: merchant tiles ARE
+ * blocked here, the opposite of enemies — a merchant can never be cleared, so its tile is
+ * impassable forever; a merchant placed as the sole route to the exit must fail this check. */
 function fullyClearedPathExists(floor: FloorDefinition): boolean {
-  return bfsReaches(floor, floor.entrance, floor.exit, new Set(), allRevealedPathwayPositions(floor));
+  const merchantPositions = new Set((floor.merchants ?? []).map((m) => positionKey(m.position)));
+  return bfsReaches(floor, floor.entrance, floor.exit, merchantPositions, allRevealedPathwayPositions(floor));
 }
 
 /** 007 US3 (contract invariant 12): no lever may be the sole means of reaching itself.
@@ -46,13 +49,14 @@ function fullyClearedPathExists(floor: FloorDefinition): boolean {
  * through, doors keyed — neither is a self-referential dependency). 017: no longer blocks
  * enemy tiles, for the same reason as `fullyClearedPathExists` above. */
 function leverIdsWithSelfCycle(floor: FloorDefinition): string[] {
+  const merchantPositions = new Set((floor.merchants ?? []).map((m) => positionKey(m.position)));
   const badIds: string[] = [];
   for (const lever of floor.levers) {
     const reachable = bfsReaches(
       floor,
       floor.entrance,
       lever.position,
-      new Set(),
+      merchantPositions,
       allRevealedPathwayPositions(floor, lever.id),
     );
     if (!reachable) badIds.push(lever.id);
@@ -69,13 +73,9 @@ export function classifyEnemyPlacement(
   floor: FloorDefinition,
   enemy: EnemyDefinition,
 ): "compulsory" | "optional" {
-  const avoidable = bfsReaches(
-    floor,
-    floor.entrance,
-    floor.exit,
-    new Set([positionKey(enemy.position)]),
-    allRevealedPathwayPositions(floor),
-  );
+  const blocked = new Set((floor.merchants ?? []).map((m) => positionKey(m.position)));
+  blocked.add(positionKey(enemy.position));
+  const avoidable = bfsReaches(floor, floor.entrance, floor.exit, blocked, allRevealedPathwayPositions(floor));
   return avoidable ? "optional" : "compulsory";
 }
 
@@ -192,6 +192,7 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
   for (const lever of floor.levers) claim(lever.position, `lever "${lever.id}"`);
   for (const water of floor.waterTiles) claim(water.position, `water tile "${water.id}"`);
   for (const wall of floor.crackedWalls) claim(wall.position, `cracked wall "${wall.id}"`);
+  for (const merchant of floor.merchants ?? []) claim(merchant.position, `merchant "${merchant.id}"`);
 
   if (occupied.has(positionKey(floor.entrance))) {
     errors.push(`Floor "${floor.id}": entrance tile coincides with occupied content (invariant 1)`);
@@ -246,13 +247,30 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
     floor.crackedWalls.map((w) => w.id),
     "cracked wall",
   );
+  checkUnique(
+    (floor.merchants ?? []).map((m) => m.id),
+    "merchant",
+  );
 
   // 007 US4 (contract invariant 10): a water tile's grid cell must be non-walkable — its
   // only gameplay behavior is blocking, which the grid already expresses (research.md #8).
+  // A tower JSON import satisfies this automatically (floorExportToDefinition forces a water
+  // tile's cell non-walkable regardless of the author's raw `walls` value); hand-authored
+  // `FloorDefinition` literals (e.g. test fixtures) must still encode it directly in the grid.
   for (const water of floor.waterTiles) {
     if (tileWalkable(floor, water.position)) {
       errors.push(
         `Floor "${floor.id}": water tile "${water.id}" at ${positionKey(water.position)} must be on a non-walkable grid cell (invariant 10)`,
+      );
+    }
+  }
+
+  // 023 (contract C12): a merchant sits on a walkable tile — the player walks into it, like an
+  // enemy — the inverse of the water/cracked-wall rules above.
+  for (const merchant of floor.merchants ?? []) {
+    if (!tileWalkable(floor, merchant.position)) {
+      errors.push(
+        `Floor "${floor.id}": merchant "${merchant.id}" at ${positionKey(merchant.position)} must be on a walkable grid cell (023 contract C12)`,
       );
     }
   }

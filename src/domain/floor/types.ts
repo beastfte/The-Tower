@@ -38,6 +38,15 @@ export interface EnemyDefinition {
   drops?: DropTable;
 }
 
+/** 023 FR-004: a merchant NPC — deliberately not an `EnemyDefinition`. Combat is reachable
+ * only through a lookup into `floor.enemies`, so keeping merchants in their own array makes
+ * "never attackable" structural rather than a runtime flag some future branch could miss.
+ * Carries no `stats`/`drops`/`isEndBoss` because it is never a combat participant. */
+export interface MerchantDefinition {
+  id: string;
+  position: Position;
+}
+
 /** 012 FR-018 (2026-09-23 gap fix): a runtime-readable catalog of item kinds, so tooling
  * (`scripts/sync-tool-palette.ts`) can derive this set instead of hand-mirroring it. Previously
  * a TypeScript union only, with no runtime representation (a `type` alone erases at
@@ -166,6 +175,9 @@ export interface FloorDefinition {
   entrance: Position;
   exit: Position;
   enemies: EnemyDefinition[];
+  /** 023: optional, unlike every other content array — adding it as required would force an
+   * edit to every existing floor literal and tower JSON. Absent = no merchant on this floor. */
+  merchants?: MerchantDefinition[];
   items: ItemDefinition[];
   keyedDoors: KeyedDoorDefinition[];
   hazardTiles: HazardTileDefinition[];

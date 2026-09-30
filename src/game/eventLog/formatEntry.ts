@@ -30,3 +30,8 @@ export function formatPickupEntry(
   const noun = kind === "currency" ? "gold" : kind;
   return { kind: "pickup", message: `Picked up ${noun}: ${label}.` };
 }
+
+/** 023 FR-014 (contract C7): a completed merchant purchase, logged only — no blocking banner. */
+export function formatPurchaseEntry(label: string, price: number): EventLogEntry {
+  return { kind: "purchase", message: `Purchased ${label} for ${price} gold.` };
+}

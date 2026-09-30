@@ -3,6 +3,9 @@ import { applyHazardDamage } from "../../../src/domain/hazard/hazardDamage";
 import { hasDiedFromHazard, markDead } from "../../../src/domain/hazard/death";
 import { resumeFromCheckpoint, returnToMainMenu } from "../../../src/domain/hazard/recovery";
 import { emptyFloorProgress, type PlayerSave } from "../../../src/domain/character/save";
+import { applyUpgradePurchase } from "../../../src/domain/character/shopUpgrades";
+import { completeCurrentFloor } from "../../../src/domain/progress/towerProgress";
+import { createTower } from "../../../src/domain/floor/tower";
 import type { FloorDefinition } from "../../../src/domain/floor/types";
 
 describe("applyHazardDamage", () => {
@@ -105,6 +108,39 @@ describe("death and recovery", () => {
     expect(save.character.equippedArmor).toEqual({});
     expect(save.character.bonusDamage).toBe(0);
     expect(save.character.baseStats.defence).toBe(2);
+  });
+
+  // 023 (contract C6, Clarifications 2026-09-29): a merchant purchase follows the exact same
+  // in-attempt-revertible rule as currency/keys/potion bonuses above — it lives on `character`,
+  // so a checkpoint restart undoes it for free with no special-casing.
+  it("resumeFromCheckpoint reverts a purchase made during the current, uncompleted attempt", () => {
+    const farmed = applyUpgradePurchase(buildSave().character, "vicious");
+    expect(farmed.bonusDamage).toBe(10); // 5 (fixture's pre-existing bonus) + 5 (the purchase)
+    expect(farmed.purchaseCounts?.vicious).toBe(1);
+
+    const save = resumeFromCheckpoint({ ...buildSave(), character: farmed }, floor);
+    expect(save.character.bonusDamage).toBe(0);
+    expect(save.character.purchaseCounts?.vicious).toBeUndefined();
+    expect(save.character.currency).toBe(0);
+  });
+
+  // 023 (contract C6): once the floor a purchase happened on is completed, that floor's
+  // completion re-stamps checkpointCharacter from the (now-purchased) character, so the
+  // purchase survives a *later* restart on the next floor.
+  it("a purchase survives a checkpoint restart once its floor has been completed", () => {
+    const floor2: FloorDefinition = { ...floor, id: "f2" };
+    const tower = createTower([floor, floor2]);
+
+    const withPurchase: PlayerSave = {
+      ...buildSave(),
+      character: applyUpgradePurchase(buildSave().character, "vicious"),
+    };
+    const advanced = completeCurrentFloor(withPurchase, tower);
+    expect(advanced.checkpointCharacter?.bonusDamage).toBe(10);
+
+    const restarted = resumeFromCheckpoint(advanced, floor2);
+    expect(restarted.character.bonusDamage).toBe(10);
+    expect(restarted.character.purchaseCounts?.vicious).toBe(1);
   });
 
   // bug fix: checkpoint-restart-stat-exploit (reopened) — this fallback should no longer be

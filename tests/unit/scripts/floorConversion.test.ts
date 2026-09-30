@@ -89,6 +89,31 @@ describe("floorDefinitionToExport / floorExportToDefinition round-trip", () => {
     expect(roundTripped.zone).toBeUndefined();
   });
 
+  it("forces a water tile's own cell non-walkable, even when the author left `walls` open there", () => {
+    const fe: FloorExport = {
+      id: "floor-water",
+      order: 0,
+      width: 2,
+      height: 1,
+      walls: [[false, false]],
+      entrance: { x: 0, y: 0 },
+      exit: { x: 0, y: 0 },
+      enemies: [],
+      items: [],
+      keyedDoors: [],
+      hazardTiles: [],
+      spikePits: [],
+      lavaTiles: [],
+      levers: [],
+      waterTiles: [{ id: "w1", position: { x: 1, y: 0 } }],
+      crackedWalls: [],
+      wallZoneOverrides: [],
+    };
+    const def = floorExportToDefinition(fe);
+    expect(def.grid[0]![0]!.walkable).toBe(true);
+    expect(def.grid[0]![1]!.walkable).toBe(false);
+  });
+
   it("treats a missing walls row/cell as blocked (defensive default, matches a solid-rock assumption)", () => {
     const fe: FloorExport = {
       id: "floor-ragged",

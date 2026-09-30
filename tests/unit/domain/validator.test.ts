@@ -188,6 +188,71 @@ describe("validateFloorDefinition — cracked walls (013, invariant 16)", () => 
   });
 });
 
+describe("validateFloorDefinition — merchants (023, contract C12)", () => {
+  it("accepts a merchant authored on a walkable grid cell", () => {
+    const floor = baseFloor({ merchants: [{ id: "m1", position: { x: 5, y: 5 } }] });
+    const result = validateFloorDefinition(floor);
+    expect(result.errors.some((e) => e.includes("walkable grid cell"))).toBe(false);
+    expect(result.errors.some((e) => e.includes("invariant 2"))).toBe(false);
+  });
+
+  it("rejects a merchant authored on a non-walkable grid cell — the inverse of water/cracked-wall", () => {
+    const floor = baseFloor({ merchants: [{ id: "m1", position: { x: 5, y: 5 } }] });
+    floor.grid[5]![5] = { walkable: false };
+    const result = validateFloorDefinition(floor);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("must be on a walkable grid cell"))).toBe(true);
+  });
+
+  it("rejects duplicate merchant ids", () => {
+    const floor = baseFloor({
+      merchants: [
+        { id: "m1", position: { x: 5, y: 5 } },
+        { id: "m1", position: { x: 6, y: 6 } },
+      ],
+    });
+    const result = validateFloorDefinition(floor);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("invariant 4"))).toBe(true);
+  });
+
+  it("rejects a merchant's position colliding with another piece of placed content", () => {
+    const floor = baseFloor({
+      merchants: [{ id: "m1", position: { x: 5, y: 5 } }],
+      waterTiles: [{ id: "w1", position: { x: 5, y: 5 } }],
+    });
+    const result = validateFloorDefinition(floor);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("invariant 6"))).toBe(true);
+  });
+
+  // 023 research R10: unlike an enemy (avoidable once defeated), a merchant can never be
+  // cleared, so its tile must be treated as permanently impassable by the completability check
+  // — the opposite of how enemy tiles are deliberately NOT blocked in this same BFS.
+  it("fails invariant 2 when the only entrance-to-exit path requires passing through a merchant's tile", () => {
+    const size = 20;
+    const grid = Array.from({ length: size }, () => Array.from({ length: size }, () => ({ walkable: false })));
+    // A single-cell-wide corridor along y=0, blocked at x=10 by the (only) merchant.
+    for (let x = 0; x < size; x++) grid[0]![x] = { walkable: true };
+    const floor = baseFloor({
+      grid,
+      entrance: { x: 0, y: 0 },
+      exit: { x: size - 1, y: 0 },
+      merchants: [{ id: "m1", position: { x: 10, y: 0 } }],
+    });
+    const result = validateFloorDefinition(floor);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("invariant 2"))).toBe(true);
+  });
+
+  it("does not block an enemy's own avoidability check merely by existing elsewhere on the floor", () => {
+    // A merchant off to the side must not spuriously make an otherwise-optional enemy compulsory.
+    const enemy = enemyAt("e1", 5, 5);
+    const floor = baseFloor({ enemies: [enemy], merchants: [{ id: "m1", position: { x: 15, y: 15 } }] });
+    expect(classifyEnemyPlacement(floor, enemy)).toBe("optional");
+  });
+});
+
 describe("validateFloorDefinition — wall zone overrides (013 session 3, invariant 18)", () => {
   it("rejects a wall zone override authored on a walkable grid cell", () => {
     const floor = baseFloor({ wallZoneOverrides: [{ position: { x: 5, y: 5 }, zone: "crypt" }] });

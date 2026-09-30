@@ -3,6 +3,10 @@ import type { GameContext } from "../GameContext";
 import { positionsEqual, type Position } from "../../domain/types";
 import { stepInDirection, type CardinalDirection } from "../../domain/floor/movement";
 import { findLivingEnemyAt } from "../../domain/floor/enemyEngagement";
+import { findMerchantAt } from "../../domain/floor/merchantInteraction";
+import { applyUpgradePurchase, priceFor, UPGRADES } from "../../domain/character/shopUpgrades";
+import type { UpgradeId } from "../../domain/character/save";
+import { buildMerchantOptions, MERCHANT_GREETING } from "../npcDialogue";
 import { findAvailableItemAt, applyItemPickup } from "../../domain/floor/itemCollection";
 import {
   markItemCollected,
@@ -26,6 +30,7 @@ import { isWinningDefeat, triggerWin } from "../../domain/progress/winState";
 import { completeCurrentFloor, returnToPreviousFloor } from "../../domain/progress/towerProgress";
 import type { CombatOverlayData } from "./CombatOverlay";
 import type { PauseMenuData } from "./PauseMenuScene";
+import type { NpcDialogueData } from "./NpcDialogueScene";
 import { resumeFromCheckpoint, returnToMainMenu } from "../../domain/hazard/recovery";
 import type { EncounterResult } from "../../domain/combat/simulateEncounter";
 import type {
@@ -33,6 +38,7 @@ import type {
   ChestReward,
   EnemyDefinition,
   LavaTileDefinition,
+  MerchantDefinition,
   SpikePitDefinition,
   ZoneThemeId,
 } from "../../domain/floor/types";
@@ -41,6 +47,7 @@ import type { ArmorMaterialId, KeyDefinition, LootItem, WeaponId } from "../../d
 import { ensureLavaGlowTexture, ensurePlayerTexture, ensureSpriteTexture, ensureZoneTileTexture } from "../render/spriteTextures";
 import type { ArmourTierId, PlayerDirection } from "../render/spriteData";
 import { computePlayerIdleFrame, computePlayerWalkFrame, facingForDirection } from "../playerAnimation";
+import { computeMerchantIdleFrame } from "../merchantAnimation";
 import { PLAY_AREA, DESIGN_PLAY_AREA, TILE_SIZE } from "../gameConfig";
 import { createUiText, getUiRoot } from "../ui/domOverlay";
 import { scalePx } from "../scaleConfig";
@@ -146,6 +153,9 @@ export class FloorScene extends Phaser.Scene {
   private spikePitMarkers: { gameObject: Phaser.GameObjects.Image; pit: SpikePitDefinition }[] = [];
   /** 007 US2: lava markers currently cycling base/glow (rebuilt every redraw()). */
   private lavaMarkers: { gameObject: Phaser.GameObjects.Image; lava: LavaTileDefinition }[] = [];
+  /** 023 US2: merchant markers currently breathing (rebuilt every redraw()); update() swaps
+   * each one's texture between idle/breath and also bobs it via livingMarkers. */
+  private merchantMarkers: { gameObject: Phaser.GameObjects.Image; merchant: MerchantDefinition }[] = [];
 
   constructor() {
     super("FloorScene");
@@ -215,8 +225,22 @@ export class FloorScene extends Phaser.Scene {
       this.attemptMove(direction);
       // 021 US1: start (or switch) the held-repeat direction; update() continues firing this
       // direction every HELD_MOVE_COOLDOWN_MS for as long as the key stays down.
-      this.heldDirection = direction;
-      this.lastHeldMoveAt = this.time.now;
+      //
+      // 2026-09-30 fix (research R13 follow-up): only arm it if the move didn't just open a
+      // blocking overlay (combat, merchant dialogue, pause menu) — those already set
+      // `canMove = false` and their own `heldDirection = null` synchronously inside
+      // `attemptMove` above, but this assignment ran unconditionally *after* that call and
+      // silently re-armed the just-cleared direction. Since the keyup for this very press
+      // arrives after the overlay has paused the scene (and paused scenes don't process
+      // Phaser input), that stale direction was never cleared — so the instant the overlay's
+      // `canMove` flag flipped back to true on close, update()'s held-repeat check re-fired
+      // this exact move and reopened the same overlay immediately. This is what made the
+      // merchant dialogue look impossible to close: it never stayed closed for more than one
+      // frame after a single tap into the merchant's tile.
+      if (this.canMove) {
+        this.heldDirection = direction;
+        this.lastHeldMoveAt = this.time.now;
+      }
     });
     // 021 US1 (contract C7): only clears heldDirection if the released key matches the
     // currently active direction — a stale, already-superseded key's release must not affect
@@ -364,6 +388,14 @@ export class FloorScene extends Phaser.Scene {
     const enemy = findLivingEnemyAt(floor, target, defeated);
     if (enemy) {
       this.engage(enemy);
+      return;
+    }
+
+    // 023 (contract C9): a merchant intercepts the move before it commits, exactly like an
+    // enemy — the player never steps onto its tile, and the shop opens instead of combat.
+    const merchant = findMerchantAt(floor, target);
+    if (merchant) {
+      this.openShop();
       return;
     }
 
@@ -545,6 +577,46 @@ export class FloorScene extends Phaser.Scene {
     this.scene.pause();
   }
 
+  /** 023 (contract C9/C10): mirrors engage()'s launch/pause pattern. Clearing heldDirection
+   * stops a held key from reopening the shop the instant it closes while still physically down.
+   *
+   * 2026-09-30 amendment (research R19, contract C17): `getOptions` is a closure over
+   * `ctx.save.character`, re-evaluated fresh every time `NpcDialogueScene` calls it (on open and
+   * after every purchase) — this scene never rebuilds or relaunches the dialogue itself. */
+  private openShop(): void {
+    this.heldDirection = null;
+    this.canMove = false;
+    const ctx = this.ctx;
+    const onPurchase = (id: UpgradeId): void => {
+      const before = ctx.save.character;
+      const price = priceFor(before, id);
+      const after = applyUpgradePurchase(before, id);
+      // Unaffordable options are disabled in the dialogue (FR-010) and never reach here; this
+      // guard is defense-in-depth against the domain-level no-op, not a reachable UI path.
+      if (after === before) return;
+      ctx.save.character = after;
+      ctx.persist();
+      ctx.logPurchase(UPGRADES[id].label, price);
+    };
+    const data: NpcDialogueData = {
+      npcName: "Merchant",
+      portrait: { idleKey: "merchantIdle", breathKey: "merchantBreath" },
+      lines: [MERCHANT_GREETING],
+      getOptions: () => buildMerchantOptions(ctx.save.character, onPurchase),
+      onClose: () => {
+        // 2026-09-30 amendment (research R13, contract C18): the missing `stop` call here was
+        // the actual defect behind "cannot exit the merchant" / "Esc opens the pause menu" —
+        // without it, this scene's `shutdown` never fires, so its DOM controls never get
+        // removed while `canMove` is already restored below.
+        this.scene.stop("NpcDialogueScene");
+        this.scene.resume();
+        this.canMove = true;
+      },
+    };
+    this.scene.launch("NpcDialogueScene", data);
+    this.scene.pause();
+  }
+
   private onCombatResolved(enemy: EnemyDefinition, encounter: EncounterResult): void {
     const ctx = this.ctx;
     this.scene.stop("CombatOverlay");
@@ -603,6 +675,7 @@ export class FloorScene extends Phaser.Scene {
     this.livingMarkers = [];
     this.spikePitMarkers = [];
     this.lavaMarkers = [];
+    this.merchantMarkers = [];
 
     for (let y = 0; y < floor.grid.length; y++) {
       const row = floor.grid[y]!;
@@ -712,6 +785,16 @@ export class FloorScene extends Phaser.Scene {
         gameObject: marker,
         baseY: marker.y,
         phase: computePositionPhase(enemy.position),
+      });
+    }
+
+    for (const merchant of floor.merchants ?? []) {
+      const marker = this.addTextureMarker(merchant.position, "merchantIdle", 0.8);
+      this.merchantMarkers.push({ gameObject: marker, merchant });
+      this.livingMarkers.push({
+        gameObject: marker,
+        baseY: marker.y,
+        phase: computePositionPhase(merchant.position),
       });
     }
 
@@ -829,6 +912,13 @@ export class FloorScene extends Phaser.Scene {
     for (const { gameObject, lava } of this.lavaMarkers) {
       const frame = computeLavaFrame(lava, time);
       const textureKey = frame === "lava" ? ensureSpriteTexture(this, "lava") : ensureLavaGlowTexture(this);
+      if (gameObject.texture.key !== textureKey) gameObject.setTexture(textureKey);
+    }
+    // 023 US2 (contract C11): the same idle-breathing frame swap as the player, applied to
+    // every merchant marker. Bobbing already happens for free via the livingMarkers loop above.
+    for (const { gameObject } of this.merchantMarkers) {
+      const frame = computeMerchantIdleFrame(time);
+      const textureKey = ensureSpriteTexture(this, frame === "idle" ? "merchantIdle" : "merchantBreath");
       if (gameObject.texture.key !== textureKey) gameObject.setTexture(textureKey);
     }
     // 021 US2 (contract C4): walk animation while still "mid-step" (playerMovingUntil in the

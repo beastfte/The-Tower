@@ -84,7 +84,7 @@ function main(): void {
   const TS = loadTowerSprites(htmlPath!);
 
   const PLAYER = TS.PLAYER as Record<string, Record<string, Record<string, RawGrid>>>;
-  const MONSTER_SPRITES = TS.MONSTER_SPRITES as Record<string, { idle: RawGrid }>;
+  const MONSTER_SPRITES = TS.MONSTER_SPRITES as Record<string, { idle: RawGrid; breath?: RawGrid }>;
   const WEAPONS = TS.WEAPONS as Record<string, RawGrid>;
   const ARMOUR = TS.ARMOUR as Record<string, RawGrid>;
   const ITEMS = TS.ITEMS as Record<string, RawGrid>;
@@ -118,6 +118,12 @@ function main(): void {
   const monsterNames = ["goblin", "ogre", "wizard", "bat", "slime", "skeleton", "necromancer", "bandit", "voidwalker"];
   for (const name of monsterNames) sprites[name] = grid(`MONSTER_SPRITES.${name}.idle`, MONSTER_SPRITES[name]?.idle);
 
+  // 023: unlike every combat monster above (which adopts only `.idle`), the merchant adopts
+  // both `.idle` and `.breath` — it needs a real 2-frame breathing animation (FR-002), and the
+  // sheet itself marks it as a non-combatant by carrying no `eliteIdle`/`eliteBreath` pair.
+  sprites.merchantIdle = grid("MONSTER_SPRITES.merchant.idle", MONSTER_SPRITES.merchant?.idle);
+  sprites.merchantBreath = grid("MONSTER_SPRITES.merchant.breath", MONSTER_SPRITES.merchant?.breath);
+
   const weaponNames = ["woodSword", "sword", "goldSword", "diamondSword"];
   for (const name of weaponNames) sprites[name] = grid(name, WEAPONS[name]);
 
@@ -141,7 +147,9 @@ function main(): void {
   const tileNames = ["floorSlab", "floorCracked", "wallBlock", "crackedWall", "water", "spikesOff", "spikesHalf", "spikesOn", "lava"];
   for (const name of tileNames) sprites[name] = grid(name, TILES[name]);
 
-  const expectedCount = playerSpriteCount + monsterNames.length + weaponNames.length + armourNames.length + itemNames.length + propNames.length + tileNames.length;
+  const expectedCount =
+    playerSpriteCount + monsterNames.length + 2 /* merchantIdle, merchantBreath */ +
+    weaponNames.length + armourNames.length + itemNames.length + propNames.length + tileNames.length;
   if (Object.keys(sprites).length !== expectedCount) {
     fail(`allow-list mismatch: expected ${expectedCount} sprites, extracted ${Object.keys(sprites).length}`);
   }

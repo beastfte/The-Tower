@@ -19,6 +19,9 @@ const PLAYER_BODIES = PLAYER_TIERS.flatMap((tier) =>
 const FAMILIES = {
   playerBodies: PLAYER_BODIES,
   monsters: ["goblin", "ogre", "wizard", "bat", "slime", "skeleton", "necromancer", "bandit", "voidwalker"],
+  /** 023: unlike every combat monster above (one `.idle` frame each), the merchant adopts both
+   * `.idle` and `.breath` — a real 2-frame breathing animation (FR-002). */
+  merchant: ["merchantIdle", "merchantBreath"],
   weapons: ["woodSword", "sword", "goldSword", "diamondSword"],
   armour: [
     "leatherHelm", "leatherChest", "leatherLegs", "leatherBoots",
@@ -39,9 +42,9 @@ function opaqueMask(grid: SpriteGrid): boolean[][] {
 }
 
 describe("SPRITES inventory (contract C6)", () => {
-  it("has exactly the 111 non-zone adopted sprites", () => {
+  it("has exactly the 113 non-zone adopted sprites", () => {
     expect(new Set(Object.keys(SPRITES))).toEqual(new Set(ALL_ADOPTED));
-    expect(Object.keys(SPRITES)).toHaveLength(111);
+    expect(Object.keys(SPRITES)).toHaveLength(113);
   });
 
   it("has no out-of-scope tile key", () => {

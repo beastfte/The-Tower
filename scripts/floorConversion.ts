@@ -11,8 +11,10 @@ import type {
   CrackedWallDefinition,
   WallZoneOverride,
   ZoneThemeId,
+  MerchantDefinition,
 } from "../src/domain/floor/types";
 import type { Position, Tile } from "../src/domain/types";
+import { positionKey } from "../src/domain/types";
 
 /**
  * The wire shape flowing both directions across the tool/repo boundary
@@ -45,6 +47,9 @@ export interface FloorExport {
   crackedWalls: CrackedWallDefinition[];
   zone?: ZoneThemeId;
   wallZoneOverrides: WallZoneOverride[];
+  /** 023: optional like `zone`, unlike every other content array — omitted entirely for a
+   * floor with no merchant rather than serialized as `[]`. */
+  merchants?: MerchantDefinition[];
 }
 
 export interface TowerExport {
@@ -58,8 +63,14 @@ export interface TowerExport {
  * (`wallsToPatternRows` below), not part of building the `FloorDefinition` value used for
  * validation. */
 export function floorExportToDefinition(fe: FloorExport): FloorDefinition {
+  // A water tile always blocks its own cell — authors place it directly on a walkable tile
+  // rather than having to separately mark that cell blocked in `walls` (invariant 10 is
+  // satisfied by construction here, not by requiring the raw export to already encode it).
+  const waterPositions = new Set(fe.waterTiles.map((w) => positionKey(w.position)));
   const grid: Tile[][] = Array.from({ length: fe.height }, (_, y) =>
-    Array.from({ length: fe.width }, (_, x) => ({ walkable: !(fe.walls[y]?.[x] ?? true) })),
+    Array.from({ length: fe.width }, (_, x) => ({
+      walkable: !(fe.walls[y]?.[x] ?? true) && !waterPositions.has(positionKey({ x, y })),
+    })),
   );
   const def: FloorDefinition = {
     id: fe.id,
@@ -83,6 +94,7 @@ export function floorExportToDefinition(fe: FloorExport): FloorDefinition {
     wallZoneOverrides: fe.wallZoneOverrides,
   };
   if (fe.zone) def.zone = fe.zone;
+  if (fe.merchants) def.merchants = fe.merchants;
   return def;
 }
 
@@ -113,6 +125,7 @@ export function floorDefinitionToExport(def: FloorDefinition, order: number): Fl
     wallZoneOverrides: def.wallZoneOverrides,
   };
   if (def.zone) fe.zone = def.zone;
+  if (def.merchants) fe.merchants = def.merchants;
   return fe;
 }
 

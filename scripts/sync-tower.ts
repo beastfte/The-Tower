@@ -48,7 +48,11 @@ function arrayField(name: string, value: unknown, indent = "  "): string {
 
 function serializeFloorFile(fe: FloorExport, def: FloorDefinition): string {
   const constName = constNameFor(fe.id);
-  const gridRows = wallsToPatternRows(fe.walls)
+  // Derived from `def.grid`, not the raw `fe.walls` — a water tile forces its cell
+  // non-walkable during conversion (floorExportToDefinition), so the serialized pattern must
+  // reflect that merge rather than the author's original (possibly still-walkable) input.
+  const walls = def.grid.map((row) => row.map((tile) => !tile.walkable));
+  const gridRows = wallsToPatternRows(walls)
     .map((row) => `    rowFromPattern(${JSON.stringify(row)}),`)
     .join("\n");
 
@@ -75,6 +79,7 @@ function serializeFloorFile(fe: FloorExport, def: FloorDefinition): string {
   ];
   if (def.zone) lines.push(`  zone: ${JSON.stringify(def.zone)},`);
   lines.push(arrayField("wallZoneOverrides", def.wallZoneOverrides));
+  if (def.merchants) lines.push(arrayField("merchants", def.merchants));
   lines.push(`};`, ``);
   return lines.join("\n");
 }

@@ -852,6 +852,10 @@
       const EXIT_COLOR = "#a5691f";
       const CRACKED_WALL_GLYPH = "╱";
       const CRACKED_WALL_COLOR = "#8a8060";
+      /** 023: a single fixed placeable, same shape as the lever above — no catalog/variants.
+       * Glyph "M" rather than "$" to avoid colliding with currency's existing glyph. */
+      const MERCHANT_GLYPH = "M";
+      const MERCHANT_COLOR = "#c9a227";
 
       // FR-022/FR-023 (013's ZoneThemeId): the tool's own simplified representation of the
       // live game's 6 wall art themes — a small color swatch per zone, not real art (spec
@@ -897,6 +901,7 @@
           waterTiles: [],
           crackedWalls: [],
           wallZoneOverrides: [],
+          merchants: [],
         };
       }
 
@@ -911,6 +916,7 @@
         "lavaTiles",
         "levers",
         "waterTiles",
+        "merchants",
       ];
 
       function posKey(p) {
@@ -1016,6 +1022,7 @@
         water: "waterTiles",
         lever: "levers",
         crackedwall: "crackedWalls",
+        merchant: "merchants",
       };
       function maxExistingElementSuffix(floor, kind) {
         const arrayKey = ELEMENT_KIND_ARRAY_KEY[kind];
@@ -1141,6 +1148,7 @@
         for (const l of floor.lavaTiles) drawShape(ctx, l.position, tileSize, "triangle", HAZARD_COLOR.lava, "^");
         for (const wt of floor.waterTiles) drawShape(ctx, wt.position, tileSize, "triangle", HAZARD_COLOR.water, "~");
         for (const lv of floor.levers) drawShape(ctx, lv.position, tileSize, "plus", LEVER_COLOR, "");
+        for (const mc of floor.merchants) drawShape(ctx, mc.position, tileSize, "circle", MERCHANT_COLOR, MERCHANT_GLYPH);
       }
 
       function itemGlyph(kind) {
@@ -1409,6 +1417,7 @@
         if (arrayKey === "lavaTiles") return "lava";
         if (arrayKey === "waterTiles") return "water";
         if (arrayKey === "levers") return "lever";
+        if (arrayKey === "merchants") return "merchant";
         return arrayKey;
       }
 
@@ -1674,6 +1683,7 @@
           PALETTE.hazardKinds.map((h) => placeBtn("hazard", h.id, h.name, HAZARD_COLOR[h.id], HAZARD_GLYPH[h.id])),
         );
         group("Mechanisms", [placeBtn("lever", "lever", "Lever", LEVER_COLOR, "")]);
+        group("NPCs", [placeBtn("merchant", "merchant", "Merchant", MERCHANT_COLOR, MERCHANT_GLYPH)]);
 
         // FR-024: distinct from `placeBtn` above — this sets a dedicated activeTool.kind
         // (handled in handleCanvasInteract) rather than the generic "place" dispatch, since a
@@ -1734,6 +1744,7 @@
         for (const h of PALETTE.hazardKinds) row(HAZARD_COLOR[h.id], HAZARD_GLYPH[h.id], h.name, "square");
         row(LEVER_COLOR, "", "Lever", "square");
         row(CRACKED_WALL_COLOR, CRACKED_WALL_GLYPH, "Cracked wall", "square");
+        row(MERCHANT_COLOR, MERCHANT_GLYPH, "Merchant", "circle");
       }
 
       /** FR-022: populates a zone <select> once. `includeClear` labels the empty option
@@ -1984,6 +1995,9 @@
             position: tile,
             effect: { kind: "unlockDoor", doorId: floor.keyedDoors[0] ? floor.keyedDoors[0].id : "" },
           };
+        } else if (kind === "merchant") {
+          arrayKey = "merchants";
+          el = { id: freshElementId(floor, "merchant"), position: tile };
         }
         floor[arrayKey].push(el);
         selectedElement = { arrayKey, id: el.id };
@@ -2064,6 +2078,7 @@
             lavaTiles: "Lava tile",
             waterTiles: "Water tile",
             levers: "Lever",
+            merchants: "Merchant",
           }[arrayKey] || arrayKey
         );
       }

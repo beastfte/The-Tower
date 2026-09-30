@@ -7,11 +7,16 @@ export interface MenuOptionConfig {
   x: number;
   y: number;
   label: string;
-  /** Phaser keydown event key (e.g. "ENTER", "ESC"), matching `keydown-<KEY>` event names. */
-  key: string;
+  /** Phaser keydown event key (e.g. "ENTER", "ESC"), matching `keydown-<KEY>` event names.
+   * Optional — when omitted, no keyboard binding is registered at all (CLAUDE.md: don't add
+   * keyboard shortcuts to menus unless specifically asked). */
+  key?: string;
   color?: string;
   /** Font size in DESIGN_WIDTH-space units (defaults to 10, matching the prior canvas-based default). */
   fontSize?: number;
+  /** Renders greyed out and sets the native `button.disabled`, so the browser itself refuses
+   * click events rather than relying on a check inside `onActivate` (023 FR-010, contract C17). */
+  disabled?: boolean;
   onActivate: () => void;
 }
 
@@ -30,11 +35,14 @@ export function createMenuOption(scene: Phaser.Scene, config: MenuOptionConfig):
   button.style.transform = "translate(-50%, -50%)";
   button.style.color = config.color ?? "#e0c9a6";
   button.style.fontSize = px(config.fontSize ?? 10);
+  button.disabled = config.disabled ?? false;
 
   button.addEventListener("click", () => config.onActivate());
   getUiRoot().appendChild(button);
 
-  scene.input.keyboard!.once(`keydown-${config.key}`, () => config.onActivate());
+  if (config.key) {
+    scene.input.keyboard!.once(`keydown-${config.key}`, () => config.onActivate());
+  }
 
   scene.events.once("shutdown", () => button.remove());
 

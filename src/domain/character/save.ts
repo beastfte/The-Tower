@@ -21,6 +21,10 @@ export interface FloorProgress {
   crackedWallHitCounts: Record<string, number>;
 }
 
+/** 023: the three merchant-shop upgrades — a fixed, closed set (spec Assumptions: "always the
+ * same three"). */
+export type UpgradeId = "vicious" | "calm" | "robust";
+
 export interface PlayerCharacterState {
   baseStats: CombatStats;
   currentHp: number;
@@ -39,6 +43,14 @@ export interface PlayerCharacterState {
    * `baseStats.damage` and from any equipped weapon's `attackValue` — all three are additive
    * (see computeEffectiveStats) — this field is always additive regardless of weapon state. */
   bonusDamage: number;
+  /** 023 FR-006: how many times each merchant upgrade has been bought, shared across every
+   * merchant in the save (Clarifications 2026-09-29) — price is derived from this, never stored
+   * separately. Absent on any save persisted before this field existed; every read must treat a
+   * missing entry as 0 (no migration step, matching `checkpointCharacter`'s own precedent
+   * above). Lives on `PlayerCharacterState` specifically so it rides the existing
+   * checkpoint-restart-then-floor-completion permanence rule for free — see
+   * `applyUpgradePurchase`'s doc comment for why it must always be replaced, never mutated. */
+  purchaseCounts?: Partial<Record<UpgradeId, number>>;
 }
 
 /** The single object persisted to localStorage (FR-010/FR-010a). */
