@@ -10,6 +10,7 @@ extensions/*/local-config.yml
 
 # Cluade AI markdown files
 .claude/
+CLAUDE.md
 
 #SSD Specifity
 .specify/

@@ -7,6 +7,7 @@ import { findMerchantAt } from "../../domain/floor/merchantInteraction";
 import { applyUpgradePurchase, priceFor, UPGRADES } from "../../domain/character/shopUpgrades";
 import type { UpgradeId } from "../../domain/character/save";
 import { buildMerchantOptions, MERCHANT_GREETING } from "../npcDialogue";
+import { playMusic, pauseMusic, resumeMusic, GAME_MUSIC_KEY } from "../music";
 import { findAvailableItemAt, applyItemPickup } from "../../domain/floor/itemCollection";
 import {
   markItemCollected,
@@ -161,15 +162,9 @@ export class FloorScene extends Phaser.Scene {
     super("FloorScene");
   }
 
-  preload(): void {
-    // The lever is the sheet's one genuine orphan (FR-025) — its existing art is kept as-is
-    // rather than sourced from spriteData.ts, so it's the only texture still preloaded here.
-    for (const key of ["lever-off", "lever-on"]) {
-      if (!this.textures.exists(key)) this.load.svg(key, `/icons/${key}.svg`, { width: 64, height: 64 });
-    }
-  }
-
   create(): void {
+    playMusic(this.sound, GAME_MUSIC_KEY);
+
     this.ctx = this.registry.get("ctx") as GameContext;
     this.canMove = true;
     // 021: field initializers only run once per scene instance, but Phaser reuses this same
@@ -264,12 +259,16 @@ export class FloorScene extends Phaser.Scene {
       onResume: () => {
         this.scene.stop("PauseMenuScene");
         this.scene.resume();
+        resumeMusic();
       },
       onRestart: () => {
         ctx.save = resumeFromCheckpoint(ctx.save, ctx.currentFloor);
         ctx.persist();
         this.scene.stop("PauseMenuScene");
         this.scene.resume();
+        // resumeMusic must run before scene.restart — create's playMusic call treats a paused
+        // track as a switch and restarts it from the beginning otherwise (contract C5).
+        resumeMusic();
         this.scene.restart();
       },
       onReturnToMenu: () => {
@@ -290,6 +289,7 @@ export class FloorScene extends Phaser.Scene {
     this.heldDirection = null;
     this.scene.launch("PauseMenuScene", data);
     this.scene.pause();
+    pauseMusic();
   }
 
   /** Cardinal-only input (FR-016): arrow keys or WASD, one tile per keypress. */

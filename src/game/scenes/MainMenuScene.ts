@@ -4,6 +4,7 @@ import { createInitialPlayerSave } from "../../domain/character/initialState";
 import { createMenuOption } from "../ui/MenuOption";
 import { createUiText, getUiRoot } from "../ui/domOverlay";
 import { DESIGN_WIDTH, DESIGN_HEIGHT } from "../gameConfig";
+import { playMusic, MENU_MUSIC_KEY } from "../music";
 
 /** New game / continue entry point (used at app start and after "return to main menu"). */
 export class MainMenuScene extends Phaser.Scene {
@@ -12,6 +13,8 @@ export class MainMenuScene extends Phaser.Scene {
   }
 
   create(): void {
+    playMusic(this.sound, MENU_MUSIC_KEY);
+
     const ctx = this.registry.get("ctx") as GameContext;
 
     const title = createUiText("The Tower", {
@@ -50,6 +53,13 @@ export class MainMenuScene extends Phaser.Scene {
         ctx.persist();
         this.scene.start("FloorScene");
       },
+    });
+
+    createMenuOption(this, {
+      x: DESIGN_WIDTH / 2,
+      y: DESIGN_HEIGHT / 2 + 48,
+      label: "[ Options ]",
+      onActivate: () => this.scene.start("OptionsMenuScene"),
     });
   }
 }

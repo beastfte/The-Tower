@@ -24,6 +24,7 @@ export default [
         WheelEvent: "readonly",
         HTMLDivElement: "readonly",
         HTMLButtonElement: "readonly",
+        HTMLInputElement: "readonly",
         CanvasRenderingContext2D: "readonly",
         structuredClone: "readonly",
         console: "readonly",

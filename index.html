@@ -67,12 +67,42 @@
         color: #5a5a5a;
         cursor: default;
       }
+      .ui-volume-slider {
+        position: absolute;
+        pointer-events: auto;
+      }
+      /* 025 FR-010/FR-012: visible from first paint (before Phaser or any scene exists), removed by
+         BootScene.create() once every asset has finished loading — covers both the bundle's own
+         fetch/parse and the subsequent asset preload with one element. */
+      #loading-overlay {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: #0a0a0c;
+        z-index: 2;
+      }
+      #loading-overlay .spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid #3a3a3e;
+        border-top-color: #e0c9a6;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
     </style>
   </head>
   <body>
     <div id="game-root">
       <div id="ui-root"></div>
     </div>
+    <div id="loading-overlay"><div class="spinner"></div></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

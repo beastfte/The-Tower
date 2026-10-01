@@ -6,7 +6,9 @@ import { LocalStoragePersistenceService } from "./persistence/localStorageAdapte
 import { createInitialPlayerSave } from "./domain/character/initialState";
 import { ensureCheckpointCharacter } from "./domain/character/save";
 import { TOWER } from "./data/floors";
+import { BootScene } from "./game/scenes/BootScene";
 import { MainMenuScene } from "./game/scenes/MainMenuScene";
+import { OptionsMenuScene } from "./game/scenes/OptionsMenuScene";
 import { FloorScene } from "./game/scenes/FloorScene";
 import { CombatOverlay } from "./game/scenes/CombatOverlay";
 import { DeathScreenScene } from "./game/scenes/DeathScreenScene";
@@ -27,7 +29,9 @@ const ctx = new GameContext(TOWER, persistence, save);
 
 const game = new Phaser.Game(
   createGameConfig("game-root", [
+    BootScene,
     MainMenuScene,
+    OptionsMenuScene,
     FloorScene,
     CombatOverlay,
     SidePanelScene,
@@ -42,17 +46,9 @@ const game = new Phaser.Game(
 syncUiRootToCanvas(game);
 
 // FR-010: on app start, resume exactly where the player left off — including reopening
-// the death screen if they quit while it was showing.
+// the death screen if they quit while it was showing. BootScene (the first registered scene)
+// reads ctx.save.isDead itself and routes accordingly once loading completes.
 game.registry.set("ctx", ctx);
-game.events.once("ready", () => {
-  if (existingSave?.isDead) {
-    // MainMenuScene auto-starts as the game's first configured scene; game.scene.start()
-    // called globally (not from within a scene) doesn't stop it, so it must be stopped
-    // explicitly or it keeps rendering underneath DeathScreenScene.
-    game.scene.stop("MainMenuScene");
-    game.scene.start("DeathScreenScene");
-  }
-});
 
 // Read-only test hook (002 T038): lets e2e specs assert active scene / GameContext state
 // on this canvas-only app without scraping pixels. Not used by any gameplay code path.
