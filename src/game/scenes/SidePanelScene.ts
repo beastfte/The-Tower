@@ -11,6 +11,7 @@ import {
 import type { ArmorSlotId } from "../../domain/character/types";
 import { SIDE_PANEL_AREA, DESIGN_SIDE_PANEL_AREA } from "../gameConfig";
 import { getUiRoot, px } from "../ui/domOverlay";
+import { attachMenuSounds } from "../sfx";
 import type { FloorScene } from "./FloorScene";
 import { COLORS, LOOT_TEXTURE_KEYS, KEY_TEXTURE_KEYS } from "./FloorScene";
 import { spriteDataUrl } from "../render/spriteTextures";
@@ -98,6 +99,7 @@ export class SidePanelScene extends Phaser.Scene {
       }
       (this.scene.get("FloorScene") as FloorScene).openPauseMenu();
     });
+    attachMenuSounds(this, pauseButton);
     getUiRoot().appendChild(pauseButton);
     this.events.once("shutdown", () => pauseButton.remove());
 

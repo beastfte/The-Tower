@@ -5,7 +5,8 @@ import { createUiText, getUiRoot } from "../ui/domOverlay";
 import { PLAY_AREA, DESIGN_PLAY_AREA } from "../gameConfig";
 import { scalePx } from "../scaleConfig";
 import { getMusicVolume, setMusicVolume } from "../music";
-import { saveMusicVolume } from "../../persistence/settings";
+import { getSfxVolume, setSfxVolume } from "../sfx";
+import { saveMusicVolume, saveSfxVolume } from "../../persistence/settings";
 
 export interface PauseMenuData {
   onResume: () => void;
@@ -94,6 +95,25 @@ export class PauseMenuScene extends Phaser.Scene {
       onChange: (value) => {
         setMusicVolume(value);
         saveMusicVolume(value);
+      },
+    });
+
+    const sfxVolumeLabel = createUiText("Sound volume", {
+      x: dcx,
+      y: dcy + 72,
+      fontSize: 7,
+      color: "#e0c9a6",
+    });
+    getUiRoot().appendChild(sfxVolumeLabel);
+    this.events.once("shutdown", () => sfxVolumeLabel.remove());
+
+    createVolumeSlider(this, {
+      x: dcx,
+      y: dcy + 84,
+      value: getSfxVolume(),
+      onChange: (value) => {
+        setSfxVolume(value);
+        saveSfxVolume(value);
       },
     });
   }

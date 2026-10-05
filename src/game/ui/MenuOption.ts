@@ -1,5 +1,6 @@
 import type Phaser from "phaser";
 import { getUiRoot, px } from "./domOverlay";
+import { attachMenuSounds } from "../sfx";
 
 export interface MenuOptionConfig {
   /** DESIGN_WIDTH/DESIGN_HEIGHT-space coordinates (see gameConfig.ts) — the same numbers
@@ -38,6 +39,7 @@ export function createMenuOption(scene: Phaser.Scene, config: MenuOptionConfig):
   button.disabled = config.disabled ?? false;
 
   button.addEventListener("click", () => config.onActivate());
+  attachMenuSounds(scene, button);
   getUiRoot().appendChild(button);
 
   if (config.key) {

@@ -8,6 +8,7 @@ import { applyUpgradePurchase, priceFor, UPGRADES } from "../../domain/character
 import type { UpgradeId } from "../../domain/character/save";
 import { buildMerchantOptions, MERCHANT_GREETING } from "../npcDialogue";
 import { playMusic, pauseMusic, resumeMusic, GAME_MUSIC_KEY } from "../music";
+import { playSfx, itemKindToSfxKey, sfxDoor, sfxError } from "../sfx";
 import { findAvailableItemAt, applyItemPickup } from "../../domain/floor/itemCollection";
 import {
   markItemCollected,
@@ -410,6 +411,7 @@ export class FloorScene extends Phaser.Scene {
       )
     ) {
       this.setMessage(`Locked (needs ${door.doorType} key)`);
+      playSfx(this.sound, sfxError);
       return;
     }
 
@@ -435,7 +437,11 @@ export class FloorScene extends Phaser.Scene {
     // 010 US1 (FR-001): a first-time visit through a matching-type key was already confirmed
     // passable by the door gate above; applyDoorOpen is idempotent, mirroring applyLeverToggle.
     if (door) {
+      const beforeDoorOpen = ctx.save.currentFloorState;
       const update = applyDoorOpen(ctx.save.currentFloorState, ctx.save.character, door);
+      if (update.floorProgress !== beforeDoorOpen) {
+        playSfx(this.sound, sfxDoor);
+      }
       ctx.save.currentFloorState = update.floorProgress;
       ctx.save.character = update.character;
     }
@@ -448,6 +454,8 @@ export class FloorScene extends Phaser.Scene {
     if (item) {
       ctx.save.character = applyItemPickup(ctx.save.character, item);
       ctx.save.currentFloorState = markItemCollected(ctx.save.currentFloorState, item.id);
+      const pickupSfxKey = itemKindToSfxKey(item.kind);
+      if (pickupSfxKey) playSfx(this.sound, pickupSfxKey);
       // 022 US1: every pickup kind is announced only in the event log — no blocking banner,
       // so every branch logs directly instead of deferring to a pickup-modal queue. A catalog
       // miss (018 FR-022 save compatibility) skips the log entry rather than logging a blank
