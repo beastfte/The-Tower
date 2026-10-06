@@ -3,7 +3,6 @@ import { GameContext } from "../../src/game/GameContext";
 import { InMemoryPersistenceService } from "../../src/persistence/PersistenceService";
 import { createInitialPlayerSave } from "../../src/domain/character/initialState";
 import { createTower } from "../../src/domain/floor/tower";
-import { simulateEncounter } from "../../src/domain/combat/simulateEncounter";
 import type { FloorDefinition } from "../../src/domain/floor/types";
 
 // Tests must not depend on the live tower's authored content (src/data/floors) — it's
@@ -36,17 +35,12 @@ describe("GameContext event log (002 FR-015, FR-017)", () => {
     expect(ctx.eventLog).toEqual([]);
   });
 
-  it("records a combat encounter and a pickup, in chronological order", () => {
+  it("records a battle and a pickup, in chronological order", () => {
     const floor = TOWER.floors[0]!;
     const save = createInitialPlayerSave(floor.id, floor.entrance);
     const ctx = new GameContext(TOWER, new InMemoryPersistenceService(), save);
 
-    const enemy = floor.enemies.find((e) => e.id === FIXTURE_ENEMY.id)!;
-    const encounter = simulateEncounter(
-      { damage: 10, defence: 2, hp: 30 },
-      enemy.stats,
-    );
-    ctx.logCombatEncounter("Goblin", encounter);
+    ctx.logBattle({ outcome: "victory", enemyName: "Goblin" });
     ctx.logPickup("key", "bronze key");
 
     expect(ctx.eventLog).toHaveLength(2);
@@ -62,8 +56,7 @@ describe("GameContext event log (002 FR-015, FR-017)", () => {
     const persistence = new InMemoryPersistenceService();
     const ctx = new GameContext(TOWER, persistence, save);
 
-    const enemy = floor.enemies.find((e) => e.id === FIXTURE_ENEMY.id)!;
-    ctx.logCombatEncounter("Goblin", simulateEncounter({ damage: 10, defence: 2, hp: 30 }, enemy.stats));
+    ctx.logBattle({ outcome: "victory", enemyName: "Goblin" });
     ctx.logPickup("currency", "20 gold");
     ctx.persist();
 
@@ -76,7 +69,7 @@ describe("GameContext event log (002 FR-015, FR-017)", () => {
   });
 
   it("adds no entry to the log for a plain loot pickup, since no such call is ever made", () => {
-    // GameContext exposes only logCombatEncounter/logPickup("key"|"potion"|"currency", ...) —
+    // GameContext exposes only logBattle/logPickup/logPurchase("key"|"potion"|"currency", ...) —
     // there is no method to log loot, so a caller cannot produce a log entry for it (FR-015).
     const floor = TOWER.floors[0]!;
     const save = createInitialPlayerSave(floor.id, floor.entrance);

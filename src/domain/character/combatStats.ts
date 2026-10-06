@@ -2,6 +2,14 @@ import type { CombatStats } from "../types";
 import type { PlayerCharacterState } from "./save";
 import type { ArmorPieceDefinition, ArmorSlotId, WeaponDefinition, WeaponId } from "./types";
 import { armorPieceKey } from "../../data/armorPieces";
+import { PLAYER_BASE_COMBAT } from "./initialState";
+
+/** 027 (research R7): today's damage/defence/hp plus the live-battle stats. */
+export interface EffectiveStats extends CombatStats {
+  attackIntervalSec: number;
+  critChance: number;
+  critDamageBonus: number;
+}
 
 /**
  * Computes the player's effective combat stats: an equipped weapon's `attackValue` adds
@@ -14,24 +22,40 @@ import { armorPieceKey } from "../../data/armorPieces";
  * weapon's own contribution (only one `equippedWeaponId` slot exists), it just doesn't
  * replace the base. `hp` reflects the character's current HP (a real, persistent resource,
  * research.md #6), not max HP.
+ *
+ * 027 FR-033 (research R7): attack interval and crit are `PLAYER_BASE_COMBAT` plus whatever the
+ * equipped weapon and armour declare. Speed bonuses are percentages of attack speed, so the
+ * interval is divided by (1 + their sum): +25% turns 1s into 0.8s (SC-011).
  */
 export function computeEffectiveStats(
   character: PlayerCharacterState,
   weaponCatalog: ReadonlyMap<WeaponId, WeaponDefinition>,
   armorCatalog: ReadonlyMap<string, ArmorPieceDefinition>,
-): CombatStats {
+): EffectiveStats {
   const weapon = character.equippedWeaponId ? weaponCatalog.get(character.equippedWeaponId) : undefined;
 
-  const armorDefence = Object.entries(character.equippedArmor).reduce((sum, [slot, material]) => {
-    if (!material) return sum;
+  const armorPieces = Object.entries(character.equippedArmor).flatMap(([slot, material]) => {
+    if (!material) return [];
     const piece = armorCatalog.get(armorPieceKey(material, slot as ArmorSlotId));
-    return sum + (piece?.defenceBonus ?? 0);
-  }, 0);
+    return piece ? [piece] : [];
+  });
+  const armorDefence = armorPieces.reduce((sum, piece) => sum + piece.defenceBonus, 0);
 
   const damage = character.baseStats.damage + (weapon?.attackValue ?? 0) + character.bonusDamage;
   const defence = character.baseStats.defence + armorDefence;
 
-  return { damage, defence, hp: character.currentHp };
+  const sources = weapon ? [weapon, ...armorPieces] : armorPieces;
+  const sum = (pick: (s: (typeof sources)[number]) => number | undefined): number =>
+    sources.reduce((total, s) => total + (pick(s) ?? 0), 0);
+
+  return {
+    damage,
+    defence,
+    hp: character.currentHp,
+    attackIntervalSec: PLAYER_BASE_COMBAT.attackIntervalSec / (1 + sum((s) => s.attackSpeedBonus)),
+    critChance: PLAYER_BASE_COMBAT.critChance + sum((s) => s.critChanceBonus),
+    critDamageBonus: PLAYER_BASE_COMBAT.critDamageBonus + sum((s) => s.critDamageBonus),
+  };
 }
 
 /** Computes the character's current max HP — the single funnel every HP-ceiling check

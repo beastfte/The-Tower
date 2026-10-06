@@ -7,6 +7,7 @@ import {
   readSave,
   pressAndWait,
   dismissCombat,
+  startFight,
 } from "./helpers";
 
 /** 003 US1 (FR-001-FR-004, FR-007-FR-009, SC-001, SC-002): opening/closing the pause menu,
@@ -86,18 +87,12 @@ test.describe("Pause menu — open and close", () => {
   }) => {
     await clearSave(page);
     await page.goto("/");
-    await waitForActiveScene(page, "MainMenuScene");
-    await page.keyboard.press("KeyN");
-    await waitForActiveScene(page, "FloorScene");
+    // 027: runtime placement instead of a hard-coded floor-01 route (which broke on redesign).
+    await startFight(page, { character: { baseStats: { damage: 100_000, defence: 100_000, hp: 30 }, currentHp: 30 } });
 
-    await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
-    await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
-    await page.keyboard.press("ArrowRight"); // engage the compulsory goblin at (3,7)
-    await waitForActiveScene(page, "CombatOverlay");
-
-    // 022 US2 (contract C8): Escape is now also a valid combat skip/close key — this press
-    // lands on CombatOverlay's own listener (reveals the still-in-progress log), not the pause
-    // menu. The assertions below are about the pause menu specifically having no effect here.
+    // 027 (contract C12): the combat modal binds no keys at all, and the paused FloorScene can't
+    // receive Escape, so this press does nothing. The side-panel pause button is ignored while
+    // CombatOverlay is active (contract C8: no pausing mid-fight).
     await page.keyboard.press("Escape");
     await page.locator('[data-testid="pause-button"]').click();
     await page.waitForTimeout(200);

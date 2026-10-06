@@ -1,7 +1,6 @@
 import { positionKey, type Position } from "../types";
 import type { PlayerCharacterState } from "../character/save";
 import { ARMOR_MATERIAL_ORDER, type KeyDefinition, type LootItem, type WeaponId } from "../character/types";
-import { healBy } from "../character/combatStats";
 import type { ArmorPickupPayload, ChestReward, ItemDefinition, FloorDefinition } from "./types";
 
 /** Returns the not-yet-collected item at a position, if any. */
@@ -22,7 +21,8 @@ export function findAvailableItemAt(
  * - armor (011 FR-001/FR-004): equips the pickup's slot with its material only if strictly
  *   higher-tier than whatever's already equipped there — independent per slot, override not
  *   additive
- * - potion (019 FR-007): heals 10 HP, capped at maximum, via healBy
+ * - potion (027 FR-045): carried, not drunk — adds 1 to potionCount; HP is unchanged. Drinking
+ *   happens only in battle (domain/combat/battle.ts drinkPotion). Superseded 019 FR-007's heal.
  * - potionAttack / potionDefense (019 FR-005/FR-006): permanently adds 2 / 1 to bonusDamage /
  *   baseStats.defence — cumulative across repeated pickups, no cap
  * - chest (005 FR-005): applies the exact same effect as its revealed reward, by reusing
@@ -64,7 +64,7 @@ export function applyItemPickup(character: PlayerCharacterState, item: ItemDefin
       };
     }
     case "potion": {
-      return healBy(character, 10);
+      return addPotion(character);
     }
     case "potionAttack": {
       return { ...character, bonusDamage: character.bonusDamage + 2 };
@@ -81,8 +81,13 @@ export function applyItemPickup(character: PlayerCharacterState, item: ItemDefin
         case "currency":
           return { ...character, currency: character.currency + reward.amount };
         case "potion":
-          return healBy(character, 10);
+          return addPotion(character);
       }
     }
   }
+}
+
+/** 027 FR-045: a health potion goes into the carried count (no cap, FR-046). */
+function addPotion(character: PlayerCharacterState): PlayerCharacterState {
+  return { ...character, potionCount: (character.potionCount ?? 0) + 1 };
 }

@@ -8,6 +8,14 @@ const BASE_PLAYER_STATS = {
   hp: 30,
 };
 
+/** 027 FR-032/FR-017 (research R7): the player's base attack speed and crit. Deliberately not
+ * saved — changing this in a later patch applies to every save at once (FR-034). */
+export const PLAYER_BASE_COMBAT = {
+  attackIntervalSec: 1,
+  critChance: 0.05,
+  critDamageBonus: 0,
+} as const;
+
 /** Builds a fresh PlayerSave for a brand-new game (no prior save found). */
 export function createInitialPlayerSave(firstFloorId: string, entrance: Position): PlayerSave {
   const character = {

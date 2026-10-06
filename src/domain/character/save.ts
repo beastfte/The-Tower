@@ -51,6 +51,10 @@ export interface PlayerCharacterState {
    * checkpoint-restart-then-floor-completion permanence rule for free — see
    * `applyUpgradePurchase`'s doc comment for why it must always be replaced, never mutated. */
   purchaseCounts?: Partial<Record<UpgradeId, number>>;
+  /** 027 FR-045/FR-046: health potions carried, drunk only in battle. Absent on any save from
+   * before 027 — read as 0, no migration (same precedent as `purchaseCounts`). Lives on the
+   * character so the checkpoint snapshot restores it for free. */
+  potionCount?: number;
 }
 
 /** The single object persisted to localStorage (FR-010/FR-010a). */
@@ -70,6 +74,10 @@ export interface PlayerSave {
   checkpointCharacter?: PlayerCharacterState;
   hasWon: boolean;
   isDead: boolean;
+  /** 027 FR-028/FR-029: the display name of the monster that killed the player, shown on the
+   * death screen. Saved (not passed as scene data) because the death screen is also reached by
+   * relaunching the game while dead. Absent for trap deaths and when alive. */
+  deathCause?: string;
 }
 
 export function emptyFloorProgress(floorId: string, playerPosition: Position): FloorProgress {

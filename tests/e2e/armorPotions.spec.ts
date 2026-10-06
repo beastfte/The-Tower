@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { clearSave, waitForActiveScene, pressAndWait, getCtxSave, dismissCombat } from "./helpers";
+import { clearSave, collectHealthPotion, waitForActiveScene, pressAndWait, getCtxSave, dismissCombat, startFight } from "./helpers";
 
 /** 011 US1: collecting a per-slot armor pickup on floor-01 raises defence by that slot's exact
  * value and shows up in the side panel's matching slot row. */
@@ -118,4 +118,49 @@ test("attack and defense potions permanently raise stats and persist across relo
   const afterResume = await getCtxSave(page);
   expect(afterResume.character.bonusDamage).toBe(2);
   expect(afterResume.character.baseStats.defence).toBe(3);
+});
+
+/** 027 US6 (contracts C16–C18): health potions are carried, not drunk on pickup. Uses runtime
+ * placement (`collectHealthPotion`/`startFight`) rather than hard-coded tower coordinates. */
+test("a collected health potion leaves HP unchanged and raises the carried count (C16, C18)", async ({ page }) => {
+  await clearSave(page);
+  await page.goto("/");
+  const found = await collectHealthPotion(page, { character: { currentHp: 10 } });
+  expect(found).toBe(true);
+
+  const save = await getCtxSave(page);
+  expect(save.character.currentHp).toBe(10); // not healed on pickup
+  expect(save.character.potionCount).toBe(1);
+  await expect(page.locator('[data-testid="side-panel-rows"] [title^="1 health potion:"]')).toBeVisible();
+});
+
+test("drinking a potion mid-battle heals 25% of max HP and uses one (US6, C17)", async ({ page }) => {
+  await clearSave(page);
+  await page.goto("/");
+  // Max HP 40, at 20: one potion heals ceil(40 × 25%) = 10. Unhurtable and harmless, so HP only
+  // moves because of the potion.
+  await startFight(page, {
+    character: { baseStats: { damage: 1, defence: 100_000, hp: 40 }, currentHp: 20, bonusDamage: 0, potionCount: 2 },
+  });
+  const potion = page.locator('[data-testid="combat-potion"]');
+  const playerHp = page.locator('[data-testid="combat-player-hp-value"]');
+  await expect(potion).toHaveText("Potion ×2");
+  await expect(potion).toBeEnabled();
+  await expect(playerHp).toHaveText("20");
+
+  await potion.click();
+  await expect(playerHp).toHaveText("30");
+  await expect(potion).toHaveText("Potion ×1");
+  await expect(page.locator('[data-testid="combat-pop"]').filter({ hasText: "+10" })).toBeAttached();
+
+  await potion.click(); // 30 → 40, capped
+  await expect(playerHp).toHaveText("40");
+  await expect(potion).toHaveText("Potion ×0");
+  await expect(potion).toBeDisabled(); // no potions left (and at full HP)
+
+  await page.locator('[data-testid="combat-flee"]').click();
+  await waitForActiveScene(page, "FloorScene");
+  const after = await getCtxSave(page);
+  expect(after.character.potionCount).toBe(0); // drunk potions are not refunded by fleeing
+  expect(after.character.currentHp).toBe(40);
 });

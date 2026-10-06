@@ -1,7 +1,9 @@
 import type { MonsterSpecies, MonsterSpeciesId } from "../domain/floor/types";
 
 /** Static reference data (research.md #4): identity/appearance/typical profile per species.
- * Per-instance `stats` on each EnemyDefinition placement stays hand-authored independently. */
+ * Per-instance `stats` on each EnemyDefinition placement stays hand-authored independently.
+ * 027 (research R6): attackIntervalSec is per species; a placement's battle attack is its authored
+ * stats.damage × attackIntervalSec, so its damage per second is unchanged by the revamp. */
 export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
   goblin: {
     id: "goblin",
@@ -9,6 +11,9 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     baselineStats: { damage: 4, defence: 1, hp: 12 },
     textureKey: "goblin",
     spriteScale: 0.8,
+    attackIntervalSec: 0.8,
+    critChance: 0.05,
+    critDamageBonus: 0,
   },
   ogre: {
     id: "ogre",
@@ -16,6 +21,9 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     baselineStats: { damage: 6, defence: 4, hp: 30 },
     textureKey: "ogre",
     spriteScale: 0.9,
+    attackIntervalSec: 1.6,
+    critChance: 0.05,
+    critDamageBonus: 0,
   },
   wizard: {
     id: "wizard",
@@ -23,6 +31,9 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     baselineStats: { damage: 8, defence: 0, hp: 10 },
     textureKey: "wizard",
     spriteScale: 0.8,
+    attackIntervalSec: 1.2,
+    critChance: 0.05,
+    critDamageBonus: 0,
   },
   // 020: six additional species. baselineStats below are explicit placeholders (spec FR-004),
   // not balance-tested — refining them is expected to happen later via the tower design tool.
@@ -32,6 +43,9 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     baselineStats: { damage: 3, defence: 0, hp: 6 },
     textureKey: "bat",
     spriteScale: 0.55,
+    attackIntervalSec: 0.6,
+    critChance: 0.05,
+    critDamageBonus: 0,
   },
   slime: {
     id: "slime",
@@ -39,6 +53,9 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     baselineStats: { damage: 2, defence: 2, hp: 14 },
     textureKey: "slime",
     spriteScale: 0.6,
+    attackIntervalSec: 1.2,
+    critChance: 0.05,
+    critDamageBonus: 0,
   },
   skeleton: {
     id: "skeleton",
@@ -46,6 +63,9 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     baselineStats: { damage: 5, defence: 2, hp: 16 },
     textureKey: "skeleton",
     spriteScale: 0.8,
+    attackIntervalSec: 1,
+    critChance: 0.05,
+    critDamageBonus: 0,
   },
   necromancer: {
     id: "necromancer",
@@ -53,6 +73,9 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     baselineStats: { damage: 7, defence: 1, hp: 12 },
     textureKey: "necromancer",
     spriteScale: 0.8,
+    attackIntervalSec: 1.4,
+    critChance: 0.05,
+    critDamageBonus: 0,
   },
   bandit: {
     id: "bandit",
@@ -60,6 +83,9 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     baselineStats: { damage: 6, defence: 2, hp: 14 },
     textureKey: "bandit",
     spriteScale: 0.8,
+    attackIntervalSec: 0.8,
+    critChance: 0.05,
+    critDamageBonus: 0,
   },
   voidwalker: {
     id: "voidwalker",
@@ -67,5 +93,8 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     baselineStats: { damage: 9, defence: 3, hp: 20 },
     textureKey: "voidwalker",
     spriteScale: 0.8,
+    attackIntervalSec: 1,
+    critChance: 0.05,
+    critDamageBonus: 0,
   },
 };

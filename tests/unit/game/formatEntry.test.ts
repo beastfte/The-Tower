@@ -1,60 +1,33 @@
 import { describe, expect, it } from "vitest";
-import { formatCombatEntry, formatPickupEntry } from "../../../src/game/eventLog/formatEntry";
-import type { EncounterResult } from "../../../src/domain/combat/simulateEncounter";
+import { formatBattleEntry, formatPickupEntry } from "../../../src/game/eventLog/formatEntry";
 
-describe("formatCombatEntry", () => {
-  it("describes a player win, including the turn count", () => {
-    const result: EncounterResult = {
-      winner: "player",
-      turns: [
-        { attacker: "player", damageDealt: 5, defenderHpAfter: 5 },
-        { attacker: "enemy", damageDealt: 2, defenderHpAfter: 28 },
-        { attacker: "player", damageDealt: 5, defenderHpAfter: 0 },
-      ],
-    };
-    const entry = formatCombatEntry("Goblin", result);
+/** 027 FR-024 / contract C19: one line per battle. */
+describe("formatBattleEntry", () => {
+  it("folds every drop into a victory line", () => {
+    const entry = formatBattleEntry({ outcome: "victory", enemyName: "Goblin", loot: ["12 gold", "a Bronze key"] });
     expect(entry.kind).toBe("combat");
-    expect(entry.message).toContain("Defeated Goblin");
-    expect(entry.message).toContain("3 turn(s)");
+    expect(entry.message).toBe("You won against Goblin, looted 12 gold and a Bronze key.");
   });
 
-  it("describes an enemy win", () => {
-    const result: EncounterResult = {
-      winner: "enemy",
-      turns: [{ attacker: "enemy", damageDealt: 10, defenderHpAfter: 0 }],
-    };
-    const entry = formatCombatEntry("Wizard", result);
-    expect(entry.kind).toBe("combat");
-    expect(entry.message).toContain("Lost the encounter with Wizard");
+  it("lists three or more drops with commas", () => {
+    const entry = formatBattleEntry({ outcome: "victory", enemyName: "Ogre", loot: ["30 gold", "a Silver key", "Gem"] });
+    expect(entry.message).toBe("You won against Ogre, looted 30 gold, a Silver key and Gem.");
   });
 
-  // bug fix: currency-not-logged — a defeated enemy's currency drop is folded into this same
-  // entry rather than getting its own standalone pickup entry.
-  it("folds a currency drop into the win message", () => {
-    const result: EncounterResult = {
-      winner: "player",
-      turns: [{ attacker: "player", damageDealt: 20, defenderHpAfter: 0 }],
-    };
-    const entry = formatCombatEntry("Ogre", result, 100);
-    expect(entry.message).toBe("Defeated Ogre (1 turn(s)). Found 100 gold.");
+  it("omits the loot clause when nothing dropped", () => {
+    expect(formatBattleEntry({ outcome: "victory", enemyName: "Slime" }).message).toBe("You won against Slime.");
   });
 
-  it("does not mention gold when the enemy had no currency drop", () => {
-    const result: EncounterResult = {
-      winner: "player",
-      turns: [{ attacker: "player", damageDealt: 20, defenderHpAfter: 0 }],
-    };
-    const entry = formatCombatEntry("Goblin", result);
-    expect(entry.message).toBe("Defeated Goblin (1 turn(s)).");
+  it("describes fleeing", () => {
+    expect(formatBattleEntry({ outcome: "fled", enemyName: "Ogre" }).message).toBe(
+      "You engaged Ogre, it was too powerful and you fled.",
+    );
   });
 
-  it("does not mention gold on a loss, even if the enemy has a currency drop", () => {
-    const result: EncounterResult = {
-      winner: "enemy",
-      turns: [{ attacker: "enemy", damageDealt: 10, defenderHpAfter: 0 }],
-    };
-    const entry = formatCombatEntry("Wizard", result, 100);
-    expect(entry.message).toBe("Lost the encounter with Wizard.");
+  it("describes a death, ignoring any loot", () => {
+    expect(formatBattleEntry({ outcome: "defeat", enemyName: "Skeleton", loot: ["5 gold"] }).message).toBe(
+      "You were slain by Skeleton.",
+    );
   });
 });
 

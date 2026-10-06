@@ -21,6 +21,13 @@ export interface MonsterSpecies {
    * three tiers by 020 research R3) — "large" monsters read ~0.85-0.95, "medium" (human-scale)
    * ones ~0.75-0.85, and "small" ones ~0.5-0.65. */
   spriteScale: number;
+  /** 027 FR-031/FR-032: seconds between this species' attacks. A placement's authored
+   * `stats.damage` is damage per second; battle attack = damage × this (research R6). */
+  attackIntervalSec: number;
+  /** 027 FR-017: chance (0-1) each attack is a critical strike. */
+  critChance: number;
+  /** 027 FR-016: added to the 1.5 crit multiplier. */
+  critDamageBonus: number;
 }
 
 export interface DropTable {

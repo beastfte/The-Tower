@@ -127,6 +127,7 @@ export class SidePanelScene extends Phaser.Scene {
       character.equippedWeaponId,
       character.equippedArmor,
       character.bonusDamage,
+      character.potionCount ?? 0, // 027 FR-050: refresh on pickup / drink / checkpoint restore
     ]);
   }
 
@@ -274,6 +275,13 @@ export class SidePanelScene extends Phaser.Scene {
       { src: spriteDataUrl("coin") },
       `${character.currency} gold: Currency collected so far this playthrough.`,
       { count: character.currency, alwaysShow: true },
+    );
+    // 027 FR-050 (contract C18): carried health potions, so the player knows before engaging.
+    const potions = character.potionCount ?? 0;
+    this.addIconRow(
+      { src: spriteDataUrl("potion") },
+      `${potions} health potion${potions === 1 ? "" : "s"}: Carried; drink one in battle to heal 25% of max HP.`,
+      { count: potions, alwaysShow: true },
     );
 
     this.addRow("Items:", "Loot collected on floors.", "#8ecae6");

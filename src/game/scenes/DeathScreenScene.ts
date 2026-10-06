@@ -24,6 +24,21 @@ export class DeathScreenScene extends Phaser.Scene {
     getUiRoot().appendChild(title);
     this.events.once("shutdown", () => title.remove());
 
+    // 027 FR-028 (contract C15): name the killer after a combat death. Read from the save, not
+    // scene data, so it survives relaunching the game while dead (FR-029). Trap deaths: no line.
+    const cause = (this.registry.get("ctx") as GameContext).save.deathCause;
+    if (cause) {
+      const line = createUiText(`Slain by ${cause}`, {
+        x: DESIGN_WIDTH / 2,
+        y: DESIGN_HEIGHT / 3 + 22,
+        fontSize: 10,
+        color: "#e0c9a6",
+      });
+      line.dataset.testid = "death-cause";
+      getUiRoot().appendChild(line);
+      this.events.once("shutdown", () => line.remove());
+    }
+
     createMenuOption(this, {
       x: DESIGN_WIDTH / 2,
       y: DESIGN_HEIGHT / 2,

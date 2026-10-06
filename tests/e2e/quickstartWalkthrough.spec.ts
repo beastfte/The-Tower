@@ -1,16 +1,14 @@
 import { test, expect } from "@playwright/test";
 import { TOWER } from "../../src/data/floors";
-import { createInitialPlayerSave } from "../../src/domain/character/initialState";
-import type { PlayerSave } from "../../src/domain/character/save";
 import {
   clearSave,
-  seedSave,
   waitForActiveScene,
   isSceneActive,
   getCtxSave,
   readSave,
   pressAndWait,
   dismissCombat,
+  startFight,
 } from "./helpers";
 
 const firstFloor = TOWER.floors[0]!;
@@ -48,36 +46,19 @@ test("scenario 10: movement is cardinal-only, one tile per keypress (FR-016)", a
   expect(save.currentFloorState.playerPosition).toEqual({ x: 1, y: 7 });
 });
 
-test("scenario 4: an under-leveled attempt is blocked (FR-004b)", async ({ page }) => {
-  // 006: this scenario previously continued into "scenario 5" (a collected powerup raising
-  // damage enough to unlock the same engagement) — the powerup mechanic was removed entirely
-  // per that feature's spec, so this test now only covers the still-true blocking half.
-  // Deliberately weak stats: this character loses to floor01-goblin (dmg4/def1/hp12) as-is.
-  const weakSave: PlayerSave = {
-    ...createInitialPlayerSave(firstFloor.id, firstFloor.entrance),
-    character: {
-      ...createInitialPlayerSave(firstFloor.id, firstFloor.entrance).character,
-      baseStats: { damage: 3, defence: 0, hp: 15 },
-      currentHp: 15,
-    },
-  };
-  await seedSave(page, weakSave);
+test("scenario 4: an under-leveled attempt now starts a fight instead of being blocked (027 FR-001)", async ({
+  page,
+}) => {
+  // 027 replaced FR-004b's pre-combat refusal: any monster can be fought, even a losing fight.
+  // Uses runtime placement (startFight) rather than this file's hard-coded floor-01 route.
+  await clearSave(page);
   await page.goto("/");
-  await waitForActiveScene(page, "MainMenuScene");
-  await page.keyboard.press("Enter"); // Continue with the seeded weak save
-  await waitForActiveScene(page, "FloorScene");
-
-  await pressAndWait(page, "ArrowRight"); // (0,7) -> (1,7)
-  await pressAndWait(page, "ArrowRight"); // (1,7) -> (2,7)
-
-  // Engaging the goblin now would lose the simulated encounter — blocked before it
-  // starts, no combat animation, HP untouched.
-  await pressAndWait(page, "ArrowRight");
-  expect(await isSceneActive(page, "CombatOverlay")).toBe(false);
-  expect(await isSceneActive(page, "FloorScene")).toBe(true);
-  const save = await getCtxSave(page);
-  expect(save.character.currentHp).toBe(15);
-  expect(save.currentFloorState.playerPosition).toEqual({ x: 2, y: 7 }); // never moved
+  await startFight(page, {
+    character: { baseStats: { damage: 1, defence: 0, hp: 15 }, currentHp: 15, bonusDamage: 0 },
+    strongestEnemy: true,
+  });
+  expect(await isSceneActive(page, "CombatOverlay")).toBe(true);
+  await expect(page.getByText("Too weak to fight this enemy")).toHaveCount(0);
 });
 
 test("scenario 6: quit and resume mid-floor (FR-010)", async ({ page }) => {
@@ -240,10 +221,8 @@ test("scenario 11: organically defeating the end boss triggers the win state (FR
   }
   await page.keyboard.press("ArrowRight"); // engage the end boss
   await waitForActiveScene(page, "CombatOverlay");
-  // 022 US2: combat no longer closes itself. dismissCombat's own check looks for FloorScene,
-  // which this fight never resumes into (it wins the game instead) — press twice unconditionally.
-  await page.keyboard.press("Enter");
-  await page.keyboard.press("Enter");
+  // 027 (C14): Continue on the victory panel leads straight to the win screen.
+  await dismissCombat(page);
   await waitForActiveScene(page, "WinScreenScene", 10_000);
 
   save = await getCtxSave(page);

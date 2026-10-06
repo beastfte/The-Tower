@@ -21,7 +21,7 @@ import type { FloorDefinition } from "../floor/types";
 export function resumeFromCheckpoint(save: PlayerSave, floor: FloorDefinition): PlayerSave {
   const checkpointCharacter = save.checkpointCharacter ?? save.character;
   return {
-    ...save,
+    ...withoutDeathCause(save),
     isDead: false,
     currentFloorState: emptyFloorProgress(floor.id, floor.entrance),
     character: {
@@ -36,5 +36,13 @@ export function resumeFromCheckpoint(save: PlayerSave, floor: FloorDefinition): 
  * otherwise left exactly as it was at the moment of death.
  */
 export function returnToMainMenu(save: PlayerSave): PlayerSave {
-  return { ...save, isDead: false };
+  return { ...withoutDeathCause(save), isDead: false };
+}
+
+/** 027 FR-028: leaving the death screen either way clears the cause, so a later trap death
+ * never shows a stale "Slain by" line. */
+function withoutDeathCause(save: PlayerSave): PlayerSave {
+  const next = { ...save };
+  delete next.deathCause;
+  return next;
 }

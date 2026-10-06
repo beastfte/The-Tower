@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { InMemoryPersistenceService } from "../../src/persistence/PersistenceService";
 import { createInitialPlayerSave } from "../../src/domain/character/initialState";
-import { checkEngagementAllowed } from "../../src/domain/combat/blockingCheck";
-import { simulateEncounter } from "../../src/domain/combat/simulateEncounter";
+import { advanceBattle, monsterCombatant, startBattle, type BattleState } from "../../src/domain/combat/battle";
+import { GameContext } from "../../src/game/GameContext";
+import { applyBattleResult } from "../../src/game/battleResult";
+import { MONSTER_SPECIES } from "../../src/data/monsterSpecies";
 import { applyEnemyDefeat, updatePlayerPosition } from "../../src/domain/floor/floorState";
 import { applyItemPickup } from "../../src/domain/floor/itemCollection";
 import { computeEffectiveStats } from "../../src/domain/character/combatStats";
@@ -79,18 +81,33 @@ describe("gameplay integration", () => {
     expect(reloaded!.currentFloorState.playerPosition).toEqual({ x: 2, y: 2 });
   });
 
-  it("blocks an engagement the player would lose (FR-004b)", () => {
+  it("a full battle ending in victory applies drops, persists, and logs exactly one line (027 T026)", () => {
     const floor = TOWER.floors[0]!;
-    const save = createInitialPlayerSave(floor.id, floor.entrance);
+    const persistence = new InMemoryPersistenceService();
+    const ctx = new GameContext(TOWER, persistence, createInitialPlayerSave(floor.id, floor.entrance));
+    const enemy = {
+      ...floor.enemies.find((e) => e.id === "test-goblin")!,
+      drops: { currency: 12, key: { id: "k1", keyType: "bronze" } },
+    };
 
-    // Make the compulsory enemy artificially unbeatable to prove blocking works.
-    const unbeatable = { damage: 100, defence: 100, hp: 1000 };
-    const blocked = checkEngagementAllowed(save.character, weaponCatalog, armorCatalog, unbeatable);
-    expect(blocked.allowed).toBe(false);
+    const stats = computeEffectiveStats(ctx.save.character, weaponCatalog, armorCatalog);
+    let state: BattleState = startBattle(
+      { hp: ctx.save.character.currentHp, attack: stats.damage, defence: stats.defence, attackIntervalSec: 1, critChance: 0, critDamageBonus: 0 },
+      monsterCombatant(enemy.stats, MONSTER_SPECIES.goblin),
+      30,
+      0,
+    );
+    for (let i = 0; i < 1000 && state.outcome === "ongoing"; i++) state = advanceBattle(state, 0.05, () => 0.99).state;
+    expect(state.outcome).toBe("victory");
 
-    const testEnemy = floor.enemies.find((e) => e.id === "test-goblin")!;
-    const allowed = checkEngagementAllowed(save.character, weaponCatalog, armorCatalog, testEnemy.stats);
-    expect(allowed.allowed).toBe(true);
+    applyBattleResult(ctx, enemy, "Goblin", { outcome: "victory", playerHp: state.player.hp, potionCount: 0 });
+
+    expect(ctx.save.currentFloorState.defeatedEnemyIds).toContain(enemy.id);
+    expect(ctx.save.character.currency).toBe(12);
+    expect(ctx.save.character.keyIds).toContain("bronze");
+    expect(ctx.save.character.currentHp).toBe(state.player.hp);
+    expect(ctx.eventLog).toEqual([{ kind: "combat", message: "You won against Goblin, looted 12 gold and a Bronze key." }]);
+    expect(persistence.load()!.currentFloorState.defeatedEnemyIds).toContain(enemy.id);
   });
 
   it("permanently removes a defeated enemy and allows advancing (FR-009, FR-010a)", () => {
@@ -170,11 +187,34 @@ describe("gameplay integration", () => {
     );
   });
 
-  it("deterministic pre-check outcome matches the actual encounter outcome", () => {
-    const player = { damage: 10, defence: 2, hp: 30 };
-    const enemy = { damage: 4, defence: 1, hp: 12 };
-    const first = simulateEncounter(player, enemy);
-    const second = simulateEncounter(player, enemy);
-    expect(first).toEqual(second);
+});
+
+/** 027 US5 (SC-010, contract C6): varied monster speeds keep every placement's damage per second. */
+describe("monster attack speed preserves authored damage per second", () => {
+  it.each(Object.values(MONSTER_SPECIES))("$id: battle attack ÷ interval equals the authored damage", (species) => {
+    const authored = { damage: 6, defence: 2, hp: 20 };
+    const combatant = monsterCombatant(authored, species);
+    expect(combatant.attackIntervalSec).toBe(species.attackIntervalSec);
+    expect(combatant.attack / combatant.attackIntervalSec).toBeCloseTo(authored.damage, 10);
+  });
+
+  it("a monster scaled away from 1s deals its authored DPS to an undefended target, within rounding", () => {
+    const ogre = MONSTER_SPECIES.ogre; // 1.6s per hit
+    expect(ogre.attackIntervalSec).not.toBe(1);
+    let state: BattleState = startBattle(
+      { hp: 1e6, attack: 0, defence: 0, attackIntervalSec: 1e9, critChance: 0, critDamageBonus: 0 },
+      { ...monsterCombatant({ damage: 6, defence: 0, hp: 1e6 }, ogre), critChance: 0 },
+      1e6,
+      0,
+    );
+    let damage = 0;
+    for (let i = 0; i < 1600; i++) {
+      const step = advanceBattle(state, 0.1, () => 0.99);
+      state = step.state;
+      for (const e of step.events) if (e.kind === "hit" && e.target === "player") damage += e.damage;
+    }
+    const measured = damage / 160; // 160 simulated seconds = exactly 100 hits
+    expect(measured).toBeGreaterThanOrEqual(6);
+    expect(measured).toBeLessThan(6 + 1 / ogre.attackIntervalSec);
   });
 });

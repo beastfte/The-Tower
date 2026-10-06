@@ -13,7 +13,6 @@ import { findAvailableItemAt, applyItemPickup } from "../../domain/floor/itemCol
 import {
   markItemCollected,
   updatePlayerPosition,
-  applyEnemyDefeat,
   applyLeverToggle,
   applyDoorOpen,
   applyWallCollision,
@@ -27,14 +26,16 @@ import { findLeverAt, resolveLeverEffects } from "../../domain/hazard/lever";
 import { findCrackedWallAt, resolveBrokenWallPositions, resolveWallZone } from "../../domain/floor/wall";
 import { ensureWallTexture, ensureDoorTexture, type DoorTier } from "../render/wallSprites";
 import { hasDiedFromHazard, markDead } from "../../domain/hazard/death";
-import { checkEngagementAllowed } from "../../domain/combat/blockingCheck";
-import { isWinningDefeat, triggerWin } from "../../domain/progress/winState";
+import { monsterCombatant } from "../../domain/combat/battle";
+import { computeEffectiveStats, computeMaxHp } from "../../domain/character/combatStats";
+import { describeDrops } from "../eventLog/formatEntry";
+import { isWinningDefeat } from "../../domain/progress/winState";
 import { completeCurrentFloor, returnToPreviousFloor } from "../../domain/progress/towerProgress";
 import type { CombatOverlayData } from "./CombatOverlay";
+import { applyBattleResult, type BattleEndOutcome } from "../battleResult";
 import type { PauseMenuData } from "./PauseMenuScene";
 import type { NpcDialogueData } from "./NpcDialogueScene";
 import { resumeFromCheckpoint, returnToMainMenu } from "../../domain/hazard/recovery";
-import type { EncounterResult } from "../../domain/combat/simulateEncounter";
 import type {
   ArmorPickupPayload,
   ChestReward,
@@ -559,13 +560,10 @@ export class FloorScene extends Phaser.Scene {
     this.redraw();
   }
 
+  /** 027 FR-001 (contract C1): every living monster can be fought — there is no pre-combat
+   * simulation and no "too weak" refusal any more. The battle itself runs live in CombatOverlay. */
   private engage(enemy: EnemyDefinition): void {
     const ctx = this.ctx;
-    const result = checkEngagementAllowed(ctx.save.character, ctx.weaponCatalog, ctx.armorCatalog, enemy.stats);
-    if (!result.allowed) {
-      this.setMessage("Too weak to fight this enemy");
-      return;
-    }
 
     // 021 US1 (contract C3): combat pauses the scene — clear held-repeat state for the same
     // reason as the pickup-modal and pause-menu branches.
@@ -574,12 +572,30 @@ export class FloorScene extends Phaser.Scene {
     // 019 FR-003: resolve the display name here, once, rather than teaching CombatOverlay to
     // look it up — mirrors the species lookup already used for enemy rendering above.
     const species = ctx.monsterSpeciesCatalog.get(enemy.species);
+    const enemyName = species?.name ?? "Unknown creature";
+    const character = ctx.save.character;
+    const stats = computeEffectiveStats(character, ctx.weaponCatalog, ctx.armorCatalog);
+
     const data: CombatOverlayData = {
-      enemy,
-      enemyName: species?.name ?? "Unknown creature",
-      encounter: result.encounter,
-      playerStartHp: ctx.save.character.currentHp,
-      onComplete: () => this.onCombatResolved(enemy, result.encounter),
+      floorNumber: ctx.tower.floors.findIndex((f) => f.id === ctx.save.currentFloorId) + 1,
+      enemyName,
+      player: {
+        hp: character.currentHp,
+        attack: stats.damage,
+        defence: stats.defence,
+        attackIntervalSec: stats.attackIntervalSec,
+        critChance: stats.critChance,
+        critDamageBonus: stats.critDamageBonus,
+      },
+      // FR-032 (research R6): authored damage × species interval; floor data is untouched.
+      monster: monsterCombatant(enemy.stats, species),
+      playerMaxHp: computeMaxHp(character),
+      potionCount: character.potionCount ?? 0,
+      playerTextureKey: ensurePlayerTexture(this, this.playerTier(), "right", "idle"),
+      monsterTextureKey: species ? ensureSpriteTexture(this, species.textureKey) : "__MISSING",
+      dropPhrases: describeDrops(enemy.drops),
+      onBattleEnd: (result) => applyBattleResult(ctx, enemy, enemyName, result),
+      onContinue: (outcome) => this.onBattleContinue(enemy, outcome),
     };
     this.scene.launch("CombatOverlay", data);
     this.scene.pause();
@@ -625,47 +641,23 @@ export class FloorScene extends Phaser.Scene {
     this.scene.pause();
   }
 
-  private onCombatResolved(enemy: EnemyDefinition, encounter: EncounterResult): void {
-    const ctx = this.ctx;
+  /** 027: leaves the modal — Continue on a victory/defeat panel, or immediately after fleeing. */
+  private onBattleContinue(enemy: EnemyDefinition, outcome: BattleEndOutcome): void {
     this.scene.stop("CombatOverlay");
     this.scene.resume();
-    this.canMove = true;
 
-    // 022 US1: an enemy's dropped key is announced only in the event log, same as every other
-    // pickup — no blocking banner.
-    if (enemy.drops?.key) {
-      ctx.logPickup("key", `${enemy.drops.key.keyType} key`);
-    }
-
-    const update = applyEnemyDefeat(ctx.save.currentFloorState, ctx.save.character, enemy);
-    ctx.save.currentFloorState = update.floorProgress;
-    ctx.save.character = update.character;
-
-    const lastPlayerDamageTaken = [...encounter.turns]
-      .reverse()
-      .find((t) => t.attacker === "enemy");
-    if (lastPlayerDamageTaken) {
-      ctx.save.character = {
-        ...ctx.save.character,
-        currentHp: lastPlayerDamageTaken.defenderHpAfter,
-      };
-    }
-
-    ctx.persist();
-
-    if (isWinningDefeat(enemy)) {
-      ctx.save = triggerWin(ctx.save);
-      ctx.persist();
-      // See the matching comment in attemptMove's hazard-death branch: the side panel/event
-      // log's DOM text sits above the whole canvas regardless of Phaser scene depth, so it
-      // must be stopped explicitly rather than relying on WinScreenScene's dim overlay to
-      // hide it.
+    const toDeath = outcome === "defeat";
+    const toWin = outcome === "victory" && isWinningDefeat(enemy);
+    if (toDeath || toWin) {
+      // As in applyPlayerDamage: the side panel/event log are DOM text above the whole canvas,
+      // so they must be stopped explicitly rather than hidden behind the next scene.
       this.scene.stop("SidePanelScene");
       this.scene.stop("EventLogScene");
-      this.scene.start("WinScreenScene");
+      this.scene.start(toDeath ? "DeathScreenScene" : "WinScreenScene");
       return;
     }
 
+    this.canMove = true;
     this.redraw();
   }
 

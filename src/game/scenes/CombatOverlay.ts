@@ -1,45 +1,119 @@
 import Phaser from "phaser";
-import type { GameContext } from "../GameContext";
-import type { EncounterResult } from "../../domain/combat/simulateEncounter";
-import type { EnemyDefinition } from "../../domain/floor/types";
+import {
+  advanceBattle,
+  drinkPotion,
+  flee,
+  startBattle,
+  type BattleEvent,
+  type BattleState,
+  type CombatantStats,
+  type Side,
+} from "../../domain/combat/battle";
+import type { BattleEndOutcome, BattleEndResult } from "../battleResult";
 import { PLAY_AREA, DESIGN_PLAY_AREA } from "../gameConfig";
+import { RENDER_SCALE } from "../scaleConfig";
 import { createUiText, getUiRoot, px } from "../ui/domOverlay";
-import { scalePx } from "../scaleConfig";
-import { foldTurnsToLines } from "../combatLogReveal";
+import { createMenuOption } from "../ui/MenuOption";
+import { attachMenuSounds, playSfx, sfxPotion } from "../sfx";
 
 export interface CombatOverlayData {
-  enemy: EnemyDefinition;
-  /** 019 FR-003: the monster's display name (e.g. "Goblin"), resolved by the caller —
-   * never `enemy.id`, which is an internal placement identifier. */
+  floorNumber: number;
+  /** 019 FR-003: the monster's display name, never `enemy.id`. */
   enemyName: string;
-  encounter: EncounterResult;
-  /** The player's HP at the moment the encounter was simulated (research.md turn-display design). */
-  playerStartHp: number;
-  onComplete: () => void;
+  player: CombatantStats;
+  monster: CombatantStats;
+  playerMaxHp: number;
+  potionCount: number;
+  /** Texture keys already ensured by the caller (textures are game-wide). */
+  playerTextureKey: string;
+  monsterTextureKey: string;
+  /** Readable drop phrases for the victory panel (`describeDrops`). */
+  dropPhrases: string[];
+  /** Fires exactly once, the instant the battle ends — before any outcome panel — so the
+   * result is saved even if the game closes while the panel is up (research R13, C14). */
+  onBattleEnd: (result: BattleEndResult) => void;
+  /** Fires when the player leaves the modal (Continue, or immediately after fleeing). */
+  onContinue: (outcome: BattleEndOutcome) => void;
 }
 
-const TURN_DELAY_MS = 325;
+/**
+ * 027 combat modal layout, in DESIGN units (research R10): a 600×375 (16:10) frame centred in
+ * the 640×640 play area. Mockup 1c measurements are scaled by 600/848.
+ */
+const FRAME = { w: 600, h: 375 };
+const FRAME_X = DESIGN_PLAY_AREA.x + (DESIGN_PLAY_AREA.width - FRAME.w) / 2;
+const FRAME_Y = DESIGN_PLAY_AREA.y + (DESIGN_PLAY_AREA.height - FRAME.h) / 2;
+/** 256 canvas px = 8× the 32×32 sprite grids, so every sprite pixel stays a whole block. */
+const SPRITE = 256 / RENDER_SCALE;
+const CENTRE_COLUMN = 106;
+const BAR = { w: 113, h: 6 };
+const BOTTOM_MARGIN = 21;
+const BAR_GAP = 7;
+
+const SIDE_COLUMN = (FRAME.w - CENTRE_COLUMN) / 2;
+const BAR_TOP = FRAME_Y + FRAME.h - BOTTOM_MARGIN - BAR.h;
+const SPRITE_CENTRE_Y = BAR_TOP - BAR_GAP - SPRITE / 2;
+const SPRITE_CENTRE_X: Record<Side, number> = {
+  player: FRAME_X + SIDE_COLUMN - SPRITE / 2,
+  monster: FRAME_X + SIDE_COLUMN + CENTRE_COLUMN + SPRITE / 2,
+};
+const CENTRE_X = FRAME_X + FRAME.w / 2;
+
+const GOLD = "#d9aa3b";
+const HIT_FLASH_MS = 140;
+
+const toCanvas = (designUnits: number) => designUnits * RENDER_SCALE;
+
+/** Injected once: the floating damage/heal number rises and fades (research R11). */
+const POP_STYLE_ID = "combat-pop-style";
+function ensurePopStyle(): void {
+  if (document.getElementById(POP_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = POP_STYLE_ID;
+  style.textContent = `
+    @keyframes combat-pop {
+      0% { transform: translateY(6px) scale(0.6); opacity: 0; }
+      15% { transform: translateY(0) scale(1.15); opacity: 1; }
+      30% { transform: translateY(0) scale(1); opacity: 1; }
+      100% { transform: translateY(-32px) scale(1); opacity: 0; }
+    }`;
+  document.head.appendChild(style);
+}
+
+function div(styles: Partial<CSSStyleDeclaration>, testId?: string): HTMLDivElement {
+  const el = document.createElement("div");
+  el.style.position = "absolute";
+  Object.assign(el.style, styles);
+  if (testId) el.dataset.testid = testId;
+  return el;
+}
+
+interface SideView {
+  sprite: Phaser.GameObjects.Image;
+  hpNumber: HTMLElement;
+  hpFill: HTMLDivElement;
+  barFill: HTMLDivElement;
+}
 
 /**
- * FR-012/FR-012a + 002 FR-012/FR-013: replays the pre-computed EncounterResult
- * turn-by-turn, explicitly showing the attacker, damage dealt, and both combatants'
- * current remaining HP each turn, then clearly presents the final win/loss outcome
- * before resuming floor control. Occupies only PLAY_AREA (002 FR-007), never the side
- * panel or event log.
+ * 027 (contracts C9–C15): the live combat modal, design 1c "Framed duel". Renders whatever the
+ * pure battle reducer (`domain/combat/battle.ts`) reports and owns no combat rules. Keeps the
+ * `CombatOverlay` scene key so the side panel's pause-button guard and the e2e helpers keep
+ * working unchanged (research R9).
  *
- * 022 US2 (contracts C6/C7): while revealing, any key press shows every remaining turn and the
- * outcome at once but does NOT close the encounter. Once the outcome is shown (by pacing or by
- * that skip), any key press closes it — there is no timer that closes the encounter on its own.
+ * Pointer-only by design (C12, FR-044, CLAUDE.md): this scene registers no keyboard input at
+ * all. The old "any key reveals/closes" handler and the text combat log are gone (FR-043/FR-052).
  */
 export class CombatOverlay extends Phaser.Scene {
   private data_!: CombatOverlayData;
-  private logText!: HTMLDivElement;
-  private outcomeText!: HTMLDivElement;
-  /** 022 US2 (data-model "Added: CombatOverlay reveal state"): false while turns are still being
-   * paced out, true once every turn and the outcome are on screen — selects which of the two
-   * key-press behaviours applies. */
-  private revealed = false;
-  private pendingTimer?: Phaser.Time.TimerEvent;
+  private state_!: BattleState;
+  private ended_ = false;
+  private views_!: Record<Side, SideView>;
+  private nodes_: HTMLElement[] = [];
+  /** Buttons that must be disabled the instant the battle ends (C14). */
+  private actionButtons_: HTMLButtonElement[] = [];
+  private outcomeLayer_?: Phaser.GameObjects.Rectangle;
+  private potionButton_!: HTMLButtonElement;
 
   constructor() {
     super("CombatOverlay");
@@ -47,131 +121,316 @@ export class CombatOverlay extends Phaser.Scene {
 
   init(data: CombatOverlayData): void {
     this.data_ = data;
-    this.revealed = false;
-    this.pendingTimer = undefined;
+    this.state_ = startBattle(data.player, data.monster, data.playerMaxHp, data.potionCount);
+    this.ended_ = false;
+    this.nodes_ = [];
+    this.actionButtons_ = [];
+    this.outcomeLayer_ = undefined;
   }
 
   create(): void {
-    const { x, y, width, height } = PLAY_AREA;
-    const cx = x + width / 2;
-    const cy = y + height / 2;
-    const dcx = DESIGN_PLAY_AREA.x + DESIGN_PLAY_AREA.width / 2;
-
-    this.add
-      .rectangle(cx, cy, width - scalePx(12), height - scalePx(12), 0x120a10, 0.94)
-      .setDepth(0);
-
-    const encounterLabel = createUiText(`Encounter: ${this.data_.enemyName}`, {
-      x: dcx,
-      y: DESIGN_PLAY_AREA.y + 8,
-      originX: 0.5,
-      originY: 0,
-      fontSize: 10,
-      color: "#e0c9a6",
-    });
-
-    this.logText = createUiText("", {
-      x: dcx,
-      y: DESIGN_PLAY_AREA.y + 26,
-      originX: 0.5,
-      originY: 0,
-      fontSize: 8,
-      color: "#f2e9d8",
-      align: "center",
-      maxWidth: DESIGN_PLAY_AREA.width - 40,
-    });
-    this.logText.dataset.testid = "combat-log";
-    /** 010 US3: fixed height + native overflow scroll — top margin clears the encounter
-     * label, bottom margin reserves outcomeText's space — so the log can never grow tall
-     * enough to overlap outcomeText or spill past the combat screen's own background rect. */
-    this.logText.style.height = px(DESIGN_PLAY_AREA.height - 26 - 40);
-    this.logText.style.overflowY = "auto";
-
-    this.outcomeText = createUiText("", {
-      x: dcx,
-      y: DESIGN_PLAY_AREA.y + DESIGN_PLAY_AREA.height - 14,
-      originX: 0.5,
-      originY: 1,
-      fontSize: 12,
-      color: "#f2e9d8",
-    });
-    this.outcomeText.style.display = "none";
-
+    ensurePopStyle();
     const root = getUiRoot();
-    root.appendChild(encounterLabel);
-    root.appendChild(this.logText);
-    root.appendChild(this.outcomeText);
-    this.events.once("shutdown", () => {
-      encounterLabel.remove();
-      this.logText.remove();
-      this.outcomeText.remove();
+    const add = <T extends HTMLElement>(el: T): T => {
+      root.appendChild(el);
+      this.nodes_.push(el);
+      return el;
+    };
+    this.events.once("shutdown", () => this.nodes_.forEach((el) => el.remove()));
+
+    // Canvas: the dimmed floor behind the modal, the frame's interior, and the sprites.
+    this.add
+      .rectangle(PLAY_AREA.x + PLAY_AREA.width / 2, PLAY_AREA.y + PLAY_AREA.height / 2, PLAY_AREA.width, PLAY_AREA.height, 0x040509, 0.74)
+      .setDepth(0);
+    this.add
+      .rectangle(toCanvas(FRAME_X + FRAME.w / 2), toCanvas(FRAME_Y + FRAME.h / 2), toCanvas(FRAME.w), toCanvas(FRAME.h), 0x0b0d14, 1)
+      .setDepth(1);
+
+    // DOM: the gold frame border (transparent inside, so the canvas sprites show through).
+    add(
+      div(
+        {
+          left: px(FRAME_X),
+          top: px(FRAME_Y),
+          width: px(FRAME.w),
+          height: px(FRAME.h),
+          border: `2px solid ${GOLD}`,
+          boxShadow: "0 0 0 3px #0b0d14, 0 0 0 4px #6a4418",
+        },
+        "combat-modal",
+      ),
+    );
+
+    const title = add(
+      createUiText(`Floor ${this.data_.floorNumber} · ${this.data_.enemyName}`, {
+        x: CENTRE_X,
+        y: FRAME_Y,
+        fontSize: 14,
+        color: GOLD,
+      }),
+    );
+    Object.assign(title.style, {
+      background: "#0b0d14",
+      border: `2px solid ${GOLD}`,
+      padding: `${px(3)} ${px(12)}`,
+      letterSpacing: "0.15em",
+      whiteSpace: "nowrap",
     });
 
-    // 022 US2 (contracts C6/C7/C8): any key reveals the rest while revealing, or closes the
-    // encounter once revealed. Owned by this scene's own input, so it dies with it (contract C10).
-    this.input.keyboard!.on("keydown", this.handleKeyDown, this);
+    add(createUiText("VS", { x: CENTRE_X, y: SPRITE_CENTRE_Y - 34, fontSize: 28, color: "#6a4418" }));
 
-    this.playTurns(0, this.data_.playerStartHp, this.data_.enemy.stats.hp, "");
+    this.views_ = {
+      player: this.buildSide("player", add),
+      monster: this.buildSide("monster", add),
+    };
+
+    // C17: drinks one carried potion at once; disabled with none left, at full HP, or once ended.
+    this.potionButton_ = this.addActionButton("", SPRITE_CENTRE_Y + 4, "combat-potion", () => {
+      const step = drinkPotion(this.state_);
+      if (step.events.length === 0) return;
+      this.state_ = step.state;
+      step.events.forEach((event) => this.showEvent(event));
+      playSfx(this.sound, sfxPotion);
+      this.refresh();
+    });
+    Object.assign(this.potionButton_.style, { background: GOLD, color: "#1a1206", borderColor: GOLD });
+
+    // C13: Flee works at any moment until an outcome appears, and closes the modal at once.
+    this.addActionButton("Flee", SPRITE_CENTRE_Y + 34, "combat-flee", () => {
+      if (this.ended_) return;
+      this.state_ = flee(this.state_);
+      this.endBattle("fled");
+    });
+
+    this.refresh();
   }
 
-  private handleKeyDown(): void {
-    if (this.revealed) {
-      this.data_.onComplete();
+  /** Centre-column action button under "VS" (Potion, Flee); disabled the instant the battle ends. */
+  private addActionButton(label: string, y: number, testId: string, onActivate: () => void): HTMLButtonElement {
+    const button = createMenuOption(this, { x: CENTRE_X, y, label, fontSize: 13, color: "#e6e9f2", onActivate });
+    button.dataset.testid = testId;
+    Object.assign(button.style, { border: "2px solid #6a4418", padding: `${px(3)} ${px(10)}`, minWidth: px(85) });
+    this.actionButtons_.push(button);
+    return button;
+  }
+
+  private buildSide(side: Side, add: <T extends HTMLElement>(el: T) => T): SideView {
+    const isPlayer = side === "player";
+    const name = isPlayer ? "Prince" : this.data_.enemyName;
+    const maxHp = isPlayer ? this.data_.playerMaxHp : this.data_.monster.hp;
+
+    const key = isPlayer ? this.data_.playerTextureKey : this.data_.monsterTextureKey;
+    const sprite = this.add.image(toCanvas(SPRITE_CENTRE_X[side]), toCanvas(SPRITE_CENTRE_Y), key);
+    sprite.setDisplaySize(toCanvas(SPRITE), toCanvas(SPRITE)).setDepth(2);
+
+    // Health readout in this side's top corner (C10, FR-039).
+    const blockW = 184;
+    const blockX = isPlayer ? FRAME_X + 20 : FRAME_X + FRAME.w - 20 - blockW;
+    const block = add(
+      div({ left: px(blockX), top: px(FRAME_Y + 20), width: px(blockW), color: "#e6e9f2" }, `combat-${side}-hp`),
+    );
+    const heading = document.createElement("div");
+    Object.assign(heading.style, {
+      display: "flex",
+      alignItems: "baseline",
+      gap: px(6),
+      justifyContent: isPlayer ? "flex-start" : "flex-end",
+    });
+    const hpNumber = document.createElement("span");
+    hpNumber.style.fontSize = px(31);
+    hpNumber.dataset.testid = `combat-${side}-hp-value`;
+    const label = document.createElement("span");
+    Object.assign(label.style, { fontSize: px(11), color: "#8a94ab", letterSpacing: "0.08em" });
+    label.textContent = isPlayer ? `/ ${maxHp} · ${name}` : `${name} · ${maxHp} /`;
+    if (isPlayer) heading.append(hpNumber, label);
+    else heading.append(label, hpNumber);
+
+    const hpTrack = document.createElement("div");
+    Object.assign(hpTrack.style, {
+      height: px(7),
+      marginTop: px(4),
+      background: "#1a1f2d",
+      border: "2px solid #07080c",
+      display: "flex",
+      justifyContent: isPlayer ? "flex-start" : "flex-end",
+    });
+    const hpFill = document.createElement("div");
+    Object.assign(hpFill.style, { height: "100%", background: "#c8443a" });
+    hpTrack.appendChild(hpFill);
+    block.append(heading, hpTrack);
+
+    // Attack bar directly under the sprite: gold for the player, orange for the monster (FR-040).
+    const barTrack = add(
+      div(
+        {
+          left: px(SPRITE_CENTRE_X[side] - BAR.w / 2),
+          top: px(BAR_TOP),
+          width: px(BAR.w),
+          height: px(BAR.h),
+          background: "#1a1f2d",
+          border: "2px solid #07080c",
+        },
+        `combat-${side}-bar`,
+      ),
+    );
+    const barFill = div({ left: "0", top: "0", height: "100%", background: isPlayer ? GOLD : "#ff7a3a" });
+    barTrack.appendChild(barFill);
+
+    return { sprite, hpNumber, hpFill, barFill };
+  }
+
+  override update(_time: number, delta: number): void {
+    if (this.ended_) return;
+    // FR-010 (research R3): the battle clock only runs while the game has focus, and a long
+    // stall can't land a burst of hits on return.
+    const elapsedSec = document.hasFocus() ? Math.min(delta, 100) / 1000 : 0;
+    const step = advanceBattle(this.state_, elapsedSec, Math.random);
+    this.state_ = step.state;
+    step.events.forEach((event) => this.showEvent(event));
+    this.refresh();
+    if (this.state_.outcome !== "ongoing") this.endBattle(this.state_.outcome);
+  }
+
+  /** Re-renders both health readouts and attack bars from the current battle state. */
+  private refresh(): void {
+    for (const side of ["player", "monster"] as const) {
+      const c = this.state_[side];
+      const maxHp = side === "player" ? this.state_.playerMaxHp : this.data_.monster.hp;
+      const view = this.views_[side];
+      view.hpNumber.textContent = String(c.hp);
+      view.hpFill.style.width = `${Math.round((c.hp / Math.max(1, maxHp)) * 100)}%`;
+      const charge = this.ended_ ? 0 : Math.min(1, c.charge / c.attackIntervalSec);
+      view.barFill.style.width = `${Math.round(charge * 100)}%`;
+    }
+    const { potionCount, player, playerMaxHp } = this.state_;
+    this.potionButton_.textContent = `Potion ×${potionCount}`;
+    this.potionButton_.disabled = this.ended_ || potionCount <= 0 || player.hp >= playerMaxHp;
+    this.potionButton_.style.opacity = this.potionButton_.disabled ? "0.4" : "1";
+  }
+
+  /** C11: hits flash the target white and float their damage up over it. */
+  private showEvent(event: BattleEvent): void {
+    if (event.kind === "hit") {
+      const sprite = this.views_[event.target].sprite;
+      sprite.setTintFill(0xffffff);
+      this.time.delayedCall(HIT_FLASH_MS, () => sprite.clearTint());
+      this.floatNumber(event.target, String(event.damage), this.popStyle(event));
     } else {
-      this.revealRemaining();
+      this.floatNumber("player", `+${event.amount}`, { fontSize: 34, color: "#7fd18a" });
     }
   }
 
-  /**
-   * 002 FR-012: each turn line names the attacker, the damage dealt, and both
-   * combatants' HP remaining after that turn.
-   */
-  private playTurns(index: number, playerHp: number, enemyHp: number, logSoFar: string): void {
-    if (index >= this.data_.encounter.turns.length) {
-      this.pendingTimer = this.time.delayedCall(TURN_DELAY_MS, () => this.showOutcome());
+  /** C11/FR-018: a critical strike's number is larger and red, unmistakable from a normal hit. */
+  private popStyle(event: Extract<BattleEvent, { kind: "hit" }>): { fontSize: number; color: string; crit?: true } {
+    if (event.isCrit) return { fontSize: 50, color: "#ff3b3b", crit: true };
+    return { fontSize: 34, color: event.target === "player" ? "#ff8a7a" : "#ffffff" };
+  }
+
+  private floatNumber(side: Side, text: string, style: { fontSize: number; color: string; crit?: true }): void {
+    const anchor = div(
+      {
+        left: px(SPRITE_CENTRE_X[side] + (Math.random() - 0.5) * 40),
+        top: px(SPRITE_CENTRE_Y - SPRITE / 2 + 10),
+        transform: "translateX(-50%)",
+        pointerEvents: "none",
+      },
+      "combat-pop",
+    );
+    const label = document.createElement("div");
+    label.textContent = text;
+    Object.assign(label.style, {
+      fontSize: px(style.fontSize),
+      lineHeight: "1",
+      color: style.color,
+      fontWeight: "bold",
+      textShadow: "0 2px 0 #07080c, 2px 0 0 #07080c, -2px 0 0 #07080c, 0 -2px 0 #07080c",
+      animation: "combat-pop 1s ease-out forwards",
+    });
+    if (style.crit) anchor.dataset.crit = "true";
+    anchor.appendChild(label);
+    anchor.addEventListener("animationend", () => anchor.remove());
+    getUiRoot().appendChild(anchor);
+    this.nodes_.push(anchor);
+  }
+
+  /** The battle has ended: save first (onBattleEnd), then show what happened (C14). */
+  private endBattle(outcome: BattleEndOutcome): void {
+    if (this.ended_) return;
+    this.ended_ = true;
+    this.actionButtons_.forEach((button) => {
+      button.disabled = true;
+      button.style.opacity = "0.4"; // inline colours override the stylesheet's :disabled grey
+    });
+    this.refresh();
+    this.data_.onBattleEnd({
+      outcome,
+      playerHp: this.state_.player.hp,
+      potionCount: this.state_.potionCount,
+    });
+
+    const loser = outcome === "victory" ? "monster" : outcome === "defeat" ? "player" : undefined;
+    if (loser) this.views_[loser].sprite.setAlpha(0.3);
+
+    if (outcome === "fled") {
+      this.data_.onContinue(outcome);
       return;
     }
-    const turn = this.data_.encounter.turns[index]!;
-    const folded = foldTurnsToLines([turn], playerHp, enemyHp, this.data_.enemyName);
-    const nextLog = logSoFar + folded.lines[0] + "\n";
-    this.logText.textContent = nextLog;
-    this.logText.scrollTop = this.logText.scrollHeight;
-    this.pendingTimer = this.time.delayedCall(TURN_DELAY_MS, () =>
-      this.playTurns(index + 1, folded.playerHp, folded.enemyHp, nextLog),
-    );
+    this.showOutcomePanel(outcome);
   }
 
-  /** 022 US2 (contract C6): cancels the paced reveal and renders every remaining turn (and the
-   * outcome) at once. Recomputes the whole log from the start via `foldTurnsToLines` rather than
-   * threading extra "how far did we get" state through — cheap, and guarantees this can never
-   * drift from what the paced reveal would have shown. */
-  private revealRemaining(): void {
-    this.pendingTimer?.remove();
-    this.pendingTimer = undefined;
+  private showOutcomePanel(outcome: "victory" | "defeat"): void {
+    this.outcomeLayer_ = this.add
+      .rectangle(toCanvas(FRAME_X + FRAME.w / 2), toCanvas(FRAME_Y + FRAME.h / 2), toCanvas(FRAME.w), toCanvas(FRAME.h), 0x07080c, 0.82)
+      .setDepth(3);
 
-    const { lines } = foldTurnsToLines(
-      this.data_.encounter.turns,
-      this.data_.playerStartHp,
-      this.data_.enemy.stats.hp,
-      this.data_.enemyName,
+    const won = outcome === "victory";
+    const panel = div(
+      {
+        left: px(CENTRE_X),
+        top: px(FRAME_Y + FRAME.h / 2),
+        transform: "translate(-50%, -50%)",
+        minWidth: px(212),
+        padding: `${px(18)} ${px(26)}`,
+        background: "#0d1018",
+        border: `2px solid ${won ? GOLD : "#2a3350"}`,
+        textAlign: "center",
+        color: "#e6e9f2",
+      },
+      "combat-outcome",
     );
-    this.logText.textContent = lines.map((line) => `${line}\n`).join("");
-    this.logText.scrollTop = this.logText.scrollHeight;
-    this.showOutcome();
-  }
+    const heading = document.createElement("div");
+    heading.textContent = won ? "Victory" : "The prince falls";
+    Object.assign(heading.style, { fontSize: px(32), color: won ? GOLD : "#c8443a", letterSpacing: "0.06em" });
+    const detail = document.createElement("div");
+    detail.textContent = won ? `The ${this.data_.enemyName} falls.` : `Slain by ${this.data_.enemyName}.`;
+    Object.assign(detail.style, { fontSize: px(10), color: "#8a94ab", marginTop: px(6) });
+    panel.append(heading, detail);
+    if (won && this.data_.dropPhrases.length > 0) {
+      const drops = document.createElement("div");
+      drops.textContent = this.data_.dropPhrases.join(" · ");
+      Object.assign(drops.style, { fontSize: px(13), marginTop: px(10) });
+      panel.appendChild(drops);
+    }
 
-  /** 002 FR-013: clearly presents the final outcome; 002 FR-015: logs the encounter. bug fix:
-   * currency-not-logged — the enemy's currency drop (if any) is folded into this same log entry.
-   * 022 US2 (contract C7): no longer closes itself on a timer — the encounter now waits
-   * indefinitely for a key press, handled by `handleKeyDown` once `revealed` is true. */
-  private showOutcome(): void {
-    this.revealed = true;
-    const ctx = this.registry.get("ctx") as GameContext | undefined;
-    ctx?.logCombatEncounter(this.data_.enemyName, this.data_.encounter, this.data_.enemy.drops?.currency);
+    // Continue lives inside the panel; click only, no key (C12, FR-052).
+    const cont = document.createElement("button");
+    cont.className = "ui-menu-option";
+    cont.textContent = "Continue";
+    cont.dataset.testid = "combat-continue";
+    Object.assign(cont.style, {
+      position: "relative",
+      display: "inline-block",
+      marginTop: px(14),
+      padding: `${px(5)} ${px(18)}`,
+      fontSize: px(14),
+      color: "#1a1206",
+      background: GOLD,
+    });
+    cont.addEventListener("click", () => this.data_.onContinue(outcome));
+    attachMenuSounds(this, cont);
+    panel.appendChild(cont);
 
-    const won = this.data_.encounter.winner === "player";
-    this.outcomeText.textContent = won ? "Victory!" : "Defeat...";
-    this.outcomeText.style.color = won ? "#8ecae6" : "#d1495b";
-    this.outcomeText.style.display = "";
+    getUiRoot().appendChild(panel);
+    this.nodes_.push(panel);
   }
 }

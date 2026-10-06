@@ -1,21 +1,49 @@
-import type { EncounterResult } from "../../domain/combat/simulateEncounter";
+import type { DropTable } from "../../domain/floor/types";
 import type { EventLogEntry } from "./types";
 
-/** Formats a combat encounter's resolution as a log entry (002 FR-015).
- *
- * bug fix: currency-not-logged — `currencyGained` (the defeated enemy's `drops.currency`, if
- * any) is folded into this same entry rather than getting a standalone pickup entry, so a
- * kill's gold is visible without cluttering the log with a second line per kill. */
-export function formatCombatEntry(
-  enemyName: string,
-  result: EncounterResult,
-  currencyGained?: number,
-): EventLogEntry {
-  const message =
-    result.winner === "player"
-      ? `Defeated ${enemyName} (${result.turns.length} turn(s)).` +
-        (currencyGained ? ` Found ${currencyGained} gold.` : "")
-      : `Lost the encounter with ${enemyName}.`;
+/** 027: a monster's drops as readable phrases, shared by the victory panel and the battle log
+ * line, e.g. `["12 gold", "a Bronze key", "Gem"]`. */
+export function describeDrops(drops: DropTable | undefined): string[] {
+  if (!drops) return [];
+  const phrases: string[] = [];
+  if (drops.currency) phrases.push(`${drops.currency} gold`);
+  if (drops.key) {
+    const tier = drops.key.keyType;
+    phrases.push(`a ${tier.charAt(0).toUpperCase()}${tier.slice(1)} key`);
+  }
+  for (const item of drops.loot ?? []) phrases.push(item.name);
+  return phrases;
+}
+
+/** 027: how a battle ended, for its single event-log line (FR-024, contract C19). `loot` is the
+ * victory's drops as already-readable phrases, e.g. `["12 gold", "a Bronze key"]`. */
+export interface BattleSummary {
+  outcome: "victory" | "defeat" | "fled";
+  enemyName: string;
+  loot?: string[];
+}
+
+function joinPhrases(parts: string[]): string {
+  if (parts.length <= 1) return parts.join("");
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+/** 027 FR-024 (contract C19): exactly one line per battle, whatever happened inside it. Every
+ * drop — gold, key, loot — is folded into the victory line rather than logged separately.
+ * Supersedes 002's `formatCombatEntry` (and its currency-not-logged fix, which this subsumes). */
+export function formatBattleEntry(summary: BattleSummary): EventLogEntry {
+  const { outcome, enemyName, loot = [] } = summary;
+  let message: string;
+  if (outcome === "victory") {
+    message =
+      loot.length > 0
+        ? `You won against ${enemyName}, looted ${joinPhrases(loot)}.`
+        : `You won against ${enemyName}.`;
+  } else if (outcome === "fled") {
+    message = `You engaged ${enemyName}, it was too powerful and you fled.`;
+  } else {
+    message = `You were slain by ${enemyName}.`;
+  }
   return { kind: "combat", message };
 }
 

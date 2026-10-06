@@ -5,7 +5,11 @@ export function hasDiedFromHazard(currentHp: number): boolean {
   return currentHp <= 0;
 }
 
-/** Marks the save as dead — the death screen is shown while this is true. */
-export function markDead(save: PlayerSave): PlayerSave {
-  return { ...save, isDead: true, character: { ...save.character, currentHp: 0 } };
+/** Marks the save as dead — the death screen is shown while this is true. 027 FR-028: `cause`
+ * is the killing monster's display name for a combat death; trap deaths pass nothing. */
+export function markDead(save: PlayerSave, cause?: string): PlayerSave {
+  const dead: PlayerSave = { ...save, isDead: true, character: { ...save.character, currentHp: 0 } };
+  if (cause) dead.deathCause = cause;
+  else delete dead.deathCause;
+  return dead;
 }

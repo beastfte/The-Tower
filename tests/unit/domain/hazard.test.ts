@@ -164,4 +164,17 @@ describe("death and recovery", () => {
     expect(save.currentFloorState).toEqual(before.currentFloorState);
     expect(save.character).toEqual(before.character);
   });
+
+  // 027 FR-028 (contract C15): the death screen names a combat killer, never a stale one.
+  it("markDead records a combat cause, and a trap death (no cause) records none", () => {
+    expect(markDead(buildSave(), "Skeleton Soldier").deathCause).toBe("Skeleton Soldier");
+    expect(markDead(buildSave()).deathCause).toBeUndefined();
+    expect(markDead({ ...buildSave(), deathCause: "Ogre" }).deathCause).toBeUndefined();
+  });
+
+  it("resumeFromCheckpoint and returnToMainMenu both clear deathCause", () => {
+    const dead = markDead(buildSave(), "Ogre");
+    expect("deathCause" in resumeFromCheckpoint(dead, floor)).toBe(false);
+    expect("deathCause" in returnToMainMenu(dead)).toBe(false);
+  });
 });

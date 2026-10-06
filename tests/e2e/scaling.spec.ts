@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { clearSave, startFight } from "./helpers";
 
 // Deliberately not imported from src/game/gameConfig.ts: that module (and anything else under
 // src/game/) pulls in the `phaser` package, which assumes browser globals at module-load time
@@ -109,4 +110,60 @@ test.describe("Display scaling and crispness", () => {
       .evaluate((el) => window.getComputedStyle(el).imageRendering);
     expect(renderingAtLargeSize).toBe("pixelated");
   });
+});
+
+/** 027 SC-012 (contract C9): the combat modal stays entirely inside the play area at every
+ * window size, with nothing overlapping. The play area is the canvas's top-left 640×640 design
+ * units (side panel to the right, event log below). */
+test("the combat modal fits inside the play area at every window size, nothing overlapping (027 SC-012)", async ({
+  page,
+}) => {
+  await clearSave(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/");
+  // A fight that can't end on its own while we measure.
+  await startFight(page, { character: { baseStats: { damage: 0, defence: 100_000, hp: 30 }, currentHp: 30, bonusDamage: 0 } });
+
+  const ids = ["combat-player-hp", "combat-monster-hp", "combat-player-bar", "combat-monster-bar", "combat-potion", "combat-flee"];
+  for (const size of [
+    { width: 800, height: 600 },
+    { width: 1280, height: 900 },
+    { width: 1920, height: 1200 },
+    { width: 2400, height: 1400 },
+  ]) {
+    await page.setViewportSize(size);
+    await page.waitForTimeout(250);
+    const canvas = (await page.locator("canvas").boundingBox())!;
+    const play = {
+      x: canvas.x,
+      y: canvas.y,
+      right: canvas.x + (640 / DESIGN_WIDTH) * canvas.width,
+      bottom: canvas.y + (640 / DESIGN_HEIGHT) * canvas.height,
+    };
+    const modal = (await page.locator('[data-testid="combat-modal"]').boundingBox())!;
+    const slack = 1; // sub-pixel rounding
+    expect(modal.x, `${size.width}x${size.height} left`).toBeGreaterThanOrEqual(play.x - slack);
+    expect(modal.y, `${size.width}x${size.height} top`).toBeGreaterThanOrEqual(play.y - slack);
+    expect(modal.x + modal.width, `${size.width}x${size.height} right`).toBeLessThanOrEqual(play.right + slack);
+    expect(modal.y + modal.height, `${size.width}x${size.height} bottom`).toBeLessThanOrEqual(play.bottom + slack);
+
+    const boxes = [];
+    for (const id of ids) {
+      const box = (await page.locator(`[data-testid="${id}"]`).boundingBox())!;
+      expect(box.width, `${id} visible at ${size.width}x${size.height}`).toBeGreaterThan(0);
+      expect(box.x).toBeGreaterThanOrEqual(modal.x - slack);
+      expect(box.x + box.width).toBeLessThanOrEqual(modal.x + modal.width + slack);
+      expect(box.y).toBeGreaterThanOrEqual(modal.y - slack);
+      expect(box.y + box.height).toBeLessThanOrEqual(modal.y + modal.height + slack);
+      boxes.push({ id, ...box });
+    }
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i]!;
+        const b = boxes[j]!;
+        const overlap = a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+        expect(overlap, `${a.id} overlaps ${b.id} at ${size.width}x${size.height}`).toBe(false);
+      }
+    }
+  }
 });

@@ -14,25 +14,25 @@ function damagedCharacter() {
   return { ...save.character, currentHp: save.character.currentHp - 12 };
 }
 
-describe("potion pickup (005 FR-001/FR-002, 019 FR-007, contract invariant 17)", () => {
-  it("heals a damaged character by exactly 10 HP, capped at maximum", () => {
+/** 027 FR-045 (contract C16): health potions are carried, not drunk on pickup. Supersedes
+ * 019 FR-007's "heals 10 on pickup". */
+describe("health potion pickup is carried, not drunk (027 FR-045)", () => {
+  const potion: ItemDefinition = { id: "test-potion", position, kind: "potion", payload: undefined };
+
+  it("adds 1 to the carried count and leaves a damaged character's HP unchanged", () => {
     const character = damagedCharacter();
-    const potion: ItemDefinition = { id: "test-potion", position, kind: "potion", payload: undefined };
-
-    const healed = applyItemPickup(character, potion);
-
-    expect(healed.currentHp).toBe(character.currentHp + 10);
-    expect(healed.currentHp).toBeLessThanOrEqual(computeMaxHp(character));
+    const result = applyItemPickup(character, potion);
+    expect(result.currentHp).toBe(character.currentHp);
+    expect(result.potionCount).toBe(1);
   });
 
-  it("is harmless (still consumed, HP unchanged) when already at full HP", () => {
+  it("counts from 0 on a save with no potionCount yet, and stacks with no cap (FR-046)", () => {
     const save = createInitialPlayerSave("floor-01", position);
-    const potion: ItemDefinition = { id: "test-potion", position, kind: "potion", payload: undefined };
-
-    const result = applyItemPickup(save.character, potion);
-
-    expect(result.currentHp).toBe(computeMaxHp(save.character));
-    expect(result.currentHp).toBe(save.character.currentHp);
+    expect(save.character.potionCount).toBeUndefined();
+    let character = save.character;
+    for (let i = 0; i < 12; i++) character = applyItemPickup(character, potion);
+    expect(character.potionCount).toBe(12);
+    expect(character.currentHp).toBe(computeMaxHp(save.character));
   });
 });
 
@@ -134,5 +134,7 @@ describe("chest pickup applies the exact same effect as its revealed reward (005
     const fromDirect = applyItemPickup(character, plainPotion);
 
     expect(fromChest).toEqual(fromDirect);
+    expect(fromChest.potionCount).toBe(1); // 027 FR-045: carried, not drunk
+    expect(fromChest.currentHp).toBe(character.currentHp);
   });
 });

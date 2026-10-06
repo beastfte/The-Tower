@@ -6,9 +6,13 @@ import type { PersistenceService } from "../persistence/PersistenceService";
 import { MONSTER_SPECIES } from "../data/monsterSpecies";
 import { WEAPONS } from "../data/weapons";
 import { ARMOR_PIECES } from "../data/armorPieces";
-import type { EncounterResult } from "../domain/combat/simulateEncounter";
 import type { EventLogEntry } from "./eventLog/types";
-import { formatCombatEntry, formatPickupEntry, formatPurchaseEntry } from "./eventLog/formatEntry";
+import {
+  formatBattleEntry,
+  formatPickupEntry,
+  formatPurchaseEntry,
+  type BattleSummary,
+} from "./eventLog/formatEntry";
 
 /**
  * Shared runtime state bridging domain logic and Phaser scenes. Single-player,
@@ -47,12 +51,10 @@ export class GameContext {
     this.persistence.save(this.save);
   }
 
-  /** 002 FR-015: appends a combat-encounter entry to the session-only event log.
-   * bug fix: currency-not-logged — `currencyGained` folds a kill's currency drop into this
-   * same entry (see `formatCombatEntry`). 019 FR-003/FR-004: `enemyName` is a display name
-   * (e.g. "Goblin"), never the enemy's internal placement id. */
-  logCombatEncounter(enemyName: string, result: EncounterResult, currencyGained?: number): void {
-    this.eventLog.push(formatCombatEntry(enemyName, result, currencyGained));
+  /** 027 FR-024: appends the single summary line for a finished battle. 019 FR-003/FR-004:
+   * `summary.enemyName` is a display name (e.g. "Goblin"), never an internal placement id. */
+  logBattle(summary: BattleSummary): void {
+    this.eventLog.push(formatBattleEntry(summary));
   }
 
   /** 002 FR-015, 005 FR-006/FR-007, 019 FR-001/FR-002: appends a key/potion/currency/weapon/

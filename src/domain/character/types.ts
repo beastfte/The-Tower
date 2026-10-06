@@ -21,6 +21,10 @@ export interface WeaponDefinition {
   name: string;
   attackValue: number;
   textureKey: string;
+  /** 027 FR-033: optional speed/crit contributions. Absent = 0; no shipped weapon uses them yet. */
+  attackSpeedBonus?: number;
+  critChanceBonus?: number;
+  critDamageBonus?: number;
 }
 
 export type ArmorSlotId = "helm" | "chest" | "legs" | "boots";
@@ -39,4 +43,8 @@ export interface ArmorPieceDefinition {
   name: string;
   defenceBonus: number;
   textureKey: string;
+  /** 027 FR-033: optional speed/crit contributions. Absent = 0; no shipped armour uses them yet. */
+  attackSpeedBonus?: number;
+  critChanceBonus?: number;
+  critDamageBonus?: number;
 }
