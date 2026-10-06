@@ -1,8 +1,10 @@
 import type Phaser from "phaser";
 import type { ItemKind } from "../domain/floor/types";
+import type { BattleEvent } from "../domain/combat/battle";
+import type { BattleEndOutcome } from "./battleResult";
 
-/** Cache keys for the nine sound effects this feature plays, paired with their asset paths for
- * BootScene's preload loop (paths are URL-rooted since Vite serves public/ at /, mirroring
+/** Cache keys for every sound effect (026's nine plus 028's five combat cues), paired with their
+ * asset paths for BootScene's preload loop (paths are URL-rooted since Vite serves public/ at /, mirroring
  * music.ts's *_KEY/*_PATH convention — 026 research R1, R12). */
 export const sfxClick = "sfxClick";
 export const sfxHover = "sfxHover";
@@ -13,6 +15,12 @@ export const sfxCoin = "sfxCoin";
 export const sfxEquipment = "sfxEquipment";
 export const sfxKey = "sfxKey";
 export const sfxPotion = "sfxPotion";
+/** 028: combat cues (data-model.md). */
+export const sfxEncounter = "sfxEncounter";
+export const sfxVictory = "sfxVictory";
+export const sfxDeath = "sfxDeath";
+export const sfxPlayerAttack = "sfxPlayerAttack";
+export const sfxPlayerHurt = "sfxPlayerHurt";
 
 export const SFX_ASSETS: ReadonlyArray<readonly [key: string, path: string]> = [
   [sfxClick, "/Sound/Button click.wav"],
@@ -24,6 +32,11 @@ export const SFX_ASSETS: ReadonlyArray<readonly [key: string, path: string]> = [
   [sfxEquipment, "/Sound/Equipment.wav"],
   [sfxKey, "/Sound/Key.wav"],
   [sfxPotion, "/Sound/Potion.wav"],
+  [sfxEncounter, "/Sound/Encounter start.wav"],
+  [sfxVictory, "/Sound/Victory.wav"],
+  [sfxDeath, "/Sound/Death.wav"],
+  [sfxPlayerAttack, "/Sound/Player attack.wav"],
+  [sfxPlayerHurt, "/Sound/Player taking damage.wav"],
 ];
 
 /** Applied per-sound on every playSfx call — never to the sound manager itself, so a future
@@ -75,6 +88,29 @@ export function itemKindToSfxKey(kind: ItemKind): string | undefined {
     case "chest":
       return sfxChest;
     case "loot":
+      return undefined;
+  }
+}
+
+/** 028: a landed hit plays the attack cue when it lands on the monster and the hurt cue when it
+ * lands on the player; crits share their side's cue and heals play nothing (research R2). */
+export function battleEventToSfxKey(event: BattleEvent): string | undefined {
+  switch (event.kind) {
+    case "hit":
+      return event.target === "monster" ? sfxPlayerAttack : sfxPlayerHurt;
+    case "heal":
+      return undefined;
+  }
+}
+
+/** 028: one outcome cue per decided battle; fleeing is silent (FR-007, research R3). */
+export function battleOutcomeToSfxKey(outcome: BattleEndOutcome): string | undefined {
+  switch (outcome) {
+    case "victory":
+      return sfxVictory;
+    case "defeat":
+      return sfxDeath;
+    case "fled":
       return undefined;
   }
 }

@@ -9,6 +9,12 @@ import {
   sfxPotion,
   sfxEquipment,
   sfxChest,
+  battleEventToSfxKey,
+  battleOutcomeToSfxKey,
+  sfxPlayerAttack,
+  sfxPlayerHurt,
+  sfxVictory,
+  sfxDeath,
 } from "../../../src/game/sfx";
 
 /** Minimal stand-in for a Phaser.Sound.BaseSoundManager — no Phaser, no canvas, no tower data,
@@ -67,5 +73,31 @@ describe("itemKindToSfxKey", () => {
 
   it("maps loot to no sound", () => {
     expect(itemKindToSfxKey("loot")).toBeUndefined();
+  });
+});
+
+describe("battleEventToSfxKey", () => {
+  it.each([
+    ["monster", false, sfxPlayerAttack],
+    ["monster", true, sfxPlayerAttack],
+    ["player", false, sfxPlayerHurt],
+    ["player", true, sfxPlayerHurt],
+  ] as const)("maps a hit on the %s (crit: %s) to its sound", (target, isCrit, expected) => {
+    expect(battleEventToSfxKey({ kind: "hit", target, damage: 5, isCrit })).toBe(expected);
+  });
+
+  it("maps a heal to no sound", () => {
+    expect(battleEventToSfxKey({ kind: "heal", amount: 10 })).toBeUndefined();
+  });
+});
+
+describe("battleOutcomeToSfxKey", () => {
+  it("maps victory and defeat to their sounds", () => {
+    expect(battleOutcomeToSfxKey("victory")).toBe(sfxVictory);
+    expect(battleOutcomeToSfxKey("defeat")).toBe(sfxDeath);
+  });
+
+  it("maps fleeing to no sound", () => {
+    expect(battleOutcomeToSfxKey("fled")).toBeUndefined();
   });
 });

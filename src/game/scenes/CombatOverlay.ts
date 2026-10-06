@@ -14,7 +14,14 @@ import { PLAY_AREA, DESIGN_PLAY_AREA } from "../gameConfig";
 import { RENDER_SCALE } from "../scaleConfig";
 import { createUiText, getUiRoot, px } from "../ui/domOverlay";
 import { createMenuOption } from "../ui/MenuOption";
-import { attachMenuSounds, playSfx, sfxPotion } from "../sfx";
+import {
+  attachMenuSounds,
+  battleEventToSfxKey,
+  battleOutcomeToSfxKey,
+  playSfx,
+  sfxEncounter,
+  sfxPotion,
+} from "../sfx";
 
 export interface CombatOverlayData {
   floorNumber: number;
@@ -129,6 +136,7 @@ export class CombatOverlay extends Phaser.Scene {
   }
 
   create(): void {
+    playSfx(this.sound, sfxEncounter); // 028 C1: every launch path passes through here
     ensurePopStyle();
     const root = getUiRoot();
     const add = <T extends HTMLElement>(el: T): T => {
@@ -310,6 +318,8 @@ export class CombatOverlay extends Phaser.Scene {
 
   /** C11: hits flash the target white and float their damage up over it. */
   private showEvent(event: BattleEvent): void {
+    const sfxKey = battleEventToSfxKey(event); // 028 C5–C8
+    if (sfxKey) playSfx(this.sound, sfxKey);
     if (event.kind === "hit") {
       const sprite = this.views_[event.target].sprite;
       sprite.setTintFill(0xffffff);
@@ -357,6 +367,8 @@ export class CombatOverlay extends Phaser.Scene {
   private endBattle(outcome: BattleEndOutcome): void {
     if (this.ended_) return;
     this.ended_ = true;
+    const sfxKey = battleOutcomeToSfxKey(outcome); // 028 C2–C4: once per battle, silent on flee
+    if (sfxKey) playSfx(this.sound, sfxKey);
     this.actionButtons_.forEach((button) => {
       button.disabled = true;
       button.style.opacity = "0.4"; // inline colours override the stylesheet's :disabled grey
