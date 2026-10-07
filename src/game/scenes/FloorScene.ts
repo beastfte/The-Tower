@@ -593,9 +593,10 @@ export class FloorScene extends Phaser.Scene {
         attackIntervalSec: stats.attackIntervalSec,
         critChance: stats.critChance,
         critDamageBonus: stats.critDamageBonus,
+        dodgeChance: stats.dodgeChance,
       },
       // FR-032 (research R6): authored damage × species interval; floor data is untouched.
-      monster: monsterCombatant(enemy.stats, species),
+      monster: monsterCombatant(enemy.stats, species, enemy.dodgeChance),
       playerMaxHp: computeMaxHp(character),
       potionCount: character.potionCount ?? 0,
       playerTextureKey: ensurePlayerTexture(this, this.playerTier(), this.playerWeapon(), "right", "idle"),

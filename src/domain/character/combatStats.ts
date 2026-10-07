@@ -9,6 +9,7 @@ export interface EffectiveStats extends CombatStats {
   attackIntervalSec: number;
   critChance: number;
   critDamageBonus: number;
+  dodgeChance: number;
 }
 
 /**
@@ -55,6 +56,7 @@ export function computeEffectiveStats(
     attackIntervalSec: PLAYER_BASE_COMBAT.attackIntervalSec / (1 + sum((s) => s.attackSpeedBonus)),
     critChance: PLAYER_BASE_COMBAT.critChance + sum((s) => s.critChanceBonus),
     critDamageBonus: PLAYER_BASE_COMBAT.critDamageBonus + sum((s) => s.critDamageBonus),
+    dodgeChance: Math.min(1, Math.max(0, PLAYER_BASE_COMBAT.dodgeChance + sum((s) => s.dodgeChanceBonus))),
   };
 }
 

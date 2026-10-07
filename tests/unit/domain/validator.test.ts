@@ -334,3 +334,18 @@ describe("validateFloorDefinition — removed-asset rejection (018 FR-024)", () 
     expect(result.errors.some((e) => e.includes("FR-024"))).toBe(false);
   });
 });
+
+describe("enemy dodgeChance override (032 C4)", () => {
+  const errorsFor = (dodgeChance: number | undefined) =>
+    validateFloorDefinition(baseFloor({ enemies: [{ ...enemyAt("e1", 3, 3), dodgeChance }] })).errors.filter((e) =>
+      e.includes("dodgeChance"),
+    );
+
+  it.each([1.5, -0.1, Number.NaN])("rejects %s, naming the enemy", (v) => {
+    expect(errorsFor(v)).toEqual([expect.stringContaining('enemy "e1"')]);
+  });
+
+  it.each([0, 0.5, 1, undefined])("accepts %s", (v) => {
+    expect(errorsFor(v)).toEqual([]);
+  });
+});

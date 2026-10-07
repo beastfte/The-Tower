@@ -99,6 +99,7 @@ export function battleEventToSfxKey(event: BattleEvent): string | undefined {
     case "hit":
       return event.target === "monster" ? sfxPlayerAttack : sfxPlayerHurt;
     case "heal":
+    case "dodge":
       return undefined;
   }
 }

@@ -39,7 +39,7 @@ const HAZARD_KIND_LABELS = {
 } satisfies Record<HazardKind, string>;
 
 export interface PaletteManifest {
-  monsters: { id: string; name: string; baseline: { damage: number; defence: number; hp: number } }[];
+  monsters: { id: string; name: string; baseline: { damage: number; defence: number; hp: number; dodgeChance: number } }[];
   weapons: { id: string; name: string }[];
   armorMaterials: string[];
   armorSlots: string[];
@@ -54,7 +54,7 @@ export function buildPalette(): PaletteManifest {
     monsters: Object.values(MONSTER_SPECIES).map((m) => ({
       id: m.id,
       name: m.name,
-      baseline: { damage: m.baselineStats.damage, defence: m.baselineStats.defence, hp: m.baselineStats.hp },
+      baseline: { damage: m.baselineStats.damage, defence: m.baselineStats.defence, hp: m.baselineStats.hp, dodgeChance: m.dodgeChance },
     })),
     weapons: Object.values(WEAPONS).map((w) => ({ id: w.id, name: w.name })),
     armorMaterials: [...new Set(Object.values(ARMOR_PIECES).map((p) => p.material))],

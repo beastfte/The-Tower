@@ -92,7 +92,7 @@ describe("gameplay integration", () => {
 
     const stats = computeEffectiveStats(ctx.save.character, weaponCatalog, armorCatalog);
     let state: BattleState = startBattle(
-      { hp: ctx.save.character.currentHp, attack: stats.damage, defence: stats.defence, attackIntervalSec: 1, critChance: 0, critDamageBonus: 0 },
+      { hp: ctx.save.character.currentHp, attack: stats.damage, defence: stats.defence, attackIntervalSec: 1, critChance: 0, critDamageBonus: 0, dodgeChance: 0 },
       monsterCombatant(enemy.stats, MONSTER_SPECIES.goblin),
       30,
       0,
@@ -202,7 +202,7 @@ describe("monster attack speed preserves authored damage per second", () => {
     const ogre = MONSTER_SPECIES.ogre; // 1.6s per hit
     expect(ogre.attackIntervalSec).not.toBe(1);
     let state: BattleState = startBattle(
-      { hp: 1e6, attack: 0, defence: 0, attackIntervalSec: 1e9, critChance: 0, critDamageBonus: 0 },
+      { hp: 1e6, attack: 0, defence: 0, attackIntervalSec: 1e9, critChance: 0, critDamageBonus: 0, dodgeChance: 0 },
       { ...monsterCombatant({ damage: 6, defence: 0, hp: 1e6 }, ogre), critChance: 0 },
       1e6,
       0,

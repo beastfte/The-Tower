@@ -25,6 +25,8 @@ export interface WeaponDefinition {
   attackSpeedBonus?: number;
   critChanceBonus?: number;
   critDamageBonus?: number;
+  /** 032 FR-005: may be negative. Absent = 0; no shipped item uses it yet. */
+  dodgeChanceBonus?: number;
 }
 
 export type ArmorSlotId = "helm" | "chest" | "legs" | "boots";
@@ -47,4 +49,6 @@ export interface ArmorPieceDefinition {
   attackSpeedBonus?: number;
   critChanceBonus?: number;
   critDamageBonus?: number;
+  /** 032 FR-005: may be negative. Absent = 0; no shipped item uses it yet. */
+  dodgeChanceBonus?: number;
 }

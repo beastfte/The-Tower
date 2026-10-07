@@ -14,6 +14,7 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     attackIntervalSec: 0.8,
     critChance: 0.05,
     critDamageBonus: 0,
+    dodgeChance: 0.12,
   },
   ogre: {
     id: "ogre",
@@ -24,6 +25,7 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     attackIntervalSec: 1.6,
     critChance: 0.05,
     critDamageBonus: 0,
+    dodgeChance: 0.03,
   },
   wizard: {
     id: "wizard",
@@ -34,6 +36,7 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     attackIntervalSec: 1.2,
     critChance: 0.05,
     critDamageBonus: 0,
+    dodgeChance: 0.06,
   },
   // 020: six additional species. baselineStats below are explicit placeholders (spec FR-004),
   // not balance-tested — refining them is expected to happen later via the tower design tool.
@@ -46,6 +49,7 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     attackIntervalSec: 0.6,
     critChance: 0.05,
     critDamageBonus: 0,
+    dodgeChance: 0.2,
   },
   slime: {
     id: "slime",
@@ -56,6 +60,7 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     attackIntervalSec: 1.2,
     critChance: 0.05,
     critDamageBonus: 0,
+    dodgeChance: 0.02,
   },
   skeleton: {
     id: "skeleton",
@@ -66,6 +71,7 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     attackIntervalSec: 1,
     critChance: 0.05,
     critDamageBonus: 0,
+    dodgeChance: 0.05,
   },
   necromancer: {
     id: "necromancer",
@@ -76,6 +82,7 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     attackIntervalSec: 1.4,
     critChance: 0.05,
     critDamageBonus: 0,
+    dodgeChance: 0.06,
   },
   bandit: {
     id: "bandit",
@@ -86,6 +93,7 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     attackIntervalSec: 0.8,
     critChance: 0.05,
     critDamageBonus: 0,
+    dodgeChance: 0.12,
   },
   voidwalker: {
     id: "voidwalker",
@@ -96,5 +104,6 @@ export const MONSTER_SPECIES: Record<MonsterSpeciesId, MonsterSpecies> = {
     attackIntervalSec: 1,
     critChance: 0.05,
     critDamageBonus: 0,
+    dodgeChance: 0.1,
   },
 };

@@ -140,3 +140,13 @@ describe("floorDefinitionToExport / floorExportToDefinition round-trip", () => {
     expect(def.grid[1]![0]!.walkable).toBe(false); // missing row -> defaults blocked
   });
 });
+
+describe("enemy dodgeChance override (032 C5)", () => {
+  it("survives export and back, and an enemy without one gains none", () => {
+    const def = sampleDefinition();
+    def.enemies.push({ id: "e2", position: { x: 1, y: 1 }, stats: { damage: 1, defence: 0, hp: 1 }, species: "bat", dodgeChance: 0.5 });
+    const back = floorExportToDefinition(floorDefinitionToExport(def, 0));
+    expect(back.enemies.find((e) => e.id === "e2")?.dodgeChance).toBe(0.5);
+    expect(back.enemies.find((e) => e.id === "e1")).not.toHaveProperty("dodgeChance");
+  });
+});

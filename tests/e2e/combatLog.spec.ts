@@ -90,8 +90,13 @@ test("defeat: reloading before Continue still lands on the death screen (US2 AS5
 const SPARRING = { baseStats: { damage: 1, defence: 100_000, hp: 30 }, currentHp: 30, bonusDamage: 0 };
 
 test("crits: every hit shows the large red number at 100%, none at 0% (US3, C11)", async ({ page }) => {
-  // Every attack rolls rng() < critChance (5%): forcing rng to 0 makes every hit a crit.
-  await page.evaluate(() => (Math.random = () => 0));
+  // 032: each attack rolls dodge first, then crit (rng() < critChance, 5%), so one constant can't
+  // force a crit. Inside the battle step alternate 0.99 (no dodge) / 0 (crit); other callers
+  // (pop jitter) get a neutral value so they can't throw the alternation off.
+  await page.evaluate(() => {
+    let n = 0;
+    Math.random = () => (new Error().stack?.includes("advanceBattle") ? (n++ % 2 === 0 ? 0.99 : 0) : 0.5);
+  });
   await startFight(page, { character: SPARRING });
   const pops = page.locator('[data-testid="combat-pop"]');
   await expect(pops.first()).toBeAttached({ timeout: 5_000 });

@@ -28,6 +28,8 @@ import type { ArmourTierId } from "../render/spriteData";
 import type { WeaponId } from "../../domain/character/types";
 
 type HitEvent = Extract<BattleEvent, { kind: "hit" }>;
+/** 032 C6: a dodge lands (and waits for the strike frame) exactly where a hit would. */
+type ImpactEvent = HitEvent | Extract<BattleEvent, { kind: "dodge" }>;
 
 export interface CombatOverlayData {
   floorNumber: number;
@@ -144,7 +146,7 @@ export class CombatOverlay extends Phaser.Scene {
   /** ms into the monster's attack animation, on the focus-gated battle clock; null = not attacking. */
   private attackElapsedMs_: number | null = null;
   /** The monster's hit, held back until its strike frame (FR-005). */
-  private pendingImpact_: HitEvent | null = null;
+  private pendingImpact_: ImpactEvent | null = null;
   private attackFrame_: MonsterCombatFrame = "idle";
   /** 031: ms into the Prince's swing on the same gated clock; null = not swinging. */
   private playerAttackElapsedMs_: number | null = null;
@@ -369,11 +371,12 @@ export class CombatOverlay extends Phaser.Scene {
   }
 
   private showEvent(event: BattleEvent): void {
-    if (event.kind === "hit") {
-      // 030 (C6/C7): the monster's hits wait for its strike frame; the Prince's land at once (FR-008).
+    if (event.kind === "hit" || event.kind === "dodge") {
+      // 030 (C6/C7): the monster's attacks wait for its strike frame; the Prince's land at once (FR-008).
+      // `target` is the defender for hits and dodges alike, so a player target means a monster swing.
       if (event.target === "player" && this.animates_) this.startMonsterAttack(event);
       else this.applyHitFeedback(event);
-      // 031 (C5): the Prince swings alongside his (still immediate) hit feedback.
+      // 031 (C5): the Prince swings alongside his (still immediate) feedback.
       if (event.target === "monster") this.startPlayerAttack();
       return;
     }
@@ -383,7 +386,11 @@ export class CombatOverlay extends Phaser.Scene {
   }
 
   /** C11: hits flash the target white and float their damage up over it. */
-  private applyHitFeedback(event: HitEvent): void {
+  private applyHitFeedback(event: ImpactEvent): void {
+    if (event.kind === "dodge") {
+      this.floatNumber(event.target, "Dodge", { fontSize: 30, color: "#9ec9ff" });
+      return;
+    }
     const sfxKey = battleEventToSfxKey(event); // 028 C5–C8
     if (sfxKey) playSfx(this.sound, sfxKey);
     const sprite = this.views_[event.target].sprite;
@@ -394,7 +401,7 @@ export class CombatOverlay extends Phaser.Scene {
 
   /** 030 (C6): (re)starts the attack from its wind-up. A hit still waiting on an earlier strike
    * lands first, so a fast attacker never drops one (US3 AC1). */
-  private startMonsterAttack(event: HitEvent): void {
+  private startMonsterAttack(event: ImpactEvent): void {
     this.flushImpact();
     this.pendingImpact_ = event;
     this.attackElapsedMs_ = 0;

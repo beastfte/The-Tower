@@ -20,6 +20,8 @@ export interface CombatantStats {
   attackIntervalSec: number;
   critChance: number;
   critDamageBonus: number;
+  /** 032: chance (0-1) an incoming attack is dodged outright. */
+  dodgeChance: number;
 }
 
 export interface Combatant extends CombatantStats {
@@ -37,6 +39,8 @@ export interface BattleState {
 
 export type BattleEvent =
   | { kind: "hit"; target: Side; damage: number; isCrit: boolean }
+  /** 032 C1: the attack was avoided entirely; `target` is the side that dodged. */
+  | { kind: "dodge"; target: Side }
   | { kind: "heal"; amount: number };
 
 export interface BattleStep {
@@ -50,14 +54,18 @@ const MIN_INTERVAL_SEC = 0.01;
 const TIE_EPSILON = 1e-9;
 
 /** Used when an enemy's species isn't in the catalog (FR-031). */
-export const MONSTER_COMBAT_FALLBACK = { attackIntervalSec: 1, critChance: 0.05, critDamageBonus: 0 } as const;
+export const MONSTER_COMBAT_FALLBACK = { attackIntervalSec: 1, critChance: 0.05, critDamageBonus: 0, dodgeChance: 0.1 } as const;
 
 /**
  * 027 FR-032 (research R6, contract C6): a placement's authored `stats.damage` is its damage
  * per second, so its per-hit attack is that × its species interval. Its raw DPS is therefore
  * unchanged by the revamp for every placement, and the generated floor files stay untouched.
  */
-export function monsterCombatant(stats: CombatStats, species: MonsterSpecies | undefined): CombatantStats {
+export function monsterCombatant(
+  stats: CombatStats,
+  species: MonsterSpecies | undefined,
+  dodgeOverride?: number,
+): CombatantStats {
   const speed = species ?? MONSTER_COMBAT_FALLBACK;
   return {
     hp: stats.hp,
@@ -66,6 +74,7 @@ export function monsterCombatant(stats: CombatStats, species: MonsterSpecies | u
     attackIntervalSec: speed.attackIntervalSec,
     critChance: speed.critChance,
     critDamageBonus: speed.critDamageBonus,
+    dodgeChance: dodgeOverride ?? speed.dodgeChance,
   };
 }
 
@@ -118,6 +127,11 @@ export function advanceBattle(
     const defender = playerFirst ? monster : player;
 
     attacker.charge -= attacker.attackIntervalSec;
+    // 032 C1: dodge is decided first, so a dodged attack never rolls a crit or deals damage.
+    if (rng() < defender.dodgeChance) {
+      events.push({ kind: "dodge", target: playerFirst ? "monster" : "player" });
+      continue;
+    }
     const isCrit = rng() < attacker.critChance;
     const damage = resolveHit(attacker, defender, isCrit);
     defender.hp = Math.max(0, defender.hp - damage);

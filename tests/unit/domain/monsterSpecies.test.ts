@@ -20,7 +20,25 @@ describe("MONSTER_SPECIES live-battle stats (027)", () => {
 
   it("falls back to 1s / 5% / 0 for an unknown species, attacking at its authored damage (FR-031)", () => {
     const c = monsterCombatant({ damage: 7, defence: 2, hp: 20 }, undefined);
-    expect(c).toEqual({ hp: 20, attack: 7, defence: 2, attackIntervalSec: 1, critChance: 0.05, critDamageBonus: 0 });
+    expect(c).toEqual({ hp: 20, attack: 7, defence: 2, attackIntervalSec: 1, critChance: 0.05, critDamageBonus: 0, dodgeChance: 0.1 });
+  });
+
+  it("resolves dodge as override, then species default, then fallback (032 C2)", () => {
+    const bat = MONSTER_SPECIES.bat;
+    const stats = { damage: 1, defence: 0, hp: 1 };
+    expect(monsterCombatant(stats, bat, 0.5).dodgeChance).toBe(0.5);
+    expect(monsterCombatant(stats, bat).dodgeChance).toBe(bat.dodgeChance);
+    expect(monsterCombatant(stats, undefined).dodgeChance).toBe(0.1);
+  });
+
+  it.each(Object.values(MONSTER_SPECIES))("$id default dodge is within 2-20% (032 FR-006)", (species) => {
+    expect(species.dodgeChance).toBeGreaterThanOrEqual(0.02);
+    expect(species.dodgeChance).toBeLessThanOrEqual(0.2);
+  });
+
+  it("animal-like bats dodge more than large or slow ogres and slimes (032 FR-006)", () => {
+    expect(MONSTER_SPECIES.bat.dodgeChance).toBeGreaterThan(MONSTER_SPECIES.ogre.dodgeChance);
+    expect(MONSTER_SPECIES.bat.dodgeChance).toBeGreaterThan(MONSTER_SPECIES.slime.dodgeChance);
   });
 });
 

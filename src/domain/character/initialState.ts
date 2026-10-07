@@ -14,6 +14,7 @@ export const PLAYER_BASE_COMBAT = {
   attackIntervalSec: 1,
   critChance: 0.05,
   critDamageBonus: 0,
+  dodgeChance: 0.05,
 } as const;
 
 /** Builds a fresh PlayerSave for a brand-new game (no prior save found). */

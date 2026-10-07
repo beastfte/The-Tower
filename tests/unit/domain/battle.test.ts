@@ -17,6 +17,7 @@ const fighter = (overrides: Partial<CombatantStats> = {}): CombatantStats => ({
   attackIntervalSec: 1,
   critChance: 0,
   critDamageBonus: 0,
+  dodgeChance: 0,
   ...overrides,
 });
 
@@ -295,5 +296,42 @@ describe("drinkPotion", () => {
     const after = drinkPotion(state).state;
     expect(after.player.charge).toBe(state.player.charge);
     expect(after.monster.charge).toBe(state.monster.charge);
+  });
+});
+
+/** 032 C1: dodge is decided before crit and removes the attack entirely. */
+describe("dodge (032)", () => {
+  const dodges = (events: BattleEvent[]) => events.filter((e) => e.kind === "dodge");
+
+  it("a dodged attack emits a dodge, deals no damage and never crits", () => {
+    const state = startBattle(fighter({ attack: 5, critChance: 1 }), fighter({ hp: 10, dodgeChance: 1, attackIntervalSec: 1e9 }), 100, 0);
+    const { state: after, events } = advanceBattle(state, 1, always);
+    expect(events).toEqual([{ kind: "dodge", target: "monster" }]);
+    expect(after.monster.hp).toBe(10);
+  });
+
+  it("a dodge on a would-be lethal attack leaves the battle ongoing", () => {
+    const state = startBattle(fighter({ attack: 99 }), fighter({ hp: 1, dodgeChance: 1, attackIntervalSec: 1e9 }), 100, 0);
+    expect(advanceBattle(state, 1, always).state.outcome).toBe("ongoing");
+  });
+
+  it("a monster attack can be dodged by the player", () => {
+    const state = startBattle(fighter({ attackIntervalSec: 100, dodgeChance: 1 }), fighter({ attack: 5 }), 100, 0);
+    const { events } = advanceBattle(state, 1, always);
+    expect(events).toEqual([{ kind: "dodge", target: "player" }]);
+  });
+
+  it("dodgeChance 0 never dodges, even with an rng of 0", () => {
+    const state = startBattle(fighter({ attack: 2 }), fighter({ hp: 10, attackIntervalSec: 1e9 }), 100, 0);
+    expect(advanceBattle(state, 1, always).events).toEqual([
+      { kind: "hit", target: "monster", damage: 2, isCrit: false },
+    ]);
+  });
+
+  it("the observed dodge rate is within 3 points of the chance over 1000 attacks (SC-001)", () => {
+    const state = startBattle(fighter({ attackIntervalSec: 0.01 }), fighter({ dodgeChance: 0.2, attackIntervalSec: 1e9 }), 1, 0);
+    const { events } = run(state, 1000, 0.01, seeded(7));
+    expect(dodges(events).length / 1000).toBeGreaterThan(0.17);
+    expect(dodges(events).length / 1000).toBeLessThan(0.23);
   });
 });

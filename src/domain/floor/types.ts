@@ -28,6 +28,8 @@ export interface MonsterSpecies {
   critChance: number;
   /** 027 FR-016: added to the 1.5 crit multiplier. */
   critDamageBonus: number;
+  /** 032 FR-006: this type's default chance (0-1) to dodge an attack; 2-20% for shipped species. */
+  dodgeChance: number;
 }
 
 export interface DropTable {
@@ -43,6 +45,8 @@ export interface EnemyDefinition {
   species: MonsterSpeciesId;
   isEndBoss?: boolean;
   drops?: DropTable;
+  /** 032 FR-007/FR-008: per-placement dodge override (0-1); absent = the species default. */
+  dodgeChance?: number;
 }
 
 /** 023 FR-004: a merchant NPC — deliberately not an `EnemyDefinition`. Combat is reachable

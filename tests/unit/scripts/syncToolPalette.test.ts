@@ -19,6 +19,10 @@ describe("sync-tool-palette — palette generation matches the game's source cat
     expect(buildPalette()).toEqual(embedded);
   });
 
+  it("carries each species' default dodge chance as part of its baseline (032 C5)", () => {
+    for (const m of buildPalette().monsters) expect(m.baseline.dodgeChance).toBeGreaterThanOrEqual(0.02);
+  });
+
   it("includes every monster species, weapon, armor material/slot, door/key tier, lever effect kind, item kind, and hazard kind the game currently defines", () => {
     const palette = buildPalette();
     expect(palette.monsters.map((m) => m.id).sort()).toEqual([
@@ -69,7 +73,7 @@ describe("MONSTER_COLOR / MONSTER_GLYPH — hand-maintained, but completeness is
 
 describe("findRemovedEntries — FR-020's repo-side refuse-and-report check", () => {
   const base: PaletteManifest = {
-    monsters: [{ id: "goblin", name: "Goblin", baseline: { damage: 4, defence: 1, hp: 12 } }],
+    monsters: [{ id: "goblin", name: "Goblin", baseline: { damage: 4, defence: 1, hp: 12, dodgeChance: 0.1 } }],
     weapons: [{ id: "sword", name: "Sword" }],
     armorMaterials: ["cloth"],
     armorSlots: ["helm"],
@@ -82,7 +86,7 @@ describe("findRemovedEntries — FR-020's repo-side refuse-and-report check", ()
   it("reports nothing when nothing disappears (an addition is fine)", () => {
     const withAddition: PaletteManifest = {
       ...base,
-      monsters: [...base.monsters, { id: "ogre", name: "Ogre", baseline: { damage: 6, defence: 4, hp: 30 } }],
+      monsters: [...base.monsters, { id: "ogre", name: "Ogre", baseline: { damage: 6, defence: 4, hp: 30, dodgeChance: 0.1 } }],
     };
     expect(findRemovedEntries(base, withAddition)).toEqual([]);
   });

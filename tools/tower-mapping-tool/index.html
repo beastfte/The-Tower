@@ -620,7 +620,8 @@
             "baseline": {
               "damage": 4,
               "defence": 1,
-              "hp": 12
+              "hp": 12,
+              "dodgeChance": 0.12
             }
           },
           {
@@ -629,7 +630,8 @@
             "baseline": {
               "damage": 6,
               "defence": 4,
-              "hp": 30
+              "hp": 30,
+              "dodgeChance": 0.03
             }
           },
           {
@@ -638,7 +640,8 @@
             "baseline": {
               "damage": 8,
               "defence": 0,
-              "hp": 10
+              "hp": 10,
+              "dodgeChance": 0.06
             }
           },
           {
@@ -647,7 +650,8 @@
             "baseline": {
               "damage": 3,
               "defence": 0,
-              "hp": 6
+              "hp": 6,
+              "dodgeChance": 0.2
             }
           },
           {
@@ -656,7 +660,8 @@
             "baseline": {
               "damage": 2,
               "defence": 2,
-              "hp": 14
+              "hp": 14,
+              "dodgeChance": 0.02
             }
           },
           {
@@ -665,7 +670,8 @@
             "baseline": {
               "damage": 5,
               "defence": 2,
-              "hp": 16
+              "hp": 16,
+              "dodgeChance": 0.05
             }
           },
           {
@@ -674,7 +680,8 @@
             "baseline": {
               "damage": 7,
               "defence": 1,
-              "hp": 12
+              "hp": 12,
+              "dodgeChance": 0.06
             }
           },
           {
@@ -683,7 +690,8 @@
             "baseline": {
               "damage": 6,
               "defence": 2,
-              "hp": 14
+              "hp": 14,
+              "dodgeChance": 0.12
             }
           },
           {
@@ -692,7 +700,8 @@
             "baseline": {
               "damage": 9,
               "defence": 3,
-              "hp": 20
+              "hp": 20,
+              "dodgeChance": 0.1
             }
           }
         ],
@@ -2136,6 +2145,26 @@
         return field(label, inp);
       }
 
+      function dodgeField(el, baseline, onChange) {
+        const inp = document.createElement("input");
+        inp.type = "number";
+        inp.min = "0";
+        inp.max = "100";
+        inp.value = el.dodgeChance === undefined ? "" : Math.round(el.dodgeChance * 100);
+        inp.placeholder = baseline ? String(Math.round(baseline.dodgeChance * 100)) : "";
+        inp.addEventListener("change", () => {
+          const v = Number(inp.value);
+          if (inp.value === "") delete el.dodgeChance;
+          else if (Number.isFinite(v) && v >= 0 && v <= 100) el.dodgeChance = v / 100;
+          else {
+            inp.value = el.dodgeChance === undefined ? "" : Math.round(el.dodgeChance * 100); // reject out of range
+            return;
+          }
+          onChange();
+        });
+        return field("Dodge % (blank = type default)", inp);
+      }
+
       function textField(label, value, onChange) {
         const inp = document.createElement("input");
         inp.type = "text";
@@ -2176,6 +2205,10 @@
           content.appendChild(numberField("Damage", el.stats.damage, (v) => { el.stats.damage = v; commit(floor); }));
           content.appendChild(numberField("Defence", el.stats.defence, (v) => { el.stats.defence = v; commit(floor); }));
           content.appendChild(numberField("HP", el.stats.hp, (v) => { el.stats.hp = v; commit(floor); }));
+          // 032 C5: per-monster dodge override in whole percent; empty reverts to the species default.
+          content.appendChild(
+            dodgeField(el, (PALETTE.monsters.find((m) => m.id === el.species) || {}).baseline, () => commit(floor)),
+          );
           content.appendChild(
             numberField("Currency drop", el.drops && el.drops.currency ? el.drops.currency : 0, (v) => {
               el.drops = v > 0 ? { currency: v } : undefined;

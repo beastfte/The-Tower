@@ -201,6 +201,14 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
     errors.push(`Floor "${floor.id}": exit tile coincides with occupied content (invariant 1)`);
   }
 
+  // 032 C4: a per-placement dodge override must be a probability.
+  for (const enemy of floor.enemies) {
+    const d = enemy.dodgeChance;
+    if (d !== undefined && !(Number.isFinite(d) && d >= 0 && d <= 1)) {
+      errors.push(`Floor "${floor.id}": enemy "${enemy.id}" dodgeChance must be a number from 0 to 1`);
+    }
+  }
+
   // Invariant 4: id uniqueness within each scope.
   const checkUnique = (ids: string[], scope: string) => {
     const seen = new Set<string>();

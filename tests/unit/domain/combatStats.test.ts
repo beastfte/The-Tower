@@ -59,3 +59,27 @@ describe("computeEffectiveStats live-battle stats (027)", () => {
     expect(stats.defence).toBe(3); // FR-014: defence derivation unchanged
   });
 });
+
+/** 032 C3: base 5% plus equipment, clamped to 0-100%. */
+describe("computeEffectiveStats dodge (032)", () => {
+  const withBonus = (bonus: number) =>
+    computeEffectiveStats(
+      character({ equippedWeaponId: "sword" }),
+      new Map<WeaponId, WeaponDefinition>([["sword", weapon({ dodgeChanceBonus: bonus })]]),
+      new Map(),
+    ).dodgeChance;
+
+  it("is 5% with nothing equipped", () => {
+    expect(computeEffectiveStats(character(), new Map(), new Map()).dodgeChance).toBe(0.05);
+  });
+
+  it("adds equipment bonuses, including negative ones", () => {
+    expect(withBonus(0.1)).toBeCloseTo(0.15, 10);
+    expect(withBonus(-0.02)).toBeCloseTo(0.03, 10);
+  });
+
+  it("clamps to 0-100%", () => {
+    expect(withBonus(-1)).toBe(0);
+    expect(withBonus(5)).toBe(1);
+  });
+});

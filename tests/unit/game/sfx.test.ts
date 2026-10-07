@@ -88,6 +88,7 @@ describe("battleEventToSfxKey", () => {
 
   it("maps a heal to no sound", () => {
     expect(battleEventToSfxKey({ kind: "heal", amount: 10 })).toBeUndefined();
+    expect(battleEventToSfxKey({ kind: "dodge", target: "monster" })).toBeUndefined(); // 032 C6
   });
 });
 

@@ -246,6 +246,14 @@ export class SidePanelScene extends Phaser.Scene {
     );
     this.addRow(`Dmg: ${stats.damage}`, "Damage dealt per successful attack.");
     this.addRow(`Def: ${stats.defence}`, "Reduces incoming damage per attack.");
+    // 032 C7: the live-battle stats, straight from the same effective stats combat uses.
+    this.addRow(`Spd: ${(1 / stats.attackIntervalSec).toFixed(2)}/s`, "Attacks per second.");
+    this.addRow(`Crit: ${Math.round(stats.critChance * 100)}%`, "Chance an attack is a critical hit.");
+    this.addRow(
+      `Crit Dmg: ${Math.round((1.5 + stats.critDamageBonus) * 100)}%`,
+      "Damage of a critical hit, after defence.",
+    );
+    this.addRow(`Dodge: ${Math.round(stats.dodgeChance * 100)}%`, "Chance to avoid an attack completely.");
     if (weapon) {
       this.addIconRow({ src: spriteDataUrl(weapon.textureKey) }, `${weapon.name}: Determines damage dealt in combat.`);
     } else {
