@@ -94,7 +94,11 @@ export class SidePanelScene extends Phaser.Scene {
       pauseButton.appendChild(bar);
     }
     pauseButton.addEventListener("click", () => {
-      if (this.scene.isActive("CombatOverlay") || this.scene.isActive("PauseMenuScene")) {
+      if (
+        this.scene.isActive("CombatOverlay") ||
+        this.scene.isActive("CombatIntroScene") || // 029 C8: the intro is part of the fight
+        this.scene.isActive("PauseMenuScene")
+      ) {
         return;
       }
       (this.scene.get("FloorScene") as FloorScene).openPauseMenu();

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { GameContext } from "../GameContext";
-import { setMusicVolume, MENU_MUSIC_KEY, MENU_MUSIC_PATH, GAME_MUSIC_KEY, GAME_MUSIC_PATH } from "../music";
+import { setMusicVolume, MUSIC_ASSETS } from "../music";
 import { setSfxVolume, SFX_ASSETS } from "../sfx";
 import { getMusicVolume, getSfxVolume } from "../../persistence/settings";
 
@@ -13,13 +13,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload(): void {
-    if (!this.cache.audio.exists(MENU_MUSIC_KEY)) {
-      this.load.audio(MENU_MUSIC_KEY, MENU_MUSIC_PATH);
-    }
-    if (!this.cache.audio.exists(GAME_MUSIC_KEY)) {
-      this.load.audio(GAME_MUSIC_KEY, GAME_MUSIC_PATH);
-    }
-    for (const [key, path] of SFX_ASSETS) {
+    for (const [key, path] of [...MUSIC_ASSETS, ...SFX_ASSETS]) {
       if (!this.cache.audio.exists(key)) {
         this.load.audio(key, path);
       }

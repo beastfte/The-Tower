@@ -7,20 +7,28 @@ import {
   setMusicVolume,
   MENU_MUSIC_KEY,
   GAME_MUSIC_KEY,
+  COMBAT_MUSIC_KEY,
 } from "../../../src/game/music";
 
 /** Minimal stand-in for a Phaser.Sound.BaseSound instance — just enough for music.ts to drive. */
 function createStubSound() {
+  type State = { isPlaying: boolean; isPaused: boolean };
   return {
     isPlaying: false,
-    play: vi.fn(function (this: { isPlaying: boolean }) {
+    isPaused: false,
+    play: vi.fn(function (this: State) {
       this.isPlaying = true;
+      this.isPaused = false;
     }),
-    pause: vi.fn(function (this: { isPlaying: boolean }) {
+    pause: vi.fn(function (this: State) {
+      if (!this.isPlaying) return;
       this.isPlaying = false;
+      this.isPaused = true;
     }),
-    resume: vi.fn(function (this: { isPlaying: boolean }) {
+    resume: vi.fn(function (this: State) {
+      if (!this.isPaused) return;
       this.isPlaying = true;
+      this.isPaused = false;
     }),
     setVolume: vi.fn(),
   };
@@ -60,16 +68,41 @@ describe("playMusic", () => {
     expect(sound.get(MENU_MUSIC_KEY)?.isPlaying).toBe(true);
   });
 
-  it("stops all existing sounds, including paused ones, before starting a different track", () => {
+  it("pauses only the outgoing track when switching — never stopAll, which would cut sound effects", () => {
+    const sound = createStubSoundManager();
+    playMusic(sound as never, GAME_MUSIC_KEY);
+
+    playMusic(sound as never, COMBAT_MUSIC_KEY);
+
+    expect(sound.stopAll).not.toHaveBeenCalled();
+    expect(sound.get(GAME_MUSIC_KEY)?.pause).toHaveBeenCalled();
+    expect(sound.get(GAME_MUSIC_KEY)?.isPlaying).toBe(false);
+    expect(sound.get(COMBAT_MUSIC_KEY)?.isPlaying).toBe(true);
+  });
+
+  it("keeps a pause-menu-paused track silent when switching away from it", () => {
     const sound = createStubSoundManager();
     playMusic(sound as never, GAME_MUSIC_KEY);
     pauseMusic();
-    expect(sound.get(GAME_MUSIC_KEY)?.isPlaying).toBe(false);
 
     playMusic(sound as never, MENU_MUSIC_KEY);
-    expect(sound.stopAll).toHaveBeenCalled();
+
     expect(sound.get(GAME_MUSIC_KEY)?.isPlaying).toBe(false);
     expect(sound.get(MENU_MUSIC_KEY)?.isPlaying).toBe(true);
+  });
+
+  it("resumes a previously switched-away track rather than restarting it", () => {
+    const sound = createStubSoundManager();
+    playMusic(sound as never, GAME_MUSIC_KEY);
+    const floor = sound.get(GAME_MUSIC_KEY)!;
+    playMusic(sound as never, COMBAT_MUSIC_KEY);
+
+    playMusic(sound as never, GAME_MUSIC_KEY);
+
+    expect(floor.resume).toHaveBeenCalled();
+    expect(floor.play).toHaveBeenCalledTimes(1);
+    expect(floor.isPlaying).toBe(true);
+    expect(sound.get(COMBAT_MUSIC_KEY)?.isPlaying).toBe(false);
   });
 
   it("is a no-op when the requested track is already playing", () => {

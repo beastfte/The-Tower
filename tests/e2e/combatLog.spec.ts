@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { clearSave, getCtxSave, getEventLog, isSceneActive, OVERWHELMING, readSave, startFight, waitForActiveScene } from "./helpers";
+import { approach, clearSave, getCtxSave, getEventLog, isSceneActive, OVERWHELMING, readSave, startFight, waitForActiveScene } from "./helpers";
 
 /** Can't hurt anything and dies to the first hit (FR-001: the fight is still allowed). */
 const DOOMED = { baseStats: { damage: 0, defence: 0, hp: 30 }, currentHp: 1, bonusDamage: 0 };
@@ -151,4 +151,19 @@ test("flee: closes at once, keeps HP as it stood in the fight, monster back at f
   await page.keyboard.press(press);
   await waitForActiveScene(page, "CombatOverlay");
   await expect(monsterHp).toHaveText(monsterMax!);
+});
+
+test("029: the intro plays before the duel screen, then hands over to it (C1, C5, C6)", async ({ page }) => {
+  const plan = await approach(page, "enemy", { character: OVERWHELMING });
+  if (!plan) throw new Error("no fightable monster with a safe neighbour on the current floor");
+  const intro = page.locator('[data-testid="combat-intro"]');
+
+  await page.keyboard.press(plan.press);
+  await expect(intro).toBeVisible();
+  await expect(modal(page)).toHaveCount(0);
+  expect(await isSceneActive(page, "CombatOverlay")).toBe(false);
+
+  await waitForActiveScene(page, "CombatOverlay");
+  await expect(modal(page)).toBeVisible();
+  await expect(intro).toHaveCount(0);
 });

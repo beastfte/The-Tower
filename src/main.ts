@@ -11,6 +11,7 @@ import { MainMenuScene } from "./game/scenes/MainMenuScene";
 import { OptionsMenuScene } from "./game/scenes/OptionsMenuScene";
 import { FloorScene } from "./game/scenes/FloorScene";
 import { CombatOverlay } from "./game/scenes/CombatOverlay";
+import { CombatIntroScene } from "./game/scenes/CombatIntroScene";
 import { DeathScreenScene } from "./game/scenes/DeathScreenScene";
 import { WinScreenScene } from "./game/scenes/WinScreenScene";
 import { SidePanelScene } from "./game/scenes/SidePanelScene";
@@ -33,6 +34,7 @@ const game = new Phaser.Game(
     MainMenuScene,
     OptionsMenuScene,
     FloorScene,
+    CombatIntroScene,
     CombatOverlay,
     SidePanelScene,
     EventLogScene,

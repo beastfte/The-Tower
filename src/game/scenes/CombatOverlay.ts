@@ -19,7 +19,6 @@ import {
   battleEventToSfxKey,
   battleOutcomeToSfxKey,
   playSfx,
-  sfxEncounter,
   sfxPotion,
 } from "../sfx";
 
@@ -136,7 +135,6 @@ export class CombatOverlay extends Phaser.Scene {
   }
 
   create(): void {
-    playSfx(this.sound, sfxEncounter); // 028 C1: every launch path passes through here
     ensurePopStyle();
     const root = getUiRoot();
     const add = <T extends HTMLElement>(el: T): T => {

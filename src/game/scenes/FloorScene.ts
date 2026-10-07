@@ -7,7 +7,7 @@ import { findMerchantAt } from "../../domain/floor/merchantInteraction";
 import { applyUpgradePurchase, priceFor, UPGRADES } from "../../domain/character/shopUpgrades";
 import type { UpgradeId } from "../../domain/character/save";
 import { buildMerchantOptions, MERCHANT_GREETING } from "../npcDialogue";
-import { playMusic, pauseMusic, resumeMusic, GAME_MUSIC_KEY } from "../music";
+import { playMusic, pauseMusic, resumeMusic, GAME_MUSIC_KEY, COMBAT_MUSIC_KEY } from "../music";
 import { playSfx, itemKindToSfxKey, sfxDoor, sfxError } from "../sfx";
 import { findAvailableItemAt, applyItemPickup } from "../../domain/floor/itemCollection";
 import {
@@ -32,6 +32,7 @@ import { describeDrops } from "../eventLog/formatEntry";
 import { isWinningDefeat } from "../../domain/progress/winState";
 import { completeCurrentFloor, returnToPreviousFloor } from "../../domain/progress/towerProgress";
 import type { CombatOverlayData } from "./CombatOverlay";
+import type { CombatIntroData } from "./CombatIntroScene";
 import { applyBattleResult, type BattleEndOutcome } from "../battleResult";
 import type { PauseMenuData } from "./PauseMenuScene";
 import type { NpcDialogueData } from "./NpcDialogueScene";
@@ -597,7 +598,21 @@ export class FloorScene extends Phaser.Scene {
       onBattleEnd: (result) => applyBattleResult(ctx, enemy, enemyName, result),
       onContinue: (outcome) => this.onBattleContinue(enemy, outcome),
     };
-    this.scene.launch("CombatOverlay", data);
+    // 029 (C1, C6, C11): the intro plays first; the fight and the combat track start together
+    // when it clears. The floor track plays on underneath it (C10). onBattleContinue switches
+    // back — both halves of the music switch live here (028 research R9).
+    const intro: CombatIntroData = {
+      floorNumber: data.floorNumber,
+      enemyName,
+      playerTextureKey: data.playerTextureKey,
+      monsterTextureKey: data.monsterTextureKey,
+      onComplete: () => {
+        this.scene.stop("CombatIntroScene");
+        playMusic(this.sound, COMBAT_MUSIC_KEY);
+        this.scene.launch("CombatOverlay", data);
+      },
+    };
+    this.scene.launch("CombatIntroScene", intro);
     this.scene.pause();
   }
 
@@ -643,6 +658,8 @@ export class FloorScene extends Phaser.Scene {
 
   /** 027: leaves the modal — Continue on a victory/defeat panel, or immediately after fleeing. */
   private onBattleContinue(enemy: EnemyDefinition, outcome: BattleEndOutcome): void {
+    // 028 US3 (C13/C14): before the end-screen branch, so death/win screens get the floor track.
+    playMusic(this.sound, GAME_MUSIC_KEY);
     this.scene.stop("CombatOverlay");
     this.scene.resume();
 

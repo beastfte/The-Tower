@@ -7,6 +7,16 @@ export const MENU_MUSIC_KEY = "menuMusic";
 export const MENU_MUSIC_PATH = "/Sound/Intro Menu Music.wav";
 export const GAME_MUSIC_KEY = "gameMusic";
 export const GAME_MUSIC_PATH = "/Sound/Game background.wav";
+/** 028 US3: loops for the length of a battle, outcome panel included (FloorScene owns the switch). */
+export const COMBAT_MUSIC_KEY = "combatMusic";
+export const COMBAT_MUSIC_PATH = "/Sound/Combat soundtrack.wav";
+
+/** Every track, for BootScene's preload loop (mirrors sfx.ts's SFX_ASSETS). */
+export const MUSIC_ASSETS: ReadonlyArray<readonly [key: string, path: string]> = [
+  [MENU_MUSIC_KEY, MENU_MUSIC_PATH],
+  [GAME_MUSIC_KEY, GAME_MUSIC_PATH],
+  [COMBAT_MUSIC_KEY, COMBAT_MUSIC_PATH],
+];
 
 /** Most recently requested track key. Re-checked by the audio-unlock deferral below so a request
  * superseded by a later one (e.g. the unlock gesture is the same click that leaves the menu)
@@ -42,10 +52,13 @@ export function playMusic(sound: Phaser.Sound.BaseSoundManager, key: string): vo
   start(sound, key);
 }
 
+/** Pauses only the outgoing track — never stopAll, which would also cut a sound effect mid-play
+ * (028 research R8) — so a track switched back to later resumes where it left off. */
 function start(sound: Phaser.Sound.BaseSoundManager, key: string): void {
-  sound.stopAll();
   const instance = sound.get(key) ?? sound.add(key, { loop: true, volume: musicVolume });
-  instance.play();
+  if (currentSound !== instance) currentSound?.pause();
+  if (instance.isPaused) instance.resume();
+  else instance.play();
   currentSound = instance;
 }
 

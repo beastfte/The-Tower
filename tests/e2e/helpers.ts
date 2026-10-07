@@ -106,7 +106,7 @@ export interface FightSetup {
  * player there with any character overrides, and starts FloorScene. Returns the target's name and
  * the key that walks onto it, or null if the current floor has no such target.
  */
-async function approach(
+export async function approach(
   page: Page,
   target: "enemy" | "healthPotion",
   setup: FightSetup,
