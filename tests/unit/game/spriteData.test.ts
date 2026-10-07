@@ -16,9 +16,14 @@ const PLAYER_BODIES = PLAYER_TIERS.flatMap((tier) =>
   ),
 );
 
+const MONSTERS = ["goblin", "ogre", "wizard", "bat", "slime", "skeleton", "necromancer", "bandit", "voidwalker"];
+/** 030: each combat monster's side profile, `<species>Left<Frame>` (contract C1). */
+const MONSTER_LEFT_FRAMES = ["Idle", "Breath", "AttackA", "AttackB"];
+
 const FAMILIES = {
   playerBodies: PLAYER_BODIES,
-  monsters: ["goblin", "ogre", "wizard", "bat", "slime", "skeleton", "necromancer", "bandit", "voidwalker"],
+  monsters: MONSTERS,
+  monsterLeft: MONSTERS.flatMap((m) => MONSTER_LEFT_FRAMES.map((f) => `${m}Left${f}`)),
   /** 023: unlike every combat monster above (one `.idle` frame each), the merchant adopts both
    * `.idle` and `.breath` — a real 2-frame breathing animation (FR-002). */
   merchant: ["merchantIdle", "merchantBreath"],
@@ -42,9 +47,9 @@ function opaqueMask(grid: SpriteGrid): boolean[][] {
 }
 
 describe("SPRITES inventory (contract C6)", () => {
-  it("has exactly the 113 non-zone adopted sprites", () => {
+  it("has exactly the 149 non-zone adopted sprites", () => {
     expect(new Set(Object.keys(SPRITES))).toEqual(new Set(ALL_ADOPTED));
-    expect(Object.keys(SPRITES)).toHaveLength(113);
+    expect(Object.keys(SPRITES)).toHaveLength(149);
   });
 
   it("has no out-of-scope tile key", () => {
@@ -66,6 +71,31 @@ describe("SPRITES inventory (contract C6)", () => {
 
   it.each(Object.keys(SPRITES))("sprite '%s' pal entries are literal #rrggbb", (key) => {
     for (const c of SPRITES[key]!.pal) expect(c).toMatch(/^#[0-9a-fA-F]{6}$/);
+  });
+});
+
+describe("monster side profiles (030 contract C2)", () => {
+  it.each(MONSTERS)("'%s' side-profile idle and breath are 32x32 with no draw offset", (m) => {
+    for (const f of ["Idle", "Breath"]) {
+      const grid = SPRITES[`${m}Left${f}`]!;
+      expect([grid.w, grid.h]).toEqual([32, 32]);
+      expect(grid.dx ?? 0).toBe(0);
+    }
+  });
+
+  // CombatOverlay anchors the monster on its right edge (research R7). That is only correct while
+  // the sheet's own declared offset puts the attack frames' right 32 columns over the idle grid.
+  it.each(MONSTERS)("'%s' attack frames are 44x32 and offset so their right edge matches idle", (m) => {
+    for (const f of ["AttackA", "AttackB"]) {
+      const grid = SPRITES[`${m}Left${f}`]!;
+      expect([grid.w, grid.h]).toEqual([44, 32]);
+      expect(grid.dx).toBe(32 - grid.w);
+    }
+  });
+
+  it("no non-attack sprite carries a draw offset", () => {
+    const offset = Object.entries(SPRITES).filter(([, g]) => g.dx !== undefined).map(([k]) => k);
+    expect(offset.sort()).toEqual(MONSTERS.flatMap((m) => [`${m}LeftAttackA`, `${m}LeftAttackB`]).sort());
   });
 });
 

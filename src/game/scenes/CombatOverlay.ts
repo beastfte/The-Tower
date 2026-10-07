@@ -21,6 +21,10 @@ import {
   playSfx,
   sfxPotion,
 } from "../sfx";
+import { computeMonsterAttackFrame, MONSTER_ATTACK_IMPACT_MS, type MonsterCombatFrame } from "../monsterAnimation";
+import { ensureMonsterCombatTexture, hasMonsterCombatFrames } from "../render/spriteTextures";
+
+type HitEvent = Extract<BattleEvent, { kind: "hit" }>;
 
 export interface CombatOverlayData {
   floorNumber: number;
@@ -33,6 +37,8 @@ export interface CombatOverlayData {
   /** Texture keys already ensured by the caller (textures are game-wide). */
   playerTextureKey: string;
   monsterTextureKey: string;
+  /** 030: the species' sprite key, from which the side-profile attack frames are derived. */
+  monsterSpeciesKey: string;
   /** Readable drop phrases for the victory panel (`describeDrops`). */
   dropPhrases: string[];
   /** Fires exactly once, the instant the battle ends — before any outcome panel — so the
@@ -51,14 +57,20 @@ const FRAME_X = DESIGN_PLAY_AREA.x + (DESIGN_PLAY_AREA.width - FRAME.w) / 2;
 const FRAME_Y = DESIGN_PLAY_AREA.y + (DESIGN_PLAY_AREA.height - FRAME.h) / 2;
 /** 256 canvas px = 8× the 32×32 sprite grids, so every sprite pixel stays a whole block. */
 const SPRITE = 256 / RENDER_SCALE;
-const CENTRE_COLUMN = 106;
+/** 030: wide enough that the monster's strike (12 sprite px of reach) stops short of "VS". */
+const CENTRE_COLUMN = 200;
 const BAR = { w: 113, h: 6 };
 const BOTTOM_MARGIN = 21;
 const BAR_GAP = 7;
+const BUTTON_GAP = 30;
 
 const SIDE_COLUMN = (FRAME.w - CENTRE_COLUMN) / 2;
-const BAR_TOP = FRAME_Y + FRAME.h - BOTTOM_MARGIN - BAR.h;
-const SPRITE_CENTRE_Y = BAR_TOP - BAR_GAP - SPRITE / 2;
+// 030: Potion/Flee sit at the bottom of the centre column and the fighters stand above them, so
+// no attack frame (32 rows tall, like idle) can ever reach down over the buttons.
+const FLEE_Y = FRAME_Y + FRAME.h - BOTTOM_MARGIN - 12;
+const POTION_Y = FLEE_Y - BUTTON_GAP;
+const SPRITE_CENTRE_Y = POTION_Y - 24 - SPRITE / 2;
+const BAR_TOP = SPRITE_CENTRE_Y + SPRITE / 2 + BAR_GAP;
 const SPRITE_CENTRE_X: Record<Side, number> = {
   player: FRAME_X + SIDE_COLUMN - SPRITE / 2,
   monster: FRAME_X + SIDE_COLUMN + CENTRE_COLUMN + SPRITE / 2,
@@ -120,6 +132,13 @@ export class CombatOverlay extends Phaser.Scene {
   private actionButtons_: HTMLButtonElement[] = [];
   private outcomeLayer_?: Phaser.GameObjects.Rectangle;
   private potionButton_!: HTMLButtonElement;
+  /** 030 (data-model.md §3): whether this monster has side-profile attack art (FR-009). */
+  private animates_ = false;
+  /** ms into the monster's attack animation, on the focus-gated battle clock; null = not attacking. */
+  private attackElapsedMs_: number | null = null;
+  /** The monster's hit, held back until its strike frame (FR-005). */
+  private pendingImpact_: HitEvent | null = null;
+  private attackFrame_: MonsterCombatFrame = "idle";
 
   constructor() {
     super("CombatOverlay");
@@ -132,6 +151,10 @@ export class CombatOverlay extends Phaser.Scene {
     this.nodes_ = [];
     this.actionButtons_ = [];
     this.outcomeLayer_ = undefined;
+    this.animates_ = hasMonsterCombatFrames(data.monsterSpeciesKey);
+    this.attackElapsedMs_ = null;
+    this.pendingImpact_ = null;
+    this.attackFrame_ = "idle";
   }
 
   create(): void {
@@ -191,7 +214,7 @@ export class CombatOverlay extends Phaser.Scene {
     };
 
     // C17: drinks one carried potion at once; disabled with none left, at full HP, or once ended.
-    this.potionButton_ = this.addActionButton("", SPRITE_CENTRE_Y + 4, "combat-potion", () => {
+    this.potionButton_ = this.addActionButton("", POTION_Y, "combat-potion", () => {
       const step = drinkPotion(this.state_);
       if (step.events.length === 0) return;
       this.state_ = step.state;
@@ -202,7 +225,7 @@ export class CombatOverlay extends Phaser.Scene {
     Object.assign(this.potionButton_.style, { background: GOLD, color: "#1a1206", borderColor: GOLD });
 
     // C13: Flee works at any moment until an outcome appears, and closes the modal at once.
-    this.addActionButton("Flee", SPRITE_CENTRE_Y + 34, "combat-flee", () => {
+    this.addActionButton("Flee", FLEE_Y, "combat-flee", () => {
       if (this.ended_) return;
       this.state_ = flee(this.state_);
       this.endBattle("fled");
@@ -211,7 +234,7 @@ export class CombatOverlay extends Phaser.Scene {
     this.refresh();
   }
 
-  /** Centre-column action button under "VS" (Potion, Flee); disabled the instant the battle ends. */
+  /** Centre-column action button below the fighters (Potion, Flee); disabled the instant the battle ends. */
   private addActionButton(label: string, y: number, testId: string, onActivate: () => void): HTMLButtonElement {
     const button = createMenuOption(this, { x: CENTRE_X, y, label, fontSize: 13, color: "#e6e9f2", onActivate });
     button.dataset.testid = testId;
@@ -226,8 +249,18 @@ export class CombatOverlay extends Phaser.Scene {
     const maxHp = isPlayer ? this.data_.playerMaxHp : this.data_.monster.hp;
 
     const key = isPlayer ? this.data_.playerTextureKey : this.data_.monsterTextureKey;
-    const sprite = this.add.image(toCanvas(SPRITE_CENTRE_X[side]), toCanvas(SPRITE_CENTRE_Y), key);
-    sprite.setDisplaySize(toCanvas(SPRITE), toCanvas(SPRITE)).setDepth(2);
+    const sprite = this.add.image(toCanvas(SPRITE_CENTRE_X[side]), toCanvas(SPRITE_CENTRE_Y), key).setDepth(2);
+    if (isPlayer) {
+      sprite.setDisplaySize(toCanvas(SPRITE), toCanvas(SPRITE));
+    } else {
+      // 030 (contract C4): scaled, not sized, so a 44-wide attack frame keeps the same pixel size
+      // (FR-006a); and anchored on the right edge of the usual box, where every frame's body
+      // lines up (the sheet's dx = 32 - w), so only the reach moves — leftward, at the Prince.
+      sprite
+        .setScale(toCanvas(SPRITE) / 32)
+        .setOrigin(1, 0.5)
+        .setX(toCanvas(SPRITE_CENTRE_X.monster + SPRITE / 2));
+    }
 
     // Health readout in this side's top corner (C10, FR-039).
     const blockW = 184;
@@ -290,6 +323,8 @@ export class CombatOverlay extends Phaser.Scene {
     // FR-010 (research R3): the battle clock only runs while the game has focus, and a long
     // stall can't land a burst of hits on return.
     const elapsedSec = document.hasFocus() ? Math.min(delta, 100) / 1000 : 0;
+    // 030 (C8): the attack animation runs on the same gated clock, so it freezes with the battle.
+    this.advanceMonsterAttack(elapsedSec * 1000);
     const step = advanceBattle(this.state_, elapsedSec, Math.random);
     this.state_ = step.state;
     step.events.forEach((event) => this.showEvent(event));
@@ -314,18 +349,57 @@ export class CombatOverlay extends Phaser.Scene {
     this.potionButton_.style.opacity = this.potionButton_.disabled ? "0.4" : "1";
   }
 
-  /** C11: hits flash the target white and float their damage up over it. */
   private showEvent(event: BattleEvent): void {
+    if (event.kind === "hit") {
+      // 030 (C6/C7): the monster's hits wait for its strike frame; the Prince's land at once (FR-008).
+      if (event.target === "player" && this.animates_) this.startMonsterAttack(event);
+      else this.applyHitFeedback(event);
+      return;
+    }
     const sfxKey = battleEventToSfxKey(event); // 028 C5–C8
     if (sfxKey) playSfx(this.sound, sfxKey);
-    if (event.kind === "hit") {
-      const sprite = this.views_[event.target].sprite;
-      sprite.setTintFill(0xffffff);
-      this.time.delayedCall(HIT_FLASH_MS, () => sprite.clearTint());
-      this.floatNumber(event.target, String(event.damage), this.popStyle(event));
-    } else {
-      this.floatNumber("player", `+${event.amount}`, { fontSize: 34, color: "#7fd18a" });
-    }
+    this.floatNumber("player", `+${event.amount}`, { fontSize: 34, color: "#7fd18a" });
+  }
+
+  /** C11: hits flash the target white and float their damage up over it. */
+  private applyHitFeedback(event: HitEvent): void {
+    const sfxKey = battleEventToSfxKey(event); // 028 C5–C8
+    if (sfxKey) playSfx(this.sound, sfxKey);
+    const sprite = this.views_[event.target].sprite;
+    sprite.setTintFill(0xffffff);
+    this.time.delayedCall(HIT_FLASH_MS, () => sprite.clearTint());
+    this.floatNumber(event.target, String(event.damage), this.popStyle(event));
+  }
+
+  /** 030 (C6): (re)starts the attack from its wind-up. A hit still waiting on an earlier strike
+   * lands first, so a fast attacker never drops one (US3 AC1). */
+  private startMonsterAttack(event: HitEvent): void {
+    this.flushImpact();
+    this.pendingImpact_ = event;
+    this.attackElapsedMs_ = 0;
+    this.advanceMonsterAttack(0);
+  }
+
+  private advanceMonsterAttack(deltaMs: number): void {
+    if (this.attackElapsedMs_ === null) return;
+    this.attackElapsedMs_ += deltaMs;
+    if (this.attackElapsedMs_ >= MONSTER_ATTACK_IMPACT_MS) this.flushImpact(); // C7
+    const frame = computeMonsterAttackFrame(this.attackElapsedMs_);
+    if (frame === null) this.attackElapsedMs_ = null;
+    this.setMonsterFrame(frame ?? "idle");
+  }
+
+  private flushImpact(): void {
+    if (!this.pendingImpact_) return;
+    const event = this.pendingImpact_;
+    this.pendingImpact_ = null;
+    this.applyHitFeedback(event);
+  }
+
+  private setMonsterFrame(frame: MonsterCombatFrame): void {
+    if (frame === this.attackFrame_) return;
+    this.attackFrame_ = frame;
+    this.views_.monster.sprite.setTexture(ensureMonsterCombatTexture(this, this.data_.monsterSpeciesKey, frame));
   }
 
   /** C11/FR-018: a critical strike's number is larger and red, unmistakable from a normal hit. */
@@ -365,6 +439,14 @@ export class CombatOverlay extends Phaser.Scene {
   private endBattle(outcome: BattleEndOutcome): void {
     if (this.ended_) return;
     this.ended_ = true;
+    // 030 (C9): any hit still waiting on its strike lands now, before the outcome. A killing blow
+    // freezes the monster mid-strike; otherwise it settles back to its side profile (US3 AC2–AC4).
+    // update() stops once ended_ is set, so nothing advances the animation after this.
+    if (this.attackElapsedMs_ !== null) {
+      this.flushImpact();
+      this.attackElapsedMs_ = null;
+      this.setMonsterFrame(outcome === "defeat" ? "attackB" : "idle");
+    }
     const sfxKey = battleOutcomeToSfxKey(outcome); // 028 C2–C4: once per battle, silent on flee
     if (sfxKey) playSfx(this.sound, sfxKey);
     this.actionButtons_.forEach((button) => {

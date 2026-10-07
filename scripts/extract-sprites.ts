@@ -17,6 +17,9 @@ interface RawGrid {
   h: number;
   pal: string[];
   rows: string[];
+  /** 030: Sheet (10)'s horizontal draw offset in sprite pixels (the sheet's `paint` does
+   * `ox += dx * px`). Non-zero only on the 44-wide monster attack frames (-12). */
+  dx?: number;
 }
 
 function fail(message: string): never {
@@ -75,7 +78,10 @@ function validateGrid(name: string, grid: RawGrid): void {
 function grid(name: string, raw: RawGrid | undefined): RawGrid {
   if (!raw) fail(`expected sprite '${name}' not found in the sheet`);
   validateGrid(name, raw!);
-  return raw!;
+  // Sheet (10) stamps `dx: 0` on every grid; carry it only where it means something, so the
+  // generated data stays unchanged for every sprite that doesn't shift.
+  const { w, h, pal, rows, dx } = raw!;
+  return dx ? { w, h, pal, rows, dx } : { w, h, pal, rows };
 }
 
 function main(): void {
@@ -84,7 +90,10 @@ function main(): void {
   const TS = loadTowerSprites(htmlPath!);
 
   const PLAYER = TS.PLAYER as Record<string, Record<string, Record<string, RawGrid>>>;
-  const MONSTER_SPRITES = TS.MONSTER_SPRITES as Record<string, { idle: RawGrid; breath?: RawGrid }>;
+  const MONSTER_SPRITES = TS.MONSTER_SPRITES as Record<
+    string,
+    { idle: RawGrid; breath?: RawGrid; left?: { idle: RawGrid; breath: RawGrid; attackA: RawGrid; attackB: RawGrid } }
+  >;
   const WEAPONS = TS.WEAPONS as Record<string, RawGrid>;
   const ARMOUR = TS.ARMOUR as Record<string, RawGrid>;
   const ITEMS = TS.ITEMS as Record<string, RawGrid>;
@@ -118,6 +127,17 @@ function main(): void {
   const monsterNames = ["goblin", "ogre", "wizard", "bat", "slime", "skeleton", "necromancer", "bandit", "voidwalker"];
   for (const name of monsterNames) sprites[name] = grid(`MONSTER_SPRITES.${name}.idle`, MONSTER_SPRITES[name]?.idle);
 
+  // 030 (contract C1): each combat monster's side profile, facing the Prince, for the combat
+  // screens only — the front `.idle` above stays the floor sprite. attackA/attackB are 44x32
+  // with the extra width on the left; the right 32 columns are the body (research R2).
+  // eliteIdle/eliteBreath are deliberately not adopted — the game has no elite monsters.
+  const monsterLeftFrames = ["idle", "breath", "attackA", "attackB"] as const;
+  for (const name of monsterNames) {
+    for (const frame of monsterLeftFrames) {
+      sprites[`${name}Left${capitalize(frame)}`] = grid(`MONSTER_SPRITES.${name}.left.${frame}`, MONSTER_SPRITES[name]?.left?.[frame]);
+    }
+  }
+
   // 023: unlike every combat monster above (which adopts only `.idle`), the merchant adopts
   // both `.idle` and `.breath` — it needs a real 2-frame breathing animation (FR-002), and the
   // sheet itself marks it as a non-combatant by carrying no `eliteIdle`/`eliteBreath` pair.
@@ -148,7 +168,8 @@ function main(): void {
   for (const name of tileNames) sprites[name] = grid(name, TILES[name]);
 
   const expectedCount =
-    playerSpriteCount + monsterNames.length + 2 /* merchantIdle, merchantBreath */ +
+    playerSpriteCount + monsterNames.length + monsterNames.length * monsterLeftFrames.length +
+    2 /* merchantIdle, merchantBreath */ +
     weaponNames.length + armourNames.length + itemNames.length + propNames.length + tileNames.length;
   if (Object.keys(sprites).length !== expectedCount) {
     fail(`allow-list mismatch: expected ${expectedCount} sprites, extracted ${Object.keys(sprites).length}`);
@@ -184,7 +205,7 @@ function main(): void {
 
   const banner = `/**
  * GENERATED FILE — do not hand-edit. Produced by scripts/extract-sprites.ts from the reference
- * sprite sheet ("The Tower - Sprite Sheet (9).html", section 10 "THE SHEET"). Regenerate with:
+ * sprite sheet ("The Tower - Sprite Sheet (10).html", section 10 "THE SHEET"). Regenerate with:
  *   npx tsx scripts/extract-sprites.ts "<path to reference sheet.html>"
  */
 `;
@@ -195,6 +216,10 @@ export interface SpriteGrid {
   readonly h: number;
   readonly pal: readonly string[];
   readonly rows: readonly string[];
+  /** Horizontal draw offset in sprite pixels, as the sheet's own \`paint\` applies it. Present only
+   * on the 44-wide monster attack frames (-12): their right 32 columns line up with the 32-wide
+   * idle grid, and the extra width reaches left (030 research R2). */
+  readonly dx?: number;
 }
 
 export type SheetZone = "stone" | "cistern" | "ruin" | "forge" | "crypt" | "throne";

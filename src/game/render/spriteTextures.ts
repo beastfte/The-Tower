@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import type { ZoneThemeId } from "../../domain/floor/types";
+import type { MonsterCombatFrame } from "../monsterAnimation";
 import type { PlayerFrame } from "../playerAnimation";
 import { paintPixelsTo, paintSprite, type PixelGrid } from "./painters";
 import {
@@ -99,6 +100,22 @@ export function ensurePlayerTexture(
     paintPixelsToTexture(scene, key, paintSprite(requireGrid(spriteKey)));
   }
   return key;
+}
+
+/** 030: whether a species has side-profile combat art. Without it, combat shows the front sprite
+ * and keeps the pre-030 flash-only hit feedback (FR-009). */
+export function hasMonsterCombatFrames(speciesTextureKey: string): boolean {
+  return SPRITES[`${speciesTextureKey}LeftIdle`] !== undefined;
+}
+
+/** 030 (contract C3): a combat monster's side-profile frame, `<species>Left<Frame>` as
+ * `extract-sprites.ts` names it. A species with no side profile in `SPRITES` falls back to its
+ * front sprite for every frame, so a future monster renders as combat did before 030 instead of
+ * throwing (FR-009). The 44-wide attack frames are painted at their own width — positioning them
+ * is the caller's job (CombatOverlay anchors the monster on its right edge, research R7). */
+export function ensureMonsterCombatTexture(scene: Phaser.Scene, speciesTextureKey: string, frame: MonsterCombatFrame): string {
+  if (!hasMonsterCombatFrames(speciesTextureKey)) return ensureSpriteTexture(scene, speciesTextureKey);
+  return ensureSpriteTexture(scene, `${speciesTextureKey}Left${capitalize(frame)}`);
 }
 
 /** Not a sheet sprite the way the rest of the inventory is — one of the sheet's own `lava1`-

@@ -48,7 +48,13 @@ import type {
 } from "../../domain/floor/types";
 import { ARMOR_MATERIAL_ORDER } from "../../domain/character/types";
 import type { ArmorMaterialId, KeyDefinition, LootItem, WeaponId } from "../../domain/character/types";
-import { ensureLavaGlowTexture, ensurePlayerTexture, ensureSpriteTexture, ensureZoneTileTexture } from "../render/spriteTextures";
+import {
+  ensureLavaGlowTexture,
+  ensureMonsterCombatTexture,
+  ensurePlayerTexture,
+  ensureSpriteTexture,
+  ensureZoneTileTexture,
+} from "../render/spriteTextures";
 import type { ArmourTierId, PlayerDirection } from "../render/spriteData";
 import { computePlayerIdleFrame, computePlayerWalkFrame, facingForDirection } from "../playerAnimation";
 import { computeMerchantIdleFrame } from "../merchantAnimation";
@@ -593,7 +599,10 @@ export class FloorScene extends Phaser.Scene {
       playerMaxHp: computeMaxHp(character),
       potionCount: character.potionCount ?? 0,
       playerTextureKey: ensurePlayerTexture(this, this.playerTier(), "right", "idle"),
-      monsterTextureKey: species ? ensureSpriteTexture(this, species.textureKey) : "__MISSING",
+      // 030 (research R10): the side profile, facing the Prince, for both the intro and the duel.
+      // The floor marker keeps the front sprite (addTextureMarker below).
+      monsterTextureKey: species ? ensureMonsterCombatTexture(this, species.textureKey, "idle") : "__MISSING",
+      monsterSpeciesKey: species?.textureKey ?? "__MISSING",
       dropPhrases: describeDrops(enemy.drops),
       onBattleEnd: (result) => applyBattleResult(ctx, enemy, enemyName, result),
       onContinue: (outcome) => this.onBattleContinue(enemy, outcome),
