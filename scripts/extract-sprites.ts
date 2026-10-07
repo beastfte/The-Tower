@@ -90,6 +90,9 @@ function main(): void {
   const TS = loadTowerSprites(htmlPath!);
 
   const PLAYER = TS.PLAYER as Record<string, Record<string, Record<string, RawGrid>>>;
+  // 031 research R2/R3: Sheet (11)'s sword-in-hand overlays, painted over the body by the sheet's
+  // own drawChar — same [key][dir][frame] shape as PLAYER, keyed by WeaponId.
+  const HELD_SWORD = TS.HELD_SWORD as Record<string, Record<string, Record<string, RawGrid>>>;
   const MONSTER_SPRITES = TS.MONSTER_SPRITES as Record<
     string,
     { idle: RawGrid; breath?: RawGrid; left?: { idle: RawGrid; breath: RawGrid; attackA: RawGrid; attackB: RawGrid } }
@@ -123,6 +126,15 @@ function main(): void {
       }
     }
   }
+  // 031 research R4: the sheet draws the attack (frames 5/6, "Attack Right 2f") for `right` only —
+  // the one facing combat uses. 44x32 with no dx: the reach extends right, at the enemy (R5).
+  const attackFrames = ["attackA", "attackB"];
+  for (const tier of playerTiers) {
+    for (const frame of attackFrames) {
+      sprites[`player${capitalize(tier)}Right${capitalize(frame)}`] = grid(`PLAYER.${tier}.right.${frame}`, PLAYER[tier]?.right?.[frame]);
+      playerSpriteCount++;
+    }
+  }
 
   const monsterNames = ["goblin", "ogre", "wizard", "bat", "slime", "skeleton", "necromancer", "bandit", "voidwalker"];
   for (const name of monsterNames) sprites[name] = grid(`MONSTER_SPRITES.${name}.idle`, MONSTER_SPRITES[name]?.idle);
@@ -147,6 +159,22 @@ function main(): void {
   const weaponNames = ["woodSword", "sword", "goldSword", "diamondSword"];
   for (const name of weaponNames) sprites[name] = grid(name, WEAPONS[name]);
 
+  // 031 (data-model.md 1.2): held swords, prefixed `held` so they cannot collide with the flat
+  // 16x16 pickup icons above. Every facing/frame the body has, plus the two right-only attack frames.
+  let heldSwordCount = 0;
+  for (const weapon of weaponNames) {
+    for (const dir of playerDirections) {
+      const frames = dir === "right" ? [...playerFrames, ...attackFrames] : playerFrames;
+      for (const frame of frames) {
+        sprites[`held${capitalize(weapon)}${capitalize(dir)}${capitalize(frame)}`] = grid(
+          `HELD_SWORD.${weapon}.${dir}.${frame}`,
+          HELD_SWORD[weapon]?.[dir]?.[frame],
+        );
+        heldSwordCount++;
+      }
+    }
+  }
+
   const armourNames = [
     "leatherHelm", "leatherChest", "leatherLegs", "leatherBoots",
     "mailHelm", "mailChest", "mailLegs", "mailBoots",
@@ -170,7 +198,7 @@ function main(): void {
   const expectedCount =
     playerSpriteCount + monsterNames.length + monsterNames.length * monsterLeftFrames.length +
     2 /* merchantIdle, merchantBreath */ +
-    weaponNames.length + armourNames.length + itemNames.length + propNames.length + tileNames.length;
+    weaponNames.length + heldSwordCount + armourNames.length + itemNames.length + propNames.length + tileNames.length;
   if (Object.keys(sprites).length !== expectedCount) {
     fail(`allow-list mismatch: expected ${expectedCount} sprites, extracted ${Object.keys(sprites).length}`);
   }
@@ -205,7 +233,7 @@ function main(): void {
 
   const banner = `/**
  * GENERATED FILE — do not hand-edit. Produced by scripts/extract-sprites.ts from the reference
- * sprite sheet ("The Tower - Sprite Sheet (10).html", section 10 "THE SHEET"). Regenerate with:
+ * sprite sheet ("The Tower - Sprite Sheet (11).html", section 10 "THE SHEET"). Regenerate with:
  *   npx tsx scripts/extract-sprites.ts "<path to reference sheet.html>"
  */
 `;

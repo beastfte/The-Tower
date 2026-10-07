@@ -22,7 +22,10 @@ import {
   sfxPotion,
 } from "../sfx";
 import { computeMonsterAttackFrame, MONSTER_ATTACK_IMPACT_MS, type MonsterCombatFrame } from "../monsterAnimation";
-import { ensureMonsterCombatTexture, hasMonsterCombatFrames } from "../render/spriteTextures";
+import { computePlayerAttackFrame, type PlayerAttackFrame } from "../playerAnimation";
+import { ensureMonsterCombatTexture, ensurePlayerTexture, hasMonsterCombatFrames } from "../render/spriteTextures";
+import type { ArmourTierId } from "../render/spriteData";
+import type { WeaponId } from "../../domain/character/types";
 
 type HitEvent = Extract<BattleEvent, { kind: "hit" }>;
 
@@ -39,6 +42,10 @@ export interface CombatOverlayData {
   monsterTextureKey: string;
   /** 030: the species' sprite key, from which the side-profile attack frames are derived. */
   monsterSpeciesKey: string;
+  /** 031 (contract C5): the Prince's raw look, so the duel can bake his attack frames too —
+   * `playerTextureKey` alone only covers idle. */
+  playerTier: ArmourTierId;
+  playerWeapon: WeaponId | null;
   /** Readable drop phrases for the victory panel (`describeDrops`). */
   dropPhrases: string[];
   /** Fires exactly once, the instant the battle ends — before any outcome panel — so the
@@ -139,6 +146,9 @@ export class CombatOverlay extends Phaser.Scene {
   /** The monster's hit, held back until its strike frame (FR-005). */
   private pendingImpact_: HitEvent | null = null;
   private attackFrame_: MonsterCombatFrame = "idle";
+  /** 031: ms into the Prince's swing on the same gated clock; null = not swinging. */
+  private playerAttackElapsedMs_: number | null = null;
+  private playerAttackFrame_: "idle" | PlayerAttackFrame = "idle";
 
   constructor() {
     super("CombatOverlay");
@@ -155,6 +165,8 @@ export class CombatOverlay extends Phaser.Scene {
     this.attackElapsedMs_ = null;
     this.pendingImpact_ = null;
     this.attackFrame_ = "idle";
+    this.playerAttackElapsedMs_ = null;
+    this.playerAttackFrame_ = "idle";
   }
 
   create(): void {
@@ -251,7 +263,13 @@ export class CombatOverlay extends Phaser.Scene {
     const key = isPlayer ? this.data_.playerTextureKey : this.data_.monsterTextureKey;
     const sprite = this.add.image(toCanvas(SPRITE_CENTRE_X[side]), toCanvas(SPRITE_CENTRE_Y), key).setDepth(2);
     if (isPlayer) {
-      sprite.setDisplaySize(toCanvas(SPRITE), toCanvas(SPRITE));
+      // 031 (contract C5): the mirror of the monster below — scaled so a 44-wide swing keeps the
+      // pixel size, anchored on the LEFT edge where every frame's body lines up (no dx), so only
+      // the blade reaches out, rightward at the monster.
+      sprite
+        .setScale(toCanvas(SPRITE) / 32)
+        .setOrigin(0, 0.5)
+        .setX(toCanvas(SPRITE_CENTRE_X.player - SPRITE / 2));
     } else {
       // 030 (contract C4): scaled, not sized, so a 44-wide attack frame keeps the same pixel size
       // (FR-006a); and anchored on the right edge of the usual box, where every frame's body
@@ -325,6 +343,7 @@ export class CombatOverlay extends Phaser.Scene {
     const elapsedSec = document.hasFocus() ? Math.min(delta, 100) / 1000 : 0;
     // 030 (C8): the attack animation runs on the same gated clock, so it freezes with the battle.
     this.advanceMonsterAttack(elapsedSec * 1000);
+    this.advancePlayerAttack(elapsedSec * 1000);
     const step = advanceBattle(this.state_, elapsedSec, Math.random);
     this.state_ = step.state;
     step.events.forEach((event) => this.showEvent(event));
@@ -354,6 +373,8 @@ export class CombatOverlay extends Phaser.Scene {
       // 030 (C6/C7): the monster's hits wait for its strike frame; the Prince's land at once (FR-008).
       if (event.target === "player" && this.animates_) this.startMonsterAttack(event);
       else this.applyHitFeedback(event);
+      // 031 (C5): the Prince swings alongside his (still immediate) hit feedback.
+      if (event.target === "monster") this.startPlayerAttack();
       return;
     }
     const sfxKey = battleEventToSfxKey(event); // 028 C5–C8
@@ -402,6 +423,27 @@ export class CombatOverlay extends Phaser.Scene {
     this.views_.monster.sprite.setTexture(ensureMonsterCombatTexture(this, this.data_.monsterSpeciesKey, frame));
   }
 
+  /** 031 (C5): (re)starts the Prince's swing from attackA, so a fast attacker never drops one. */
+  private startPlayerAttack(): void {
+    this.playerAttackElapsedMs_ = 0;
+    this.advancePlayerAttack(0);
+  }
+
+  private advancePlayerAttack(deltaMs: number): void {
+    if (this.playerAttackElapsedMs_ === null) return;
+    this.playerAttackElapsedMs_ += deltaMs;
+    const frame = computePlayerAttackFrame(this.playerAttackElapsedMs_);
+    if (frame === null) this.playerAttackElapsedMs_ = null;
+    this.setPlayerFrame(frame ?? "idle");
+  }
+
+  private setPlayerFrame(frame: "idle" | PlayerAttackFrame): void {
+    if (frame === this.playerAttackFrame_) return;
+    this.playerAttackFrame_ = frame;
+    const { playerTier, playerWeapon } = this.data_;
+    this.views_.player.sprite.setTexture(ensurePlayerTexture(this, playerTier, playerWeapon, "right", frame));
+  }
+
   /** C11/FR-018: a critical strike's number is larger and red, unmistakable from a normal hit. */
   private popStyle(event: Extract<BattleEvent, { kind: "hit" }>): { fontSize: number; color: string; crit?: true } {
     if (event.isCrit) return { fontSize: 50, color: "#ff3b3b", crit: true };
@@ -446,6 +488,12 @@ export class CombatOverlay extends Phaser.Scene {
       this.flushImpact();
       this.attackElapsedMs_ = null;
       this.setMonsterFrame(outcome === "defeat" ? "attackB" : "idle");
+    }
+    // 031 (C5, FR-010): unlike the monster, the Prince always settles — he is the sprite dimmed on
+    // defeat, where a frozen lunge would read as a rendering bug.
+    if (this.playerAttackElapsedMs_ !== null) {
+      this.playerAttackElapsedMs_ = null;
+      this.setPlayerFrame("idle");
     }
     const sfxKey = battleOutcomeToSfxKey(outcome); // 028 C2–C4: once per battle, silent on flee
     if (sfxKey) playSfx(this.sound, sfxKey);

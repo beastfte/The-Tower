@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { paintSprite } from "../../../src/game/render/painters";
+import { composeSprites, paintSprite } from "../../../src/game/render/painters";
 import type { SpriteGrid } from "../../../src/game/render/spriteData";
 
 function grid(pal: string[], rows: string[], overrides: Partial<SpriteGrid> = {}): SpriteGrid {
@@ -53,5 +53,28 @@ describe("paintSprite", () => {
     const gridB = grid(["#999999"], ["1a"]);
     expect(paintSprite(gridA)).toEqual([["#111111"]]);
     expect(paintSprite(gridB)).toEqual([["#999999"]]);
+  });
+});
+
+describe("composeSprites", () => {
+  const base = grid(["#111111"], ["3a", "3a"]);
+
+  it("returns the base alone when there is no overlay", () => {
+    expect(composeSprites(base, null)).toEqual(paintSprite(base));
+  });
+
+  it("paints the overlay's opaque pixels over the base and lets transparent ones show through", () => {
+    const overlay = grid(["#999999"], ["1.1a1.", "3."]);
+    expect(composeSprites(base, overlay)).toEqual([
+      ["#111111", "#999999", "#111111"],
+      ["#111111", "#111111", "#111111"],
+    ]);
+  });
+
+  it("never grows past the base's dimensions", () => {
+    const overlay = grid(["#999999"], ["5a", "5a", "5a"]);
+    const out = composeSprites(base, overlay);
+    expect(out).toHaveLength(2);
+    for (const row of out) expect(row).toHaveLength(3);
   });
 });

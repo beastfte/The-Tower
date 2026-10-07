@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  computePlayerAttackFrame,
   computePlayerIdleFrame,
   computePlayerWalkFrame,
   facingForDirection,
+  PLAYER_ATTACK_FRAME_MS,
+  PLAYER_ATTACK_MS,
   PLAYER_IDLE_FRAME_MS,
   PLAYER_WALK_FRAME_MS,
 } from "../../../src/game/playerAnimation";
@@ -47,5 +50,20 @@ describe("facingForDirection", () => {
     expect(facingForDirection("down")).toBe("front");
     expect(facingForDirection("left")).toBe("left");
     expect(facingForDirection("right")).toBe("right");
+  });
+});
+
+describe("computePlayerAttackFrame (031 contract C3)", () => {
+  it("plays attackA then attackB, one frame-hold each", () => {
+    expect(computePlayerAttackFrame(0)).toBe("attackA");
+    expect(computePlayerAttackFrame(PLAYER_ATTACK_FRAME_MS - 1)).toBe("attackA");
+    expect(computePlayerAttackFrame(PLAYER_ATTACK_FRAME_MS)).toBe("attackB");
+    expect(computePlayerAttackFrame(PLAYER_ATTACK_MS - 1)).toBe("attackB");
+  });
+
+  it("returns null once the two frames are over, so the caller settles to idle", () => {
+    expect(PLAYER_ATTACK_MS).toBe(300);
+    expect(computePlayerAttackFrame(PLAYER_ATTACK_MS)).toBeNull();
+    expect(computePlayerAttackFrame(10_000)).toBeNull();
   });
 });

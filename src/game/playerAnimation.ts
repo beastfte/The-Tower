@@ -28,6 +28,21 @@ export function computePlayerIdleFrame(elapsedMs: number): PlayerFrame {
   return IDLE_SEQUENCE[index]!;
 }
 
+/** 031: the sheet's "Attack Right 2f" (its frames 5 and 6) — `right`-only, combat-only art. */
+export type PlayerAttackFrame = "attackA" | "attackB";
+
+/** 031 research R7: same ~150 ms beat as PLAYER_WALK_FRAME_MS and MONSTER_ATTACK_FRAME_MS (the
+ * sheet preview's 9-tick step at ~60fps). Two beats, no borrowed `breath` wind-up — attackA is
+ * already a distinct wind-up pose (research R6). */
+export const PLAYER_ATTACK_FRAME_MS = 150;
+const ATTACK_SEQUENCE: readonly PlayerAttackFrame[] = ["attackA", "attackB"];
+export const PLAYER_ATTACK_MS = PLAYER_ATTACK_FRAME_MS * ATTACK_SEQUENCE.length;
+
+/** One swing, a pure function of elapsed time; `null` once it's over and the Prince is back at idle. */
+export function computePlayerAttackFrame(elapsedMs: number): PlayerAttackFrame | null {
+  return ATTACK_SEQUENCE[Math.floor(elapsedMs / PLAYER_ATTACK_FRAME_MS)] ?? null;
+}
+
 const FACING_FOR_DIRECTION: Record<CardinalDirection, PlayerDirection> = {
   up: "back",
   down: "front",

@@ -1,8 +1,9 @@
 import Phaser from "phaser";
 import type { ZoneThemeId } from "../../domain/floor/types";
 import type { MonsterCombatFrame } from "../monsterAnimation";
-import type { PlayerFrame } from "../playerAnimation";
-import { paintPixelsTo, paintSprite, type PixelGrid } from "./painters";
+import type { WeaponId } from "../../domain/character/types";
+import type { PlayerAttackFrame, PlayerFrame } from "../playerAnimation";
+import { composeSprites, paintPixelsTo, paintSprite, type PixelGrid } from "./painters";
 import {
   LAVA_GLOW_FRAME,
   SPRITES,
@@ -83,21 +84,24 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-/** Direct lookup — the sheet ships one pre-composed body per (tier, facing, frame), so there is
- * no overlay and no recolour step (contract C3). `tier: "none"` is a sprite like any other.
- * 021: extended from a tier-only key to also carry facing and animation frame (contract C6) —
- * the sprite-data key is derived at call time (`player<Tier><Facing><Frame>`), mirroring exactly
- * how `extract-sprites.ts` names the 64 grids it generates. */
+/** One pre-composed body per (tier, facing, frame) — armour is baked into the body, so there is
+ * no recolour step (018 contract C3). 021: the key carries facing and animation frame.
+ * 031 (contract C2): the equipped weapon is the one overlay — `held<Weapon><Facing><Frame>`
+ * painted over the body (the sheet's own drawChar order) and baked into the same texture;
+ * `weapon: null` is the bare-handed body alone. Attack frames exist for `right` only. */
 export function ensurePlayerTexture(
   scene: Phaser.Scene,
   tier: ArmourTierId,
+  weapon: WeaponId | null,
   facing: PlayerDirection,
-  frame: PlayerFrame,
+  frame: PlayerFrame | PlayerAttackFrame,
 ): string {
-  const key = `sprite-player-${tier}-${facing}-${frame}`;
+  const key = `sprite-player-${tier}-${weapon ?? "bare"}-${facing}-${frame}`;
   if (!scene.textures.exists(key)) {
-    const spriteKey = `player${capitalize(tier)}${capitalize(facing)}${capitalize(frame)}`;
-    paintPixelsToTexture(scene, key, paintSprite(requireGrid(spriteKey)));
+    const suffix = `${capitalize(facing)}${capitalize(frame)}`;
+    const body = requireGrid(`player${capitalize(tier)}${suffix}`);
+    const sword = weapon ? requireGrid(`held${capitalize(weapon)}${suffix}`) : null;
+    paintPixelsToTexture(scene, key, composeSprites(body, sword));
   }
   return key;
 }

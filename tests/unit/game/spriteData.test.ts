@@ -16,6 +16,9 @@ const PLAYER_BODIES = PLAYER_TIERS.flatMap((tier) =>
   ),
 );
 
+const WEAPON_IDS = ["woodSword", "sword", "goldSword", "diamondSword"];
+const ATTACK_FRAMES = ["attackA", "attackB"];
+
 const MONSTERS = ["goblin", "ogre", "wizard", "bat", "slime", "skeleton", "necromancer", "bandit", "voidwalker"];
 /** 030: each combat monster's side profile, `<species>Left<Frame>` (contract C1). */
 const MONSTER_LEFT_FRAMES = ["Idle", "Breath", "AttackA", "AttackB"];
@@ -27,7 +30,17 @@ const FAMILIES = {
   /** 023: unlike every combat monster above (one `.idle` frame each), the merchant adopts both
    * `.idle` and `.breath` — a real 2-frame breathing animation (FR-002). */
   merchant: ["merchantIdle", "merchantBreath"],
-  weapons: ["woodSword", "sword", "goldSword", "diamondSword"],
+  weapons: WEAPON_IDS,
+  /** 031: the right-only "Attack Right 2f" bodies, one pair per tier (contract C7). */
+  playerAttackBodies: PLAYER_TIERS.flatMap((t) => ATTACK_FRAMES.map((f) => `player${capitalize(t)}Right${capitalize(f)}`)),
+  /** 031: sword-in-hand overlays, `held<Weapon><Dir><Frame>` (data-model.md 1.2). */
+  heldSwords: WEAPON_IDS.flatMap((w) =>
+    PLAYER_DIRECTIONS.flatMap((d) =>
+      (d === "right" ? [...PLAYER_FRAMES, ...ATTACK_FRAMES] : PLAYER_FRAMES).map(
+        (f) => `held${capitalize(w)}${capitalize(d)}${capitalize(f)}`,
+      ),
+    ),
+  ),
   armour: [
     "leatherHelm", "leatherChest", "leatherLegs", "leatherBoots",
     "mailHelm", "mailChest", "mailLegs", "mailBoots",
@@ -47,9 +60,9 @@ function opaqueMask(grid: SpriteGrid): boolean[][] {
 }
 
 describe("SPRITES inventory (contract C6)", () => {
-  it("has exactly the 149 non-zone adopted sprites", () => {
+  it("has exactly the 229 non-zone adopted sprites", () => {
     expect(new Set(Object.keys(SPRITES))).toEqual(new Set(ALL_ADOPTED));
-    expect(Object.keys(SPRITES)).toHaveLength(149);
+    expect(Object.keys(SPRITES)).toHaveLength(229);
   });
 
   it("has no out-of-scope tile key", () => {
@@ -96,6 +109,31 @@ describe("monster side profiles (030 contract C2)", () => {
   it("no non-attack sprite carries a draw offset", () => {
     const offset = Object.entries(SPRITES).filter(([, g]) => g.dx !== undefined).map(([k]) => k);
     expect(offset.sort()).toEqual(MONSTERS.flatMap((m) => [`${m}LeftAttackA`, `${m}LeftAttackB`]).sort());
+  });
+});
+
+describe("player attack frames and held swords (031)", () => {
+  const attackKeys = [
+    ...PLAYER_TIERS.flatMap((t) => ATTACK_FRAMES.map((f) => `player${capitalize(t)}Right${capitalize(f)}`)),
+    ...WEAPON_IDS.flatMap((w) => ATTACK_FRAMES.map((f) => `held${capitalize(w)}Right${capitalize(f)}`)),
+  ];
+
+  // CombatOverlay anchors the Prince on his left edge (research R5): only correct while the extra
+  // 12 columns reach right, i.e. the sheet declares no offset.
+  it.each(attackKeys)("'%s' is 44x32 with no draw offset", (key) => {
+    const grid = SPRITES[key]!;
+    expect([grid.w, grid.h]).toEqual([44, 32]);
+    expect(grid.dx ?? 0).toBe(0);
+  });
+
+  // composeSprites never resizes, so a sword must match its body for every (dir, frame) (data-model.md 5).
+  it.each(FAMILIES.heldSwords)("'%s' matches the size of every tier's body for the same facing/frame", (key) => {
+    const suffix = key.replace(/^held(WoodSword|Sword|GoldSword|DiamondSword)/, "");
+    const sword = SPRITES[key]!;
+    for (const tier of PLAYER_TIERS) {
+      const body = SPRITES[`player${capitalize(tier)}${suffix}`]!;
+      expect([sword.w, sword.h]).toEqual([body.w, body.h]);
+    }
   });
 });
 

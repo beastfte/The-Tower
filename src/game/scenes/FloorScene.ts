@@ -598,11 +598,13 @@ export class FloorScene extends Phaser.Scene {
       monster: monsterCombatant(enemy.stats, species),
       playerMaxHp: computeMaxHp(character),
       potionCount: character.potionCount ?? 0,
-      playerTextureKey: ensurePlayerTexture(this, this.playerTier(), "right", "idle"),
+      playerTextureKey: ensurePlayerTexture(this, this.playerTier(), this.playerWeapon(), "right", "idle"),
       // 030 (research R10): the side profile, facing the Prince, for both the intro and the duel.
       // The floor marker keeps the front sprite (addTextureMarker below).
       monsterTextureKey: species ? ensureMonsterCombatTexture(this, species.textureKey, "idle") : "__MISSING",
       monsterSpeciesKey: species?.textureKey ?? "__MISSING",
+      playerTier: this.playerTier(),
+      playerWeapon: this.playerWeapon(),
       dropPhrases: describeDrops(enemy.drops),
       onBattleEnd: (result) => applyBattleResult(ctx, enemy, enemyName, result),
       onContinue: (outcome) => this.onBattleContinue(enemy, outcome),
@@ -952,7 +954,7 @@ export class FloorScene extends Phaser.Scene {
     if (this.playerSprite) {
       const moving = time < (this.playerMovingUntil ?? 0);
       const frame = moving ? computePlayerWalkFrame(time) : computePlayerIdleFrame(time);
-      const key = ensurePlayerTexture(this, this.playerTier(), this.playerFacing, frame);
+      const key = ensurePlayerTexture(this, this.playerTier(), this.playerWeapon(), this.playerFacing, frame);
       if (this.playerSprite.texture.key !== key) this.playerSprite.setTexture(key);
     }
   }
@@ -968,6 +970,12 @@ export class FloorScene extends Phaser.Scene {
     return materials.reduce((best, m) => (ARMOR_MATERIAL_ORDER[m] > ARMOR_MATERIAL_ORDER[best] ? m : best));
   }
 
+  /** 031 (contract C4): the sword drawn in the Prince's hand — read live, so an equip shows on the
+   * next frame. The combat hand-off reads it too, which is what fixes both combat screens (R8). */
+  private playerWeapon(): WeaponId | null {
+    return this.ctx.save.character.equippedWeaponId ?? null;
+  }
+
   /** 018 (contract C3): one composed image — base body plus tier-recoloured armour overlay,
    * baked into a single texture by ensurePlayerTexture — replacing the old base-plus-four-
    * separate-overlay-images approach that rendered armour off-centre. */
@@ -981,7 +989,7 @@ export class FloorScene extends Phaser.Scene {
 
     // 021 US2: seed with the idle frame for the current facing — update() corrects to the
     // walk frame on the very next tick if the move that triggered this redraw is still active.
-    const key = ensurePlayerTexture(this, this.playerTier(), this.playerFacing, "idle");
+    const key = ensurePlayerTexture(this, this.playerTier(), this.playerWeapon(), this.playerFacing, "idle");
     this.playerSprite = this.add.image(px, py, key);
     this.playerSprite.setDisplaySize(displaySize, displaySize);
     this.tileLayer.add(this.playerSprite);

@@ -44,3 +44,17 @@ export function paintSprite(grid: SpriteGrid): PixelGrid {
   }
   return out;
 }
+
+/** 031 (contract C1): `overlay`'s opaque pixels painted over `base` at the same origin — the sheet's
+ * own drawChar layering for a held sword over the Prince's body. Never resizes: the result is
+ * always `base`'s dimensions, and an overlay pixel outside them is dropped. */
+export function composeSprites(base: SpriteGrid, overlay: SpriteGrid | null): PixelGrid {
+  const out = paintSprite(base);
+  if (!overlay) return out;
+  paintSprite(overlay).forEach((row, y) =>
+    row.forEach((color, x) => {
+      if (color != null && out[y] && x < out[y]!.length) out[y]![x] = color;
+    }),
+  );
+  return out;
+}
