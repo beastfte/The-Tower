@@ -36,7 +36,7 @@ const FIXTURE_FLOOR_1: FloorDefinition = {
   entrance: { x: 0, y: 7 },
   exit: { x: 14, y: 7 },
   enemies: [
-    { id: "f1-goblin", position: { x: 3, y: 7 }, species: "goblin", stats: { damage: 4, defence: 1, hp: 12 }, drops: { currency: 15 } },
+    { id: "f1-goblin", position: { x: 3, y: 7 }, species: "goblin", stats: { damage: 4, defence: 1, hp: 12 } },
   ],
   items: [
     { id: "f1-weapon", position: { x: 9, y: 2 }, kind: "weapon", payload: "sword" },
@@ -83,7 +83,6 @@ const FIXTURE_FLOOR_FINAL: FloorDefinition = {
       species: "ogre",
       stats: { damage: 5, defence: 3, hp: 25 },
       isEndBoss: true,
-      drops: { currency: 100 },
     },
   ],
   items: [

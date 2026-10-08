@@ -1,5 +1,6 @@
 import type { CombatStats, Position } from "../types";
 import type { ArmorMaterialId, ArmorSlotId, WeaponId } from "./types";
+import type { GearItem, GearRoll, GearSlot } from "./grades";
 
 /** Per-floor player progress for the floor currently being attempted, or a frozen completed floor. */
 export interface FloorProgress {
@@ -59,7 +60,11 @@ export interface PlayerCharacterState {
    * armour catalog key ("mail:chest"). Picked-up gear lands here and is never worn automatically.
    * Absent on any save from before 033 — read as `[]`, no migration (same precedent as
    * `potionCount`). Lives on the character so the checkpoint snapshot restores it for free. */
-  bagGear?: string[];
+  bagGear?: GearItem[];
+  /** 034: grade and extra stats of what is worn, per slot. A missing entry means common with no
+   * extras (so every pre-034 save and every floor pickup needs no entry). Travels with the piece
+   * through equip / take off (bag.ts). */
+  equippedRolls?: Partial<Record<GearSlot, GearRoll>>;
 }
 
 /** The single object persisted to localStorage (FR-010/FR-010a). */
@@ -113,4 +118,24 @@ export function emptyFloorProgress(floorId: string, playerPosition: Position): F
 export function ensureCheckpointCharacter(save: PlayerSave): PlayerSave {
   if (save.checkpointCharacter) return save;
   return { ...save, checkpointCharacter: { ...save.character } };
+}
+
+/** 034 C10: bring a pre-034 save's gear up to date, once, at load. Bare-string bag entries become
+ * common items and the removed Gold Sword becomes the Sword (not Diamond, so old saves gain no
+ * power). Idempotent; applied to the checkpoint snapshot too. */
+export function normalizeGear(save: PlayerSave): PlayerSave {
+  const fix = (c: PlayerCharacterState): PlayerCharacterState => {
+    const swap = (key: string): string => (key === "goldSword" ? "sword" : key);
+    const bagGear = (c.bagGear ?? []).map((g) =>
+      typeof g === "string" ? { key: swap(g), grade: "common" as const, extras: {} } : { ...g, key: swap(g.key) },
+    );
+    const next: PlayerCharacterState = { ...c, bagGear };
+    if (c.equippedWeaponId && (c.equippedWeaponId as string) === "goldSword") next.equippedWeaponId = "sword";
+    return next;
+  };
+  return {
+    ...save,
+    character: fix(save.character),
+    ...(save.checkpointCharacter ? { checkpointCharacter: fix(save.checkpointCharacter) } : {}),
+  };
 }

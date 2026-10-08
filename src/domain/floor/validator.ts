@@ -207,6 +207,9 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
     if (d !== undefined && !(Number.isFinite(d) && d >= 0 && d <= 1)) {
       errors.push(`Floor "${floor.id}": enemy "${enemy.id}" dodgeChance must be a number from 0 to 1`);
     }
+    if (enemy.isElite !== undefined && typeof enemy.isElite !== "boolean") {
+      errors.push(`Floor "${floor.id}": enemy "${enemy.id}" isElite must be a boolean`);
+    }
   }
 
   // Invariant 4: id uniqueness within each scope.

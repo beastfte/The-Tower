@@ -29,6 +29,7 @@ import { hasDiedFromHazard, markDead } from "../../domain/hazard/death";
 import { monsterCombatant } from "../../domain/combat/battle";
 import { computeEffectiveStats, computeMaxHp } from "../../domain/character/combatStats";
 import { describeDrops, formatBagFullEntry } from "../eventLog/formatEntry";
+import { eliteStats, GRADES, rollMonsterDrop } from "../../domain/character/grades";
 import { pickupNeedsSlot, bagIsFull, fitDropsToBag } from "../../domain/character/bag";
 import { isWinningDefeat } from "../../domain/progress/winState";
 import { completeCurrentFloor, returnToPreviousFloor } from "../../domain/progress/towerProgress";
@@ -607,9 +608,13 @@ export class FloorScene extends Phaser.Scene {
     const enemyName = species?.name ?? "Unknown creature";
     const character = ctx.save.character;
     const stats = computeEffectiveStats(character, ctx.weaponCatalog, ctx.armorCatalog);
+    const floorNumber = ctx.tower.floors.findIndex((f) => f.id === ctx.save.currentFloorId) + 1;
+    // 034 C6: the drop is rolled once per fight; the victory panel shows it and the result applies it.
+    const rolled = rollMonsterDrop(floorNumber, !!(enemy.isElite || enemy.isEndBoss), Math.random);
+    const fitted = fitDropsToBag(character, rolled).drops;
 
     const data: CombatOverlayData = {
-      floorNumber: ctx.tower.floors.findIndex((f) => f.id === ctx.save.currentFloorId) + 1,
+      floorNumber,
       enemyName,
       player: {
         hp: character.currentHp,
@@ -621,7 +626,7 @@ export class FloorScene extends Phaser.Scene {
         dodgeChance: stats.dodgeChance,
       },
       // FR-032 (research R6): authored damage × species interval; floor data is untouched.
-      monster: monsterCombatant(enemy.stats, species, enemy.dodgeChance),
+      monster: monsterCombatant(eliteStats(enemy), species, enemy.dodgeChance),
       playerMaxHp: computeMaxHp(character),
       potionCount: character.potionCount ?? 0,
       playerTextureKey: ensurePlayerTexture(this, this.playerTier(), this.playerWeapon(), "right", "idle"),
@@ -632,8 +637,9 @@ export class FloorScene extends Phaser.Scene {
       playerTier: this.playerTier(),
       playerWeapon: this.playerWeapon(),
       // 033 FR-016a: only what the bag can take is announced as looted.
-      dropPhrases: describeDrops(fitDropsToBag(character, enemy.drops).drops),
-      onBattleEnd: (result) => applyBattleResult(ctx, enemy, enemyName, result),
+      dropPhrases: describeDrops(fitted),
+      ...(fitted?.gear ? { dropColour: GRADES[fitted.gear.grade].colour } : {}),
+      onBattleEnd: (result) => applyBattleResult(ctx, enemy, enemyName, result, rolled),
       onContinue: (outcome) => this.onBattleContinue(enemy, outcome),
     };
     // 029 (C1, C6, C11): the intro plays first; the fight and the combat track start together

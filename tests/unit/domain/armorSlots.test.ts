@@ -19,6 +19,7 @@ function armorItem(material: ArmorMaterialId, slot: ArmorSlotId): ItemDefinition
 }
 
 /** 033 FR-015a: a pickup lands in the bag; wearing it is a separate, deliberate step. */
+const g = (key: string) => ({ key, grade: "common" as const, extras: {} });
 const wearNewest = (c: PlayerCharacterState): PlayerCharacterState => equipFromBag(c, (c.bagGear ?? []).length - 1);
 
 describe("armor pickup goes to the bag, never worn automatically (033 FR-015a; supersedes 011 FR-004)", () => {
@@ -26,7 +27,7 @@ describe("armor pickup goes to the bag, never worn automatically (033 FR-015a; s
     const save = createInitialPlayerSave("floor-01", position);
     const character = applyItemPickup(save.character, armorItem("leather", "helm"));
     expect(character.equippedArmor.helm).toBeUndefined();
-    expect(character.bagGear).toEqual(["leather:helm"]);
+    expect(character.bagGear).toEqual([g("leather:helm")]);
   });
 
   it("keeps every piece regardless of tier, even a lower or equal one", () => {
@@ -35,7 +36,7 @@ describe("armor pickup goes to the bag, never worn automatically (033 FR-015a; s
     character = applyItemPickup(character, armorItem("mail", "legs"));
     character = applyItemPickup(character, armorItem("leather", "legs"));
     expect(character.equippedArmor.legs).toBe("mail");
-    expect(character.bagGear).toEqual(["mail:legs", "leather:legs"]);
+    expect(character.bagGear).toEqual([g("mail:legs"), g("leather:legs")]);
   });
 
   it("wearing a piece swaps it with what is worn in that slot", () => {
@@ -43,7 +44,7 @@ describe("armor pickup goes to the bag, never worn automatically (033 FR-015a; s
     let character = wearNewest(applyItemPickup(save.character, armorItem("leather", "chest")));
     character = wearNewest(applyItemPickup(character, armorItem("plate", "chest")));
     expect(character.equippedArmor.chest).toBe("plate");
-    expect(character.bagGear).toEqual(["leather:chest"]);
+    expect(character.bagGear).toEqual([g("leather:chest")]);
   });
 
   it("tracks each slot independently", () => {

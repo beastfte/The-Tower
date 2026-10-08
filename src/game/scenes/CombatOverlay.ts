@@ -50,6 +50,8 @@ export interface CombatOverlayData {
   playerWeapon: WeaponId | null;
   /** Readable drop phrases for the victory panel (`describeDrops`). */
   dropPhrases: string[];
+  /** 034: the grade colour of a gear drop, so the victory panel names it in colour. */
+  dropColour?: string;
   /** Fires exactly once, the instant the battle ends — before any outcome panel — so the
    * result is saved even if the game closes while the panel is up (research R13, C14). */
   onBattleEnd: (result: BattleEndResult) => void;
@@ -564,7 +566,7 @@ export class CombatOverlay extends Phaser.Scene {
     if (won && this.data_.dropPhrases.length > 0) {
       const drops = document.createElement("div");
       drops.textContent = this.data_.dropPhrases.join(" · ");
-      Object.assign(drops.style, { fontSize: px(13), marginTop: px(10) });
+      Object.assign(drops.style, { fontSize: px(13), marginTop: px(10), ...(this.data_.dropColour ? { color: this.data_.dropColour } : {}) });
       panel.appendChild(drops);
     }
 

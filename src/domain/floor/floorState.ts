@@ -1,6 +1,7 @@
 import type { PlayerCharacterState } from "../character/save";
 import { applyDropTable } from "../character/inventory";
 import type { FloorProgress } from "../character/save";
+import type { DropTable } from "../character/grades";
 import type { Position } from "../types";
 import type { CrackedWallDefinition, EnemyDefinition, KeyedDoorDefinition, LeverDefinition } from "./types";
 
@@ -18,6 +19,7 @@ export function applyEnemyDefeat(
   floorProgress: FloorProgress,
   character: PlayerCharacterState,
   enemy: EnemyDefinition,
+  drops?: DropTable,
 ): FloorStateUpdate {
   const nextProgress: FloorProgress = {
     ...floorProgress,
@@ -25,7 +27,7 @@ export function applyEnemyDefeat(
       ? floorProgress.defeatedEnemyIds
       : [...floorProgress.defeatedEnemyIds, enemy.id],
   };
-  return { floorProgress: nextProgress, character: applyDropTable(character, enemy.drops) };
+  return { floorProgress: nextProgress, character: applyDropTable(character, drops) };
 }
 
 /** Records the player's current position within the floor attempt (for exact resume, FR-010). */

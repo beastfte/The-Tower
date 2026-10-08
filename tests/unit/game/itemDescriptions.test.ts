@@ -10,9 +10,6 @@ describe("itemDescriptions completeness", () => {
       for (const item of floor.items) {
         if (item.kind === "loot") ids.add((item.payload as LootItem).id);
       }
-      for (const enemy of floor.enemies) {
-        for (const loot of enemy.drops?.loot ?? []) ids.add(loot.id);
-      }
     }
 
     // 013: no floor currently places a "loot"-kind item (the only one, the torch, was
@@ -30,9 +27,6 @@ describe("itemDescriptions completeness", () => {
         if (item.kind === "key") types.add((item.payload as KeyDefinition).keyType);
       }
       for (const door of floor.keyedDoors) types.add(door.doorType);
-      for (const enemy of floor.enemies) {
-        if (enemy.drops?.key) types.add(enemy.drops.key.keyType);
-      }
     }
 
     expect(types.size).toBeGreaterThan(0);

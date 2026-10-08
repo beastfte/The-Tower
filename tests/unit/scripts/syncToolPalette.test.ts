@@ -28,7 +28,7 @@ describe("sync-tool-palette — palette generation matches the game's source cat
     expect(palette.monsters.map((m) => m.id).sort()).toEqual([
       "bandit", "bat", "goblin", "necromancer", "ogre", "skeleton", "slime", "voidwalker", "wizard",
     ]);
-    expect(palette.weapons.map((w) => w.id).sort()).toEqual(["diamondSword", "goldSword", "sword", "woodSword"]);
+    expect(palette.weapons.map((w) => w.id).sort()).toEqual(["diamondSword", "sword", "woodSword"]);
     expect(palette.armorMaterials.sort()).toEqual(["leather", "mail", "plate"]);
     expect(palette.armorSlots.sort()).toEqual(["boots", "chest", "helm", "legs"]);
     expect(palette.doorKeyTiers.sort()).toEqual(["bronze", "gold", "silver"]);

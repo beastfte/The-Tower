@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { approach, clearSave, getCtxSave, getEventLog, pressAndWait, waitForActiveScene } from "./helpers";
+import type { GradeId } from "../../src/domain/character/grades";
 
 /** 033: the character sheet, item tooltip, event log and bag. Everything is set up at runtime
  * through the `window.__game` hook, so none of it depends on the live tower's layout. */
@@ -63,7 +64,8 @@ async function placeItemAhead(
   return plan;
 }
 
-const fullBag = (n = 25) => Array.from({ length: n }, () => "mail:helm");
+const item = (key: string, grade: GradeId = "common", extras = {}) => ({ key, grade, extras });
+const fullBag = (n = 25) => Array.from({ length: n }, () => item("mail:helm"));
 const lastLog = async (page: Page) => (await getEventLog(page)).at(-1);
 
 test.describe("US1: character sheet (033)", () => {
@@ -110,7 +112,7 @@ test.describe("US2: item tooltip (033)", () => {
     await newGame(page);
     await setCharacter(page, {
       equippedWeaponId: "sword",
-      bagGear: ["goldSword"],
+      bagGear: [item("diamondSword")],
       potionCount: 2,
       keyIds: ["bronze"],
     });
@@ -124,10 +126,10 @@ test.describe("US2: item tooltip (033)", () => {
     await expect(tip.locator('[data-testid="tooltip-compared"]')).toHaveCount(0);
     await expect(tip.locator('[data-testid="tooltip-hint"]')).toHaveText("Click to take off");
 
-    // Bag cells are: 0 = potion stack, 1 = the spare Gold Sword.
-    const goldCell = page.locator('[data-testid="bag-cell-1"]');
-    await goldCell.hover();
-    await expect(tip.locator('[data-testid="tooltip-name"]')).toHaveText("Gold Sword");
+    // Bag cells are: 0 = potion stack, 1 = the spare Diamond Sword.
+    const diamondCell = page.locator('[data-testid="bag-cell-1"]');
+    await diamondCell.hover();
+    await expect(tip.locator('[data-testid="tooltip-name"]')).toHaveText("Diamond Sword");
     await expect(tip.locator('[data-testid="tooltip-compared"]')).toHaveText("Compared with your Sword");
     const delta = tip.locator('[data-testid="tooltip-delta"]').first();
     await expect(delta).toHaveAttribute("data-better", "true");
@@ -135,7 +137,7 @@ test.describe("US2: item tooltip (033)", () => {
 
     // The card sits beside its item (never over it) and inside the board.
     const t = (await tip.boundingBox())!;
-    const c = (await goldCell.boundingBox())!;
+    const c = (await diamondCell.boundingBox())!;
     const canvas = (await page.locator("canvas").boundingBox())!;
     expect(t.x + t.width).toBeLessThanOrEqual(c.x + 1);
     expect(t.x).toBeGreaterThanOrEqual(canvas.x - 1);
@@ -228,10 +230,10 @@ test.describe("US4: bag actions and the 25-slot limit (033)", () => {
     await setCharacter(page, { equippedWeaponId: "woodSword" });
     await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("13");
 
-    const { onto } = await placeItemAhead(page, { id: "e2e-gold-sword", kind: "weapon", payload: "goldSword" });
+    const { onto } = await placeItemAhead(page, { id: "e2e-diamond-sword", kind: "weapon", payload: "diamondSword" });
     await pressAndWait(page, onto);
     const save = await getCtxSave(page);
-    expect(save.character.bagGear).toEqual(["goldSword"]);
+    expect(save.character.bagGear).toEqual([item("diamondSword")]);
     expect(save.character.equippedWeaponId).toBe("woodSword"); // not worn automatically
     await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("13");
     await expect(page.locator('[data-testid="bag-count"]')).toHaveText("1 / 25");
@@ -242,9 +244,9 @@ test.describe("US4: bag actions and the 25-slot limit (033)", () => {
     await expect(page.locator('[data-testid="bag-use"]')).toBeDisabled();
     await page.locator('[data-testid="bag-equip"]').click();
 
-    await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("20");
-    await expect(page.locator('[data-testid="slot-weapon-name"]')).toHaveText("Gold Sword");
-    expect((await getCtxSave(page)).character.bagGear).toEqual(["woodSword"]);
+    await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("24");
+    await expect(page.locator('[data-testid="slot-weapon-name"]')).toHaveText("Diamond Sword");
+    expect((await getCtxSave(page)).character.bagGear).toEqual([item("woodSword")]);
     await expect(page.locator('[data-testid="bag-equip"]')).toBeDisabled(); // selection cleared
   });
 
@@ -259,7 +261,7 @@ test.describe("US4: bag actions and the 25-slot limit (033)", () => {
 
   test("Discard removes one unit and logs it; Use is disabled outside battle", async ({ page }) => {
     await newGame(page);
-    await setCharacter(page, { bagGear: ["sword", "mail:helm"], potionCount: 2 });
+    await setCharacter(page, { bagGear: [item("sword"), item("mail:helm")], potionCount: 2 });
     // cells: 0 = potions, 1 = sword, 2 = mail helm
     await page.locator('[data-testid="bag-cell-0"]').click();
     await expect(page.locator('[data-testid="bag-use"]')).toBeDisabled(); // only usable in battle
@@ -267,7 +269,7 @@ test.describe("US4: bag actions and the 25-slot limit (033)", () => {
     await page.locator('[data-testid="bag-cell-1"]').click(); // select the sword
     await page.locator('[data-testid="bag-discard"]').click();
     await expect(page.locator('[data-testid="bag-count"]')).toHaveText("2 / 25");
-    expect((await getCtxSave(page)).character.bagGear).toEqual(["mail:helm"]);
+    expect((await getCtxSave(page)).character.bagGear).toEqual([item("mail:helm")]);
     expect((await lastLog(page))?.message).toBe("Discarded Sword.");
   });
 
@@ -317,7 +319,7 @@ test.describe("US4: bag actions and the 25-slot limit (033)", () => {
         baseStats: { damage: 1, defence: 100_000, hp: 40 },
         currentHp: 20,
         potionCount: 2,
-        bagGear: ["sword"],
+        bagGear: [item("sword")],
       },
     });
     expect(plan).not.toBeNull();
@@ -333,5 +335,23 @@ test.describe("US4: bag actions and the 25-slot limit (033)", () => {
     await page.locator('[data-testid="bag-use"]').click();
     await expect(page.locator('[data-testid="combat-player-hp-value"]')).toHaveText("30");
     await expect(page.locator('[data-testid="combat-potion"]')).toHaveText("Potion ×1");
+  });
+});
+
+test.describe("034: grade display", () => {
+  test("a graded bag item glows in its grade colour without tinting the cell, and a worn name takes the colour", async ({ page }) => {
+    await newGame(page);
+    await setCharacter(page, {
+      equippedWeaponId: "sword",
+      equippedRolls: { weapon: { grade: "legendary", extras: {} } },
+      bagGear: [item("mail:helm", "rare", { dodge: 0.03, critChance: 0.04 })],
+    });
+    const cell = page.locator('[data-testid="bag-cell-0"]');
+    // #60a5fa (rare) = rgb(96, 165, 250)
+    await expect(cell).toHaveCSS("box-shadow", /rgb\(96, 165, 250\)/);
+    await expect(cell).not.toHaveCSS("background-color", "rgb(96, 165, 250)"); // glow only, no tint
+    // #fb923c (legendary) = rgb(251, 146, 60)
+    await expect(page.locator('[data-testid="slot-weapon-name"]')).toHaveCSS("color", "rgb(251, 146, 60)");
+    await expect(page.locator('[data-testid="slot-weapon"]')).toHaveCSS("box-shadow", /rgb\(251, 146, 60\)/);
   });
 });

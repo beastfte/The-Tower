@@ -1,6 +1,9 @@
-import type { DropTable, ItemDefinition, ChestReward } from "../floor/types";
+import type { ItemDefinition, ChestReward } from "../floor/types";
 import type { PlayerCharacterState } from "./save";
 import type { ArmorMaterialId, ArmorSlotId, LootItem, WeaponId } from "./types";
+import { COMMON_ROLL, type DropTable, type GearItem, type GearSlot } from "./grades";
+
+export type { GearSlot };
 
 /** 033 FR-016: the bag holds at most this many entries (a loot stack or the potion stack is one
  * entry; each spare weapon or armour piece is one entry). */
@@ -10,10 +13,7 @@ export const BAG_CAPACITY = 25;
 export type BagEntry =
   | { kind: "loot"; id: string; qty: number }
   | { kind: "potion"; qty: number }
-  | { kind: "gear"; key: string; index: number };
-
-/** A worn-gear slot: the weapon or one armour slot. */
-export type GearSlot = "weapon" | ArmorSlotId;
+  | { kind: "gear"; key: string; index: number; item: GearItem };
 
 /** 033 data-model: a `bagGear` key is a weapon id, or `"material:slot"` for armour. */
 export function isArmourKey(key: string): boolean {
@@ -35,7 +35,7 @@ export function bagEntries(c: PlayerCharacterState): BagEntry[] {
   for (const id of c.inventory) loot.set(id, (loot.get(id) ?? 0) + 1);
   const entries: BagEntry[] = [...loot.entries()].map(([id, qty]) => ({ kind: "loot", id, qty }));
   if ((c.potionCount ?? 0) > 0) entries.push({ kind: "potion", qty: c.potionCount ?? 0 });
-  (c.bagGear ?? []).forEach((key, index) => entries.push({ kind: "gear", key, index }));
+  (c.bagGear ?? []).forEach((item, index) => entries.push({ kind: "gear", key: item.key, index, item }));
   return entries;
 }
 
@@ -65,53 +65,39 @@ export function pickupNeedsSlot(c: PlayerCharacterState, item: ItemDefinition): 
   }
 }
 
-/** 033 FR-016a/b: a monster's drops, trimmed to what the bag can take. Gold and keys are always
- * kept; loot is kept while there is room, or when it stacks onto an id already held. Whatever
- * does not fit is lost for good. */
+/** 033 FR-016a/b, 034: a monster's rolled drop, trimmed to what the bag can take. Gold is always
+ * kept; a gear item is kept while there is room and lost for good when the bag is full. */
 export function fitDropsToBag(
   c: PlayerCharacterState,
   drops: DropTable | undefined,
-): { drops: DropTable | undefined; lost: LootItem[] } {
-  if (!drops?.loot || drops.loot.length === 0) return { drops, lost: [] };
-  const held = new Set(c.inventory);
-  let used = bagSlotsUsed(c);
-  const kept: LootItem[] = [];
-  const lost: LootItem[] = [];
-  for (const item of drops.loot) {
-    if (held.has(item.id)) {
-      kept.push(item);
-    } else if (used < BAG_CAPACITY) {
-      held.add(item.id);
-      used += 1;
-      kept.push(item);
-    } else {
-      lost.push(item);
-    }
-  }
-  return { drops: { ...drops, loot: kept }, lost };
+): { drops: DropTable | undefined; lost: GearItem[] } {
+  if (!drops?.gear || !bagIsFull(c)) return { drops, lost: [] };
+  const { gear, ...rest } = drops;
+  return { drops: rest, lost: [gear] };
 }
 
 /** 033 FR-015: wear the spare piece at `gearIndex`; whatever was worn in that slot takes its place
  * in the bag, so the bag never grows (allowed when full). */
 export function equipFromBag(c: PlayerCharacterState, gearIndex: number): PlayerCharacterState {
   const gear = c.bagGear ?? [];
-  const key = gear[gearIndex];
-  if (key === undefined) return c;
-  let worn: string | undefined;
+  const item = gear[gearIndex];
+  if (item === undefined) return c;
+  const slot = gearSlotOf(item.key);
+  let worn: GearItem | undefined;
   let next: PlayerCharacterState;
-  if (isArmourKey(key)) {
-    const { material, slot } = parseArmourKey(key);
-    const old = c.equippedArmor[slot];
-    worn = old ? `${old}:${slot}` : undefined;
+  if (isArmourKey(item.key)) {
+    const { material } = parseArmourKey(item.key);
+    const old = c.equippedArmor[slot as ArmorSlotId];
+    worn = old ? { key: `${old}:${slot}`, ...(c.equippedRolls?.[slot] ?? COMMON_ROLL) } : undefined;
     next = { ...c, equippedArmor: { ...c.equippedArmor, [slot]: material } };
   } else {
-    worn = c.equippedWeaponId;
-    next = { ...c, equippedWeaponId: key as WeaponId };
+    worn = c.equippedWeaponId ? { key: c.equippedWeaponId, ...(c.equippedRolls?.[slot] ?? COMMON_ROLL) } : undefined;
+    next = { ...c, equippedWeaponId: item.key as WeaponId };
   }
   const bagGear = [...gear];
   if (worn) bagGear[gearIndex] = worn;
   else bagGear.splice(gearIndex, 1);
-  return { ...next, bagGear };
+  return { ...next, bagGear, equippedRolls: { ...c.equippedRolls, [slot]: { grade: item.grade, extras: item.extras } } };
 }
 
 /** 033 FR-015: can the worn piece go back to the bag? False when the slot is empty or the bag is full. */
@@ -120,19 +106,22 @@ export function canTakeOff(c: PlayerCharacterState, slot: GearSlot): boolean {
   return worn !== undefined && !bagIsFull(c);
 }
 
-/** Take the worn piece off into the bag; unchanged when `canTakeOff` is false. */
+/** Take the worn piece off into the bag, roll and all; unchanged when `canTakeOff` is false. */
 export function takeOff(c: PlayerCharacterState, slot: GearSlot): PlayerCharacterState {
   if (!canTakeOff(c, slot)) return c;
+  const roll = c.equippedRolls?.[slot] ?? COMMON_ROLL;
+  const equippedRolls = { ...c.equippedRolls };
+  delete equippedRolls[slot];
   const bagGear = [...(c.bagGear ?? [])];
   if (slot === "weapon") {
-    bagGear.push(c.equippedWeaponId as string);
-    return { ...c, equippedWeaponId: undefined, bagGear };
+    bagGear.push({ key: c.equippedWeaponId as string, ...roll });
+    return { ...c, equippedWeaponId: undefined, bagGear, equippedRolls };
   }
   const material = c.equippedArmor[slot] as ArmorMaterialId;
-  bagGear.push(`${material}:${slot}`);
+  bagGear.push({ key: `${material}:${slot}`, ...roll });
   const equippedArmor = { ...c.equippedArmor };
   delete equippedArmor[slot];
-  return { ...c, equippedArmor, bagGear };
+  return { ...c, equippedArmor, bagGear, equippedRolls };
 }
 
 /** 033 FR-014: remove one unit of the entry — one loot unit, one potion, or the spare piece. */

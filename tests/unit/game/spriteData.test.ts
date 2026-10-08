@@ -16,7 +16,7 @@ const PLAYER_BODIES = PLAYER_TIERS.flatMap((tier) =>
   ),
 );
 
-const WEAPON_IDS = ["woodSword", "sword", "goldSword", "diamondSword"];
+const WEAPON_IDS = ["woodSword", "sword", "diamondSword"];
 const ATTACK_FRAMES = ["attackA", "attackB"];
 
 const MONSTERS = ["goblin", "ogre", "wizard", "bat", "slime", "skeleton", "necromancer", "bandit", "voidwalker"];
@@ -60,9 +60,9 @@ function opaqueMask(grid: SpriteGrid): boolean[][] {
 }
 
 describe("SPRITES inventory (contract C6)", () => {
-  it("has exactly the 229 non-zone adopted sprites", () => {
+  it("has exactly the 210 non-zone adopted sprites", () => {
     expect(new Set(Object.keys(SPRITES))).toEqual(new Set(ALL_ADOPTED));
-    expect(Object.keys(SPRITES)).toHaveLength(229);
+    expect(Object.keys(SPRITES)).toHaveLength(210);
   });
 
   it("has no out-of-scope tile key", () => {

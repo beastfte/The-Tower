@@ -15,6 +15,7 @@ import {
   type GearSlot,
 } from "../../domain/character/bag";
 import { DOOR_KEY_TIERS } from "../../domain/character/types";
+import { GRADES, type GradeId } from "../../domain/character/grades";
 import { isLowHp } from "../sidePanel/hpState";
 import { buildLootNameCatalog } from "../uiContent/itemDescriptions";
 import {
@@ -44,6 +45,13 @@ const SLOTS: { slot: GearSlot; label: string }[] = [
   { slot: "legs", label: "Legs" },
   { slot: "boots", label: "Boots" },
 ];
+
+/** 034 FR-002a: a border glow in the item's grade colour. The fill is left alone; a selected bag
+ * cell keeps its gold border. */
+function glow(grade: GradeId, selected = false): Partial<CSSStyleDeclaration> {
+  const colour = GRADES[grade].colour;
+  return { borderColor: selected ? "var(--ui-gold)" : colour, boxShadow: `0 0 ${px(5)} ${px(1)} ${colour}` };
+}
 
 const TOOLTIP_WIDTH = 205;
 const TOOLTIP_GAP = 8;
@@ -171,6 +179,7 @@ export class SidePanelScene extends Phaser.Scene {
       character.keyIds,
       character.equippedWeaponId,
       character.equippedArmor,
+      character.equippedRolls,
       character.bonusDamage,
       character.potionCount ?? 0, // 027 FR-050: refresh on pickup / drink / checkpoint restore
       character.bagGear ?? [],
@@ -242,7 +251,12 @@ export class SidePanelScene extends Phaser.Scene {
     );
     if (c.iconKey) this.addIcon(iconBox, c.iconKey, 26);
     const titles = make("div", { display: "flex", flexDirection: "column", gap: px(1), minWidth: "0" }, head);
-    make("span", { fontSize: px(11), fontWeight: "700" }, titles, c.name).dataset.testid = "tooltip-name";
+    make(
+      "span",
+      { fontSize: px(11), fontWeight: "700", ...(c.grade ? { color: GRADES[c.grade].colour } : {}) },
+      titles,
+      c.name,
+    ).dataset.testid = "tooltip-name";
     make(
       "span",
       { fontSize: px(7.5), fontWeight: "700", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--ui-gold)" },
@@ -341,7 +355,7 @@ export class SidePanelScene extends Phaser.Scene {
   private nameOfEntry(e: BagEntry): string {
     if (e.kind === "potion") return "Health potion";
     if (e.kind === "loot") return this.catalogs.lootNames.get(e.id) ?? e.id;
-    return gearInfo(e.key, this.catalogs)?.name ?? e.key;
+    return gearInfo(e.key, this.catalogs, e.item)?.name ?? e.key;
   }
 
   // ---- actions (US4 / C8) -------------------------------------------------------------
@@ -514,7 +528,7 @@ export class SidePanelScene extends Phaser.Scene {
           : character.equippedArmor[slot]
             ? `${character.equippedArmor[slot]}:${slot}`
             : undefined;
-      const info = key ? gearInfo(key, this.catalogs) : undefined;
+      const info = key ? gearInfo(key, this.catalogs, character.equippedRolls?.[slot]) : undefined;
 
       const btn = make(
         "button",
@@ -525,6 +539,8 @@ export class SidePanelScene extends Phaser.Scene {
           textAlign: "left",
           padding: `${px(3)} ${px(8)} ${px(3)} ${px(3)}`,
           borderStyle: info ? "solid" : "dashed",
+          // 034 FR-002a: a border glow in the grade colour; the slot fill is untouched.
+          ...(info ? glow(info.grade) : {}),
         },
         list,
       );
@@ -543,7 +559,7 @@ export class SidePanelScene extends Phaser.Scene {
         {
           fontSize: px(9.5),
           fontWeight: "700",
-          color: info ? "var(--ui-text)" : "var(--ui-faint)",
+          color: info ? GRADES[info.grade].colour : "var(--ui-faint)", // 034 FR-002b
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
@@ -591,6 +607,7 @@ export class SidePanelScene extends Phaser.Scene {
           borderStyle: entry ? "solid" : "dashed",
           borderColor: on ? "var(--ui-gold)" : "var(--ui-soft)",
           background: on ? "var(--ui-gold-wash)" : entry ? "var(--ui-elev)" : "transparent",
+          ...(entry?.kind === "gear" ? glow(entry.item.grade, on) : {}),
         },
         grid,
       );

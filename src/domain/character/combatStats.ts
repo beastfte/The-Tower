@@ -3,6 +3,7 @@ import type { PlayerCharacterState } from "./save";
 import type { ArmorPieceDefinition, ArmorSlotId, WeaponDefinition, WeaponId } from "./types";
 import { armorPieceKey } from "../../data/armorPieces";
 import { PLAYER_BASE_COMBAT } from "./initialState";
+import { COMMON_ROLL, gradedValue, type ExtraStats, type GearSlot } from "./grades";
 
 /** 027 (research R7): today's damage/defence/hp plus the live-battle stats. */
 export interface EffectiveStats extends CombatStats {
@@ -35,28 +36,37 @@ export function computeEffectiveStats(
 ): EffectiveStats {
   const weapon = character.equippedWeaponId ? weaponCatalog.get(character.equippedWeaponId) : undefined;
 
+  const rollOf = (slot: GearSlot) => character.equippedRolls?.[slot] ?? COMMON_ROLL;
   const armorPieces = Object.entries(character.equippedArmor).flatMap(([slot, material]) => {
     if (!material) return [];
     const piece = armorCatalog.get(armorPieceKey(material, slot as ArmorSlotId));
-    return piece ? [piece] : [];
+    return piece ? [{ piece, roll: rollOf(slot as ArmorSlotId) }] : [];
   });
-  const armorDefence = armorPieces.reduce((sum, piece) => sum + piece.defenceBonus, 0);
+  // 034 C3: base stats scale with grade; a missing roll is common.
+  const armorDefence = armorPieces.reduce((sum, { piece, roll }) => sum + gradedValue(piece.defenceBonus, roll.grade), 0);
+  const weaponAttack = weapon ? gradedValue(weapon.attackValue, rollOf("weapon").grade) : 0;
 
-  const damage = character.baseStats.damage + (weapon?.attackValue ?? 0) + character.bonusDamage;
+  const damage = character.baseStats.damage + weaponAttack + character.bonusDamage;
   const defence = character.baseStats.defence + armorDefence;
 
-  const sources = weapon ? [weapon, ...armorPieces] : armorPieces;
-  const sum = (pick: (s: (typeof sources)[number]) => number | undefined): number =>
-    sources.reduce((total, s) => total + (pick(s) ?? 0), 0);
+  // Each worn piece contributes its catalog bonuses plus its rolled extras.
+  const sources: { bonus: typeof armorPieces[number]["piece"] | NonNullable<typeof weapon>; extras: ExtraStats }[] = [
+    ...(weapon ? [{ bonus: weapon, extras: rollOf("weapon").extras }] : []),
+    ...armorPieces.map(({ piece, roll }) => ({ bonus: piece, extras: roll.extras })),
+  ];
+  const sum = (
+    pick: (b: (typeof sources)[number]["bonus"]) => number | undefined,
+    extra: keyof ExtraStats,
+  ): number => sources.reduce((total, s) => total + (pick(s.bonus) ?? 0) + (s.extras[extra] ?? 0), 0);
 
   return {
     damage,
     defence,
     hp: character.currentHp,
-    attackIntervalSec: PLAYER_BASE_COMBAT.attackIntervalSec / (1 + sum((s) => s.attackSpeedBonus)),
-    critChance: PLAYER_BASE_COMBAT.critChance + sum((s) => s.critChanceBonus),
-    critDamageBonus: PLAYER_BASE_COMBAT.critDamageBonus + sum((s) => s.critDamageBonus),
-    dodgeChance: Math.min(1, Math.max(0, PLAYER_BASE_COMBAT.dodgeChance + sum((s) => s.dodgeChanceBonus))),
+    attackIntervalSec: PLAYER_BASE_COMBAT.attackIntervalSec / (1 + sum((s) => s.attackSpeedBonus, "attackSpeed")),
+    critChance: PLAYER_BASE_COMBAT.critChance + sum((s) => s.critChanceBonus, "critChance"),
+    critDamageBonus: PLAYER_BASE_COMBAT.critDamageBonus + sum((s) => s.critDamageBonus, "critDamage"),
+    dodgeChance: Math.min(1, Math.max(0, PLAYER_BASE_COMBAT.dodgeChance + sum((s) => s.dodgeChanceBonus, "dodge"))),
   };
 }
 

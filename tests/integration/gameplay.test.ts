@@ -90,10 +90,7 @@ describe("gameplay integration", () => {
     const floor = TOWER.floors[0]!;
     const persistence = new InMemoryPersistenceService();
     const ctx = new GameContext(TOWER, persistence, createInitialPlayerSave(floor.id, floor.entrance));
-    const enemy = {
-      ...floor.enemies.find((e) => e.id === "test-goblin")!,
-      drops: { currency: 12, key: { id: "k1", keyType: "bronze" } },
-    };
+    const enemy = floor.enemies.find((e) => e.id === "test-goblin")!;
 
     const stats = computeEffectiveStats(ctx.save.character, weaponCatalog, armorCatalog);
     let state: BattleState = startBattle(
@@ -105,33 +102,33 @@ describe("gameplay integration", () => {
     for (let i = 0; i < 1000 && state.outcome === "ongoing"; i++) state = advanceBattle(state, 0.05, () => 0.99).state;
     expect(state.outcome).toBe("victory");
 
-    applyBattleResult(ctx, enemy, "Goblin", { outcome: "victory", playerHp: state.player.hp, potionCount: 0 });
+    applyBattleResult(ctx, enemy, "Goblin", { outcome: "victory", playerHp: state.player.hp, potionCount: 0 }, { currency: 12 });
 
     expect(ctx.save.currentFloorState.defeatedEnemyIds).toContain(enemy.id);
     expect(ctx.save.character.currency).toBe(12);
-    expect(ctx.save.character.keyIds).toContain("bronze");
     expect(ctx.save.character.currentHp).toBe(state.player.hp);
-    expect(ctx.eventLog).toEqual([{ kind: "combat", message: "You won against Goblin, looted 12 gold and a Bronze key." }]);
+    expect(ctx.eventLog).toEqual([{ kind: "combat", message: "You won against Goblin, looted 12 gold." }]);
     expect(persistence.load()!.currentFloorState.defeatedEnemyIds).toContain(enemy.id);
   });
 
-  it("a victory with a full bag keeps gold and keys, loses the loot, and logs a note per lost item (033 FR-016a/b)", () => {
+  it("a victory with a full bag keeps gold, loses the dropped gear, and logs a note (033 FR-016a/b, 034)", () => {
     const floor = TOWER.floors[0]!;
     const ctx = new GameContext(TOWER, new InMemoryPersistenceService(), createInitialPlayerSave(floor.id, floor.entrance));
-    ctx.save.character = { ...ctx.save.character, bagGear: Array(25).fill("mail:helm") };
-    const enemy = {
-      ...floor.enemies.find((e) => e.id === "test-goblin")!,
-      drops: { currency: 12, key: { id: "k1", keyType: "bronze" }, loot: [{ id: "gem", name: "Gem" }] },
-    };
+    ctx.save.character = { ...ctx.save.character, bagGear: Array(25).fill({ key: "mail:helm", grade: "common", extras: {} }) };
+    const enemy = floor.enemies.find((e) => e.id === "test-goblin")!;
+    const gear = { key: "mail:helm", grade: "rare" as const, extras: { dodge: 0.03, critChance: 0.02 } };
 
-    applyBattleResult(ctx, enemy, "Goblin", { outcome: "victory", playerHp: 30, potionCount: 0 });
+    applyBattleResult(ctx, enemy, "Goblin", { outcome: "victory", playerHp: 30, potionCount: 0 }, { currency: 12, gear });
 
     expect(ctx.save.character.currency).toBe(12);
-    expect(ctx.save.character.keyIds).toContain("bronze");
-    expect(ctx.save.character.inventory).toEqual([]); // the Gem was lost for good
+    expect(ctx.save.character.bagGear).toHaveLength(25); // the helm was lost for good
     expect(ctx.eventLog).toEqual([
-      { kind: "combat", message: "You won against Goblin, looted 12 gold and a Bronze key." },
-      { kind: "note", message: "Your bag is full. Gem was lost." },
+      { kind: "combat", message: "You won against Goblin, looted 12 gold." },
+      {
+        kind: "note",
+        message: "Your bag is full. Rare Mail Helm was lost.",
+        highlight: { text: "Rare Mail Helm", grade: "rare" },
+      },
     ]);
   });
 
@@ -172,7 +169,7 @@ describe("gameplay integration", () => {
     save.character = applyItemPickup(save.character, swordItem);
     // 033 FR-015a: picking it up does not wear it — it waits in the bag.
     expect(save.character.equippedWeaponId).toBeUndefined();
-    expect(save.character.bagGear).toEqual([swordItem.payload]);
+    expect(save.character.bagGear).toEqual([{ key: swordItem.payload, grade: "common", extras: {} }]);
     save.character = wearNewest(save.character);
     expect(save.character.equippedWeaponId).toBe(swordItem.payload);
 
@@ -188,11 +185,11 @@ describe("gameplay integration", () => {
 
     // A second, different weapon replaces the first weapon's own contribution (FR-010)
     // rather than stacking with it — but both still add onto the same unarmed base.
-    const goldSwordItem = { id: "test-gold-sword", position: floor.entrance, kind: "weapon" as const, payload: "goldSword" as WeaponId };
-    save.character = wearNewest(applyItemPickup(save.character, goldSwordItem));
-    expect(save.character.equippedWeaponId).toBe("goldSword");
-    const afterGoldSword = computeEffectiveStats(save.character, weaponCatalog, armorCatalog);
-    expect(afterGoldSword.damage).toBe(baseline.damage + weaponCatalog.get("goldSword")!.attackValue);
+    const diamondItem = { id: "test-diamond-sword", position: floor.entrance, kind: "weapon" as const, payload: "diamondSword" as WeaponId };
+    save.character = wearNewest(applyItemPickup(save.character, diamondItem));
+    expect(save.character.equippedWeaponId).toBe("diamondSword");
+    const afterDiamond = computeEffectiveStats(save.character, weaponCatalog, armorCatalog);
+    expect(afterDiamond.damage).toBe(baseline.damage + weaponCatalog.get("diamondSword")!.attackValue);
 
     // 011: armor is now tracked per slot (chest), not as one whole-character tier.
     const leatherItem = floor.items.find((i) => i.kind === "armor")!;

@@ -72,9 +72,6 @@ export function validateTower(tower: Tower): ValidationResult {
         obtainableKeyTypes.add((item.payload as { keyType: string }).keyType);
       }
     }
-    for (const enemy of floor.enemies) {
-      if (enemy.drops?.key) obtainableKeyTypes.add(enemy.drops.key.keyType);
-    }
   }
   // 007 US3 (contract invariant 13): a door targeted by some lever's `unlockDoor` effect
   // legitimately needs no key at all — exempt it from the key-obtainability check below.

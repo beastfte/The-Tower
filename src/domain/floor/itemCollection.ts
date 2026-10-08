@@ -1,6 +1,7 @@
 import { positionKey, type Position } from "../types";
 import type { PlayerCharacterState } from "../character/save";
 import type { KeyDefinition, LootItem, WeaponId } from "../character/types";
+import { COMMON_ROLL } from "../character/grades";
 import { armorPieceKey } from "../../data/armorPieces";
 import type { ArmorPickupPayload, ChestReward, ItemDefinition, FloorDefinition } from "./types";
 
@@ -51,13 +52,13 @@ export function applyItemPickup(character: PlayerCharacterState, item: ItemDefin
     }
     case "weapon": {
       // 033 FR-015a: gear goes to the bag; the player decides whether to wear it.
-      return { ...character, bagGear: [...(character.bagGear ?? []), item.payload as WeaponId] };
+      return { ...character, bagGear: [...(character.bagGear ?? []), { key: item.payload as WeaponId, ...COMMON_ROLL }] };
     }
     case "armor": {
       const pickup = item.payload as ArmorPickupPayload;
       return {
         ...character,
-        bagGear: [...(character.bagGear ?? []), armorPieceKey(pickup.material, pickup.slot)],
+        bagGear: [...(character.bagGear ?? []), { key: armorPieceKey(pickup.material, pickup.slot), ...COMMON_ROLL }],
       };
     }
     case "potion": {

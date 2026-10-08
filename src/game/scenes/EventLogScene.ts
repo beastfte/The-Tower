@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { GameContext } from "../GameContext";
-import type { EventLogKind } from "../eventLog/types";
+import type { EventLogEntry, EventLogKind } from "../eventLog/types";
+import { GRADES } from "../../domain/character/grades";
 import { DESIGN_EVENT_LOG_AREA } from "../gameConfig";
 import { DESIGN_WIDTH } from "../scaleConfig";
 import { getUiRoot, px } from "../ui/domOverlay";
@@ -92,7 +93,7 @@ export class EventLogScene extends Phaser.Scene {
     this.redraw();
   }
 
-  private makeRow(kind: EventLogKind, message: string): HTMLDivElement {
+  private makeRow(kind: EventLogKind, message: string, highlight?: EventLogEntry["highlight"]): HTMLDivElement {
     const row = document.createElement("div");
     row.dataset.testid = "event-log-row";
     row.dataset.kind = kind;
@@ -112,7 +113,15 @@ export class EventLogScene extends Phaser.Scene {
       flex: "none",
     });
     const text = document.createElement("span");
-    text.textContent = message;
+    const at = highlight ? message.indexOf(highlight.text) : -1;
+    if (highlight && at >= 0) {
+      const name = document.createElement("span");
+      name.textContent = highlight.text;
+      name.style.color = GRADES[highlight.grade].colour;
+      text.append(message.slice(0, at), name, message.slice(at + highlight.text.length));
+    } else {
+      text.textContent = message;
+    }
     row.append(dot, text);
     return row;
   }
@@ -138,7 +147,7 @@ export class EventLogScene extends Phaser.Scene {
     for (let i = this.rendered; i < log.length; i++) {
       if (this.newestRow) this.newestRow.style.fontWeight = "400";
       const entry = log[i]!;
-      this.newestRow = this.makeRow(entry.kind, entry.message);
+      this.newestRow = this.makeRow(entry.kind, entry.message, entry.highlight);
       this.newestRow.style.fontWeight = "700";
       this.list.appendChild(this.newestRow);
     }

@@ -6,8 +6,8 @@ import type { WeaponId } from "../../../src/domain/character/types";
 
 /** 018 FR-016/FR-017/FR-018: swords only, four tiers, ascending attack value. */
 describe("WEAPONS (018 FR-016/FR-017/FR-018)", () => {
-  it("has exactly 4 entries", () => {
-    expect(Object.keys(WEAPONS)).toHaveLength(4);
+  it("has exactly 3 entries", () => {
+    expect(Object.keys(WEAPONS)).toHaveLength(3);
   });
 
   it("has no axe/mace/bow/staff key", () => {
@@ -21,13 +21,12 @@ describe("WEAPONS (018 FR-016/FR-017/FR-018)", () => {
     expect(WEAPONS.sword.id).toBe("sword");
   });
 
-  it("has strictly ascending attackValue: wooden 3, metal 6, gold 10, diamond 14", () => {
+  it("has strictly ascending attackValue: wooden 3, metal 6, diamond 14", () => {
     expect(WEAPONS.woodSword.attackValue).toBe(3);
     expect(WEAPONS.sword.attackValue).toBe(6);
-    expect(WEAPONS.goldSword.attackValue).toBe(10);
     expect(WEAPONS.diamondSword.attackValue).toBe(14);
 
-    const order = [WEAPONS.woodSword, WEAPONS.sword, WEAPONS.goldSword, WEAPONS.diamondSword];
+    const order = [WEAPONS.woodSword, WEAPONS.sword, WEAPONS.diamondSword];
     for (let i = 1; i < order.length; i++) {
       expect(order[i]!.attackValue).toBeGreaterThan(order[i - 1]!.attackValue);
     }

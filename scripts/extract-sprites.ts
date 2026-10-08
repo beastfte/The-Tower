@@ -156,7 +156,7 @@ function main(): void {
   sprites.merchantIdle = grid("MONSTER_SPRITES.merchant.idle", MONSTER_SPRITES.merchant?.idle);
   sprites.merchantBreath = grid("MONSTER_SPRITES.merchant.breath", MONSTER_SPRITES.merchant?.breath);
 
-  const weaponNames = ["woodSword", "sword", "goldSword", "diamondSword"];
+  const weaponNames = ["woodSword", "sword", "diamondSword"];
   for (const name of weaponNames) sprites[name] = grid(name, WEAPONS[name]);
 
   // 031 (data-model.md 1.2): held swords, prefixed `held` so they cannot collide with the flat

@@ -32,19 +32,15 @@ export interface MonsterSpecies {
   dodgeChance: number;
 }
 
-export interface DropTable {
-  loot?: LootItem[];
-  currency?: number;
-  key?: KeyDefinition;
-}
-
 export interface EnemyDefinition {
   id: string;
   position: Position;
   stats: CombatStats;
   species: MonsterSpeciesId;
   isEndBoss?: boolean;
-  drops?: DropTable;
+  /** 034 FR-021: +50% HP/damage/defence and a 50% equipment drop chance. The end boss gets the
+   * drop chance either way. */
+  isElite?: boolean;
   /** 032 FR-007/FR-008: per-placement dodge override (0-1); absent = the species default. */
   dodgeChance?: number;
 }

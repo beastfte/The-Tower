@@ -40,7 +40,7 @@ test("collecting a leather armor piece puts it in the bag; equipping it raises d
   let save = await getCtxSave(page);
   // 033 FR-015a: the helm waits in the bag, unworn, and defence is unchanged.
   expect(save.character.equippedArmor.helm).toBeUndefined();
-  expect(save.character.bagGear).toEqual(["leather:helm"]);
+  expect(save.character.bagGear).toEqual([{ key: "leather:helm", grade: "common", extras: {} }]);
   await expect(page.locator('[data-testid="stat-def"]')).toHaveText(String(baseDefence));
   await expect(page.locator('[data-testid="slot-helm-name"]')).toHaveText("Empty");
   await expect(page.locator('[data-testid="bag-count"]')).toHaveText("1 / 25");

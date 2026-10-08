@@ -14,7 +14,7 @@ export interface KeyDefinition {
   keyType: string;
 }
 
-export type WeaponId = "woodSword" | "sword" | "goldSword" | "diamondSword";
+export type WeaponId = "woodSword" | "sword" | "diamondSword";
 
 export interface WeaponDefinition {
   id: WeaponId;

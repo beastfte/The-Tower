@@ -77,7 +77,8 @@ export function floorExportToDefinition(fe: FloorExport): FloorDefinition {
     grid,
     entrance: fe.entrance,
     exit: fe.exit,
-    enemies: fe.enemies,
+    // 034 FR-020: monster drops are rolled, not authored; a stale export's `drops` is dropped.
+    enemies: fe.enemies.map(({ drops: _drops, ...enemy }: EnemyDefinition & { drops?: unknown }) => enemy),
     // A tool export may omit `payload` entirely for a payload-less item kind (e.g. a plain
     // "potion"), but `ItemDefinition.payload` is a required key (its value, not its presence,
     // is optional — `undefined` is one of `ItemPayload`'s member types). Normalize so the key

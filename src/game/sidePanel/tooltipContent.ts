@@ -3,6 +3,7 @@ import { bagIsFull, isArmourKey } from "../../domain/character/bag";
 import type { PlayerCharacterState } from "../../domain/character/save";
 import type { ArmorPieceDefinition, WeaponDefinition, WeaponId } from "../../domain/character/types";
 import { armorPieceKey } from "../../data/armorPieces";
+import { COMMON_ROLL, GRADES, gradedValue, type GearRoll, type GradeId } from "../../domain/character/grades";
 import { keyTypeDescriptions, lootDescriptions } from "../uiContent/itemDescriptions";
 
 /** What a tooltip hover points at: a worn slot, a bag cell, or a key-ring tile. */
@@ -28,6 +29,8 @@ export interface TooltipLine {
 }
 
 export interface TooltipContent {
+  /** 034: set for gear — the name is drawn in the grade colour and the kicker names the grade. */
+  grade?: GradeId;
   /** Sprite key for `spriteDataUrl`; absent when the item has no baked icon. */
   iconKey?: string;
   name: string;
@@ -62,6 +65,7 @@ const POTION_DESCRIPTION = "Carried; drink one in battle to heal 25% of max HP."
 
 export interface GearInfo {
   name: string;
+  grade: GradeId;
   slot: GearSlot;
   iconKey: string;
   stats: GearStats;
@@ -72,34 +76,38 @@ type Bonuses = Pick<
   "attackSpeedBonus" | "critChanceBonus" | "critDamageBonus" | "dodgeChanceBonus"
 >;
 
-function bonusStats(b: Bonuses): Omit<GearStats, "dmg" | "def"> {
+/** Catalog bonuses plus the roll's extras (034), rounded to whole percents so float sums stay tidy. */
+function bonusStats(b: Bonuses, roll: GearRoll): Omit<GearStats, "dmg" | "def"> {
+  const pct = (v: number): number => Math.round(v * 1000) / 1000;
   return {
-    spd: b.attackSpeedBonus ?? 0,
-    crit: b.critChanceBonus ?? 0,
-    critDmg: b.critDamageBonus ?? 0,
-    dodge: b.dodgeChanceBonus ?? 0,
+    spd: pct((b.attackSpeedBonus ?? 0) + (roll.extras.attackSpeed ?? 0)),
+    crit: pct((b.critChanceBonus ?? 0) + (roll.extras.critChance ?? 0)),
+    critDmg: pct((b.critDamageBonus ?? 0) + (roll.extras.critDamage ?? 0)),
+    dodge: pct((b.dodgeChanceBonus ?? 0) + (roll.extras.dodge ?? 0)),
   };
 }
 
 /** Looks a gear key up — a weapon id or a "material:slot" armour key. Undefined on a catalog miss. */
-export function gearInfo(key: string, catalogs: TooltipCatalogs): GearInfo | undefined {
+export function gearInfo(key: string, catalogs: TooltipCatalogs, roll: GearRoll = COMMON_ROLL): GearInfo | undefined {
   if (isArmourKey(key)) {
     const piece = catalogs.armour.get(key);
     if (!piece) return undefined;
     return {
       name: piece.name,
+      grade: roll.grade,
       slot: piece.slot,
       iconKey: piece.textureKey,
-      stats: { dmg: 0, def: piece.defenceBonus, ...bonusStats(piece) },
+      stats: { dmg: 0, def: gradedValue(piece.defenceBonus, roll.grade), ...bonusStats(piece, roll) },
     };
   }
   const weapon = catalogs.weapons.get(key as WeaponId);
   if (!weapon) return undefined;
   return {
     name: weapon.name,
+    grade: roll.grade,
     slot: "weapon",
     iconKey: weapon.textureKey,
-    stats: { dmg: weapon.attackValue, def: 0, ...bonusStats(weapon) },
+    stats: { dmg: gradedValue(weapon.attackValue, roll.grade), def: 0, ...bonusStats(weapon, roll) },
   };
 }
 
@@ -157,13 +165,14 @@ export function buildTooltipContent(
 
   if (source.from === "slot") {
     const key = wornKey(c, source.slot);
-    const info = key ? gearInfo(key, catalogs) : undefined;
+    const info = key ? gearInfo(key, catalogs, c.equippedRolls?.[source.slot]) : undefined;
     if (!info) return undefined;
     const full = bagIsFull(c);
     return {
       iconKey: info.iconKey,
       name: info.name,
-      kicker: `Worn · ${cap(info.slot)}`,
+      grade: info.grade,
+      kicker: `Worn · ${GRADES[info.grade].name} ${cap(info.slot)}`,
       lines: buildLines(info.stats, undefined),
       hint: full ? "Bag full · can't take off" : "Click to take off",
       hintIsWarning: full,
@@ -195,15 +204,16 @@ export function buildTooltipContent(
     };
   }
 
-  const info = gearInfo(entry.key, catalogs);
+  const info = gearInfo(entry.key, catalogs, entry.item);
   if (!info) return undefined;
   const worn = wornKey(c, info.slot);
-  const wornInfo = worn ? gearInfo(worn, catalogs) : undefined;
+  const wornInfo = worn ? gearInfo(worn, catalogs, c.equippedRolls?.[info.slot]) : undefined;
   const zero: GearStats = { dmg: 0, def: 0, spd: 0, crit: 0, critDmg: 0, dodge: 0 };
   return {
     iconKey: info.iconKey,
     name: info.name,
-    kicker: `${cap(info.slot)} · in bag`,
+    grade: info.grade,
+    kicker: `${GRADES[info.grade].name} ${cap(info.slot)} · in bag`,
     lines: buildLines(info.stats, wornInfo?.stats ?? zero),
     comparedWith: wornInfo ? `Compared with your ${wornInfo.name}` : "Nothing worn in this slot",
     hint: "Click to select",

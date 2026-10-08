@@ -13,12 +13,16 @@ import {
 } from "../../../src/domain/character/bag";
 import { createInitialPlayerSave } from "../../../src/domain/character/initialState";
 import type { PlayerCharacterState } from "../../../src/domain/character/save";
+import { COMMON_ROLL, type GearItem } from "../../../src/domain/character/grades";
 import type { ItemDefinition } from "../../../src/domain/floor/types";
+
+const g = (key: string, roll = COMMON_ROLL): GearItem => ({ key, ...roll });
+const RARE = { grade: "rare" as const, extras: { dodge: 0.03, critChance: 0.04 } };
 
 const base = (): PlayerCharacterState => createInitialPlayerSave("f", { x: 0, y: 0 }).character;
 const withGear = (n: number): PlayerCharacterState => ({
   ...base(),
-  bagGear: Array.from({ length: n }, () => "mail:helm"),
+  bagGear: Array.from({ length: n }, () => g("mail:helm")),
 });
 const item = (kind: ItemDefinition["kind"], payload: ItemDefinition["payload"]): ItemDefinition => ({
   id: "i",
@@ -33,14 +37,14 @@ describe("bag entries and capacity", () => {
       ...base(),
       inventory: ["a", "b", "a"],
       potionCount: 2,
-      bagGear: ["sword", "mail:chest"],
+      bagGear: [g("sword"), g("mail:chest")],
     };
     expect(bagEntries(c)).toEqual([
       { kind: "loot", id: "a", qty: 2 },
       { kind: "loot", id: "b", qty: 1 },
       { kind: "potion", qty: 2 },
-      { kind: "gear", key: "sword", index: 0 },
-      { kind: "gear", key: "mail:chest", index: 1 },
+      { kind: "gear", key: "sword", index: 0, item: g("sword") },
+      { kind: "gear", key: "mail:chest", index: 1, item: g("mail:chest") },
     ]);
     expect(bagSlotsUsed(c)).toBe(5);
   });
@@ -81,67 +85,75 @@ describe("pickupNeedsSlot", () => {
 });
 
 describe("fitDropsToBag", () => {
-  const drops = {
-    currency: 9,
-    key: { id: "k", keyType: "gold" },
-    loot: [
-      { id: "a", name: "A" },
-      { id: "b", name: "B" },
-    ],
-  };
+  const drops = { gear: g("mail:helm", RARE) };
 
-  it("keeps everything when there is room", () => {
+  it("keeps a gear drop when there is room", () => {
     const fit = fitDropsToBag(base(), drops);
     expect(fit.lost).toEqual([]);
-    expect(fit.drops?.loot).toHaveLength(2);
+    expect(fit.drops?.gear).toEqual(drops.gear);
   });
 
-  it("always keeps gold and keys, and loses loot that does not fit, in order", () => {
-    const c = withGear(BAG_CAPACITY - 1);
-    const fit = fitDropsToBag(c, drops);
-    expect(fit.drops?.currency).toBe(9);
-    expect(fit.drops?.key).toEqual(drops.key);
-    expect(fit.drops?.loot).toEqual([{ id: "a", name: "A" }]);
-    expect(fit.lost).toEqual([{ id: "b", name: "B" }]);
+  it("loses a gear drop when the bag is full, keeping gold", () => {
+    const fit = fitDropsToBag(withGear(BAG_CAPACITY), { ...drops, currency: 9 });
+    expect(fit.drops).toEqual({ currency: 9 });
+    expect(fit.lost).toEqual([drops.gear]);
   });
 
-  it("keeps loot that stacks onto an id already held, even when full", () => {
-    const c = { ...withGear(BAG_CAPACITY - 1), inventory: ["a"] };
-    const fit = fitDropsToBag(c, { loot: [{ id: "a", name: "A" }] });
-    expect(fit.lost).toEqual([]);
-  });
-
-  it("passes undefined drops through", () => {
+  it("passes undefined and gold-only drops through", () => {
     expect(fitDropsToBag(base(), undefined)).toEqual({ drops: undefined, lost: [] });
+    expect(fitDropsToBag(withGear(BAG_CAPACITY), { currency: 3 })).toEqual({ drops: { currency: 3 }, lost: [] });
   });
 });
 
 describe("equipFromBag", () => {
   it("wears the spare weapon and puts the worn one in its place", () => {
-    const c = { ...base(), equippedWeaponId: "woodSword" as const, bagGear: ["sword", "mail:helm"] };
+    const c = { ...base(), equippedWeaponId: "woodSword" as const, bagGear: [g("sword"), g("mail:helm")] };
     const next = equipFromBag(c, 0);
     expect(next.equippedWeaponId).toBe("sword");
-    expect(next.bagGear).toEqual(["woodSword", "mail:helm"]);
+    expect(next.bagGear).toEqual([g("woodSword"), g("mail:helm")]);
   });
 
   it("wears armour into an empty slot and removes it from the bag", () => {
-    const c = { ...base(), bagGear: ["mail:chest", "sword"] };
+    const c = { ...base(), bagGear: [g("mail:chest"), g("sword")] };
     const next = equipFromBag(c, 0);
     expect(next.equippedArmor.chest).toBe("mail");
-    expect(next.bagGear).toEqual(["sword"]);
+    expect(next.bagGear).toEqual([g("sword")]);
   });
 
   it("swaps armour in the same slot and still works with a full bag", () => {
     const c: PlayerCharacterState = {
       ...base(),
       equippedArmor: { helm: "leather" },
-      bagGear: ["plate:helm", ...Array(BAG_CAPACITY - 1).fill("mail:legs")],
+      bagGear: [g("plate:helm"), ...Array(BAG_CAPACITY - 1).fill(g("mail:legs"))],
     };
     expect(bagIsFull(c)).toBe(true);
     const next = equipFromBag(c, 0);
     expect(next.equippedArmor.helm).toBe("plate");
-    expect(next.bagGear?.[0]).toBe("leather:helm");
+    expect(next.bagGear?.[0]).toEqual(g("leather:helm"));
     expect(next.bagGear).toHaveLength(BAG_CAPACITY);
+  });
+
+  it("carries each piece's roll through equip and back (034 C4)", () => {
+    const c = { ...base(), bagGear: [g("sword", RARE)] };
+    const worn = equipFromBag(c, 0);
+    expect(worn.equippedRolls?.weapon).toEqual(RARE);
+    expect(worn.bagGear).toEqual([]);
+    const off = takeOff(worn, "weapon");
+    expect(off.bagGear).toEqual([g("sword", RARE)]);
+    expect(off.equippedRolls?.weapon).toBeUndefined();
+    expect(equipFromBag(off, 0).equippedRolls?.weapon).toEqual(RARE);
+  });
+
+  it("swapping sends the old piece back with its own roll", () => {
+    const c = {
+      ...base(),
+      equippedWeaponId: "woodSword" as const,
+      equippedRolls: { weapon: RARE },
+      bagGear: [g("sword")],
+    };
+    const next = equipFromBag(c, 0);
+    expect(next.bagGear).toEqual([g("woodSword", RARE)]);
+    expect(next.equippedRolls?.weapon).toEqual(COMMON_ROLL);
   });
 
   it("ignores a bad index", () => {
@@ -155,10 +167,10 @@ describe("takeOff and discard", () => {
     const c = { ...base(), equippedWeaponId: "sword" as const, equippedArmor: { chest: "mail" as const } };
     const a = takeOff(c, "weapon");
     expect(a.equippedWeaponId).toBeUndefined();
-    expect(a.bagGear).toEqual(["sword"]);
+    expect(a.bagGear).toEqual([g("sword")]);
     const b = takeOff(a, "chest");
     expect(b.equippedArmor.chest).toBeUndefined();
-    expect(b.bagGear).toEqual(["sword", "mail:chest"]);
+    expect(b.bagGear).toEqual([g("sword"), g("mail:chest")]);
   });
 
   it("is blocked with a full bag or an empty slot", () => {
@@ -169,14 +181,14 @@ describe("takeOff and discard", () => {
   });
 
   it("discards one loot unit, one potion, or a spare piece", () => {
-    const c = { ...base(), inventory: ["a", "a", "b"], potionCount: 2, bagGear: ["sword", "mail:helm"] };
+    const c = { ...base(), inventory: ["a", "a", "b"], potionCount: 2, bagGear: [g("sword"), g("mail:helm")] };
     expect(discard(c, { kind: "loot", id: "a", qty: 2 }).inventory).toEqual(["a", "b"]);
     expect(discard(c, { kind: "potion", qty: 2 }).potionCount).toBe(1);
-    expect(discard(c, { kind: "gear", key: "sword", index: 0 }).bagGear).toEqual(["mail:helm"]);
+    expect(discard(c, { kind: "gear", key: "sword", index: 0, item: g("sword") }).bagGear).toEqual([g("mail:helm")]);
   });
 
   it("frees a slot, so a blocked pickup works again afterwards", () => {
     const full = withGear(BAG_CAPACITY);
-    expect(bagIsFull(discard(full, { kind: "gear", key: "mail:helm", index: 0 }))).toBe(false);
+    expect(bagIsFull(discard(full, { kind: "gear", key: "mail:helm", index: 0, item: g("mail:helm") }))).toBe(false);
   });
 });

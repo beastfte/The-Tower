@@ -35,6 +35,21 @@ See `specs/012-tower-mapping-tool/quickstart.md` for the full walkthrough. In sh
   Only `ItemKind` stays hand-maintained in the tool's own `ITEM_KINDS` list (no runtime catalog
   to derive it from) — update that one by hand, same as before.
 
+## Monster drops (034)
+
+Monsters carry no authored drops. Each fight rolls one result (`rollMonsterDrop`): a regular
+monster leaves gear 20% / nothing 20% / 1–10 gold 60%; a monster ticked "Elite" in the tool (or
+the end boss) leaves gear 50% / 10–30 gold 50%, and elites have +50% HP, damage and defence.
+Gear is graded (common to legendary) and its tier follows the floor number:
+
+| Floors | Armour | Weapon |
+|--------|--------|--------|
+| 1–7 | leather | wooden sword |
+| 8–14 | mail | sword |
+| 15+ | plate | diamond sword |
+
+Floor-placed items are always common grade.
+
 ## Testing against the tower
 
 The tower's actual content (`floors/*.ts`, `TOWER`) is replaced wholesale every time it's

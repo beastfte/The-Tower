@@ -19,7 +19,6 @@ function sampleDefinition(): FloorDefinition {
         position: { x: 1, y: 1 },
         stats: { damage: 4, defence: 1, hp: 12 },
         species: "goblin",
-        drops: { currency: 15 },
       },
     ],
     items: [{ id: "i1", position: { x: 1, y: 1 }, kind: "currency", payload: 10 }],
@@ -148,5 +147,15 @@ describe("enemy dodgeChance override (032 C5)", () => {
     const back = floorExportToDefinition(floorDefinitionToExport(def, 0));
     expect(back.enemies.find((e) => e.id === "e2")?.dodgeChance).toBe(0.5);
     expect(back.enemies.find((e) => e.id === "e1")).not.toHaveProperty("dodgeChance");
+  });
+});
+
+describe("monster drops are not authored (034 FR-020, FR-021)", () => {
+  it("strips a stale `drops` key and keeps `isElite` through conversion", () => {
+    const fe = floorDefinitionToExport(sampleDefinition(), 0);
+    const stale = { ...fe.enemies[0]!, isElite: true, drops: { currency: 15 } } as unknown as FloorExport["enemies"][number];
+    const def = floorExportToDefinition({ ...fe, enemies: [stale] });
+    expect(def.enemies[0]).not.toHaveProperty("drops");
+    expect(def.enemies[0]?.isElite).toBe(true);
   });
 });

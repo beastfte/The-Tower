@@ -83,3 +83,49 @@ describe("computeEffectiveStats dodge (032)", () => {
     expect(withBonus(5)).toBe(1);
   });
 });
+
+/** 034 C3: grade scales the base stat; extras add to the live-battle stats; both stop when unworn. */
+describe("computeEffectiveStats with graded gear (034)", () => {
+  const weapons = new Map<WeaponId, WeaponDefinition>([["sword", weapon({ attackValue: 20 })]]);
+  const armour = new Map<string, ArmorPieceDefinition>([
+    ["mail:helm", { material: "mail", slot: "helm", name: "H", defenceBonus: 10, textureKey: "mailHelm" }],
+  ]);
+
+  it("treats a worn piece with no roll as common", () => {
+    const stats = computeEffectiveStats(character({ equippedWeaponId: "sword", equippedArmor: { helm: "mail" } }), weapons, armour);
+    expect(stats.damage).toBe(30);
+    expect(stats.defence).toBe(12);
+  });
+
+  it("scales base stats by the worn piece's own grade", () => {
+    const c = character({
+      equippedWeaponId: "sword",
+      equippedArmor: { helm: "mail" },
+      equippedRolls: { weapon: { grade: "uncommon", extras: {} }, helm: { grade: "rare", extras: {} } },
+    });
+    const stats = computeEffectiveStats(c, weapons, armour);
+    expect(stats.damage).toBe(10 + 22); // 20 x 1.1
+    expect(stats.defence).toBe(2 + 12); // 10 x 1.21 = 12.1
+  });
+
+  it("adds extras from every worn piece to crit, speed and dodge", () => {
+    const c = character({
+      equippedWeaponId: "sword",
+      equippedArmor: { helm: "mail" },
+      equippedRolls: {
+        weapon: { grade: "rare", extras: { critChance: 0.04, attackSpeed: 0.1 } },
+        helm: { grade: "uncommon", extras: { dodge: 0.03 } },
+      },
+    });
+    const stats = computeEffectiveStats(c, weapons, armour);
+    expect(stats.critChance).toBeCloseTo(0.09, 10);
+    expect(stats.attackIntervalSec).toBeCloseTo(1 / 1.1, 10);
+    expect(stats.dodgeChance).toBeCloseTo(0.08, 10);
+    expect(stats.critDamageBonus).toBe(0);
+  });
+
+  it("drops the extras once the piece is unworn", () => {
+    const c = character({ equippedRolls: { weapon: { grade: "rare", extras: { critChance: 0.04 } } } });
+    expect(computeEffectiveStats(c, weapons, armour).critChance).toBe(0.05);
+  });
+});

@@ -715,10 +715,6 @@
             "name": "Sword"
           },
           {
-            "id": "goldSword",
-            "name": "Gold Sword"
-          },
-          {
             "id": "diamondSword",
             "name": "Diamond Sword"
           }
@@ -2202,18 +2198,14 @@
           );
           content.appendChild(readOnlyField("Placement (computed)", classifyEnemyPlacement(floor, el)));
           content.appendChild(checkField("End boss", !!el.isEndBoss, (v) => { el.isEndBoss = v || undefined; commit(floor); }));
+          // 034 FR-021: elite = +50% HP/damage/defence and a 50% equipment drop chance.
+          content.appendChild(checkField("Elite", !!el.isElite, (v) => { el.isElite = v || undefined; commit(floor); }));
           content.appendChild(numberField("Damage", el.stats.damage, (v) => { el.stats.damage = v; commit(floor); }));
           content.appendChild(numberField("Defence", el.stats.defence, (v) => { el.stats.defence = v; commit(floor); }));
           content.appendChild(numberField("HP", el.stats.hp, (v) => { el.stats.hp = v; commit(floor); }));
           // 032 C5: per-monster dodge override in whole percent; empty reverts to the species default.
           content.appendChild(
             dodgeField(el, (PALETTE.monsters.find((m) => m.id === el.species) || {}).baseline, () => commit(floor)),
-          );
-          content.appendChild(
-            numberField("Currency drop", el.drops && el.drops.currency ? el.drops.currency : 0, (v) => {
-              el.drops = v > 0 ? { currency: v } : undefined;
-              commit(floor);
-            }),
           );
         } else if (arrayKey === "items") {
           content.appendChild(

@@ -51,13 +51,6 @@ export function buildLootNameCatalog(tower: Tower): ReadonlyMap<string, string> 
         catalog.set(loot.id, loot.name);
       }
     }
-    for (const enemy of floor.enemies) {
-      if (enemy.drops?.loot) {
-        for (const loot of enemy.drops.loot) {
-          catalog.set(loot.id, loot.name);
-        }
-      }
-    }
   }
   return catalog;
 }
