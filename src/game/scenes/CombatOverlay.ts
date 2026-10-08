@@ -228,14 +228,7 @@ export class CombatOverlay extends Phaser.Scene {
     };
 
     // C17: drinks one carried potion at once; disabled with none left, at full HP, or once ended.
-    this.potionButton_ = this.addActionButton("", POTION_Y, "combat-potion", () => {
-      const step = drinkPotion(this.state_);
-      if (step.events.length === 0) return;
-      this.state_ = step.state;
-      step.events.forEach((event) => this.showEvent(event));
-      playSfx(this.sound, sfxPotion);
-      this.refresh();
-    });
+    this.potionButton_ = this.addActionButton("", POTION_Y, "combat-potion", () => this.drinkPotion());
     Object.assign(this.potionButton_.style, { background: GOLD, color: "#1a1206", borderColor: GOLD });
 
     // C13: Flee works at any moment until an outcome appears, and closes the modal at once.
@@ -351,6 +344,22 @@ export class CombatOverlay extends Phaser.Scene {
     step.events.forEach((event) => this.showEvent(event));
     this.refresh();
     if (this.state_.outcome !== "ongoing") this.endBattle(this.state_.outcome);
+  }
+
+  /** 033 C8: the Potion button's action, public so the side panel's Use button can run it too. */
+  drinkPotion(): void {
+    const step = drinkPotion(this.state_);
+    if (step.events.length === 0) return;
+    this.state_ = step.state;
+    step.events.forEach((event) => this.showEvent(event));
+    playSfx(this.sound, sfxPotion);
+    this.refresh();
+  }
+
+  /** 033 C8: whether a potion can be drunk right now (same rule as the Potion button's enabled state). */
+  canDrinkPotion(): boolean {
+    const { potionCount, player, playerMaxHp } = this.state_;
+    return !this.ended_ && potionCount > 0 && player.hp < playerMaxHp;
   }
 
   /** Re-renders both health readouts and attack bars from the current battle state. */

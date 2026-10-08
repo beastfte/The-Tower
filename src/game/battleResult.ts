@@ -4,7 +4,8 @@ import type { EnemyDefinition } from "../domain/floor/types";
 import { applyEnemyDefeat } from "../domain/floor/floorState";
 import { markDead } from "../domain/hazard/death";
 import { isWinningDefeat, triggerWin } from "../domain/progress/winState";
-import { describeDrops } from "./eventLog/formatEntry";
+import { describeDrops, formatBagFullEntry } from "./eventLog/formatEntry";
+import { fitDropsToBag } from "../domain/character/bag";
 
 export type BattleEndOutcome = Exclude<BattleOutcome, "ongoing">;
 
@@ -33,11 +34,14 @@ export function applyBattleResult(
   ctx.save.character = { ...ctx.save.character, currentHp: result.playerHp, potionCount: result.potionCount };
 
   if (result.outcome === "victory") {
-    const update = applyEnemyDefeat(ctx.save.currentFloorState, ctx.save.character, enemy);
+    // 033 FR-016a: loot the bag cannot take is lost for good; gold and keys are always kept.
+    const fit = fitDropsToBag(ctx.save.character, enemy.drops);
+    const update = applyEnemyDefeat(ctx.save.currentFloorState, ctx.save.character, { ...enemy, drops: fit.drops });
     ctx.save.currentFloorState = update.floorProgress;
     ctx.save.character = update.character;
     // FR-024: one line per battle — drops (including a key) are folded in, not logged apart.
-    ctx.logBattle({ outcome: "victory", enemyName, loot: describeDrops(enemy.drops) });
+    ctx.logBattle({ outcome: "victory", enemyName, loot: describeDrops(fit.drops) });
+    for (const lost of fit.lost) ctx.logEntry(formatBagFullEntry(lost.name, "lost"));
     if (isWinningDefeat(enemy)) ctx.save = triggerWin(ctx.save);
   } else if (result.outcome === "defeat") {
     ctx.save = markDead(ctx.save, enemyName); // FR-029: saved before Continue

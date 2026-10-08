@@ -55,6 +55,11 @@ export interface PlayerCharacterState {
    * before 027 — read as 0, no migration (same precedent as `purchaseCounts`). Lives on the
    * character so the checkpoint snapshot restores it for free. */
   potionCount?: number;
+  /** 033: spare weapons and armour carried in the bag — each entry is a weapon id ("sword") or an
+   * armour catalog key ("mail:chest"). Picked-up gear lands here and is never worn automatically.
+   * Absent on any save from before 033 — read as `[]`, no migration (same precedent as
+   * `potionCount`). Lives on the character so the checkpoint snapshot restores it for free. */
+  bagGear?: string[];
 }
 
 /** The single object persisted to localStorage (FR-010/FR-010a). */

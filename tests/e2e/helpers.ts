@@ -236,15 +236,15 @@ export async function pressAndWait(page: Page, key: string, ms = 250): Promise<v
 // src/game/) pulls in the `phaser` package, which assumes browser globals (HTMLVideoElement,
 // etc.) at module-load time and crashes when evaluated in Playwright's Node-side test runner.
 //
-// Kept in sync with scaleConfig.ts's DESIGN_WIDTH/DESIGN_HEIGHT (736x704 since 014 grew the
+// Kept in sync with scaleConfig.ts's DESIGN_WIDTH/DESIGN_HEIGHT (922x846 since 033; 736x704 since 014 grew the
 // design size to fit the fixed 15x15/64px floor baseline — was 360x280), NOT gameConfig.ts's
 // actual (RENDER_SCALE-multiplied) GAME_WIDTH/GAME_HEIGHT: gameToPage() below only uses these
 // as ratio denominators (gx/GAME_WIDTH), and every call site passes coordinates in this same
 // design-space (e.g. a horizontal center in DESIGN_WIDTH units). Since RENDER_SCALE scales the
 // whole game uniformly, that ratio is scale-invariant — changing these without also rescaling
 // every call site would break it.
-const GAME_WIDTH = 736;
-const GAME_HEIGHT = 704;
+const GAME_WIDTH = 922;
+const GAME_HEIGHT = 846;
 
 /** Converts fixed design-space coordinates (DESIGN_WIDTH/DESIGN_HEIGHT units, as used
  * throughout src/game/scenes, before gameConfig.ts's RENDER_SCALE multiplier) to real page

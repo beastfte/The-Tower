@@ -28,7 +28,8 @@ import { ensureWallTexture, ensureDoorTexture, type DoorTier } from "../render/w
 import { hasDiedFromHazard, markDead } from "../../domain/hazard/death";
 import { monsterCombatant } from "../../domain/combat/battle";
 import { computeEffectiveStats, computeMaxHp } from "../../domain/character/combatStats";
-import { describeDrops } from "../eventLog/formatEntry";
+import { describeDrops, formatBagFullEntry } from "../eventLog/formatEntry";
+import { pickupNeedsSlot, bagIsFull, fitDropsToBag } from "../../domain/character/bag";
 import { isWinningDefeat } from "../../domain/progress/winState";
 import { completeCurrentFloor, returnToPreviousFloor } from "../../domain/progress/towerProgress";
 import type { CombatOverlayData } from "./CombatOverlay";
@@ -39,6 +40,7 @@ import type { NpcDialogueData } from "./NpcDialogueScene";
 import { resumeFromCheckpoint, returnToMainMenu } from "../../domain/hazard/recovery";
 import type {
   ArmorPickupPayload,
+  ItemDefinition,
   ChestReward,
   EnemyDefinition,
   LavaTileDefinition,
@@ -262,6 +264,22 @@ export class FloorScene extends Phaser.Scene {
    * Reusing FloorScene.scene.pause() means Phaser simply stops dispatching input to this
    * scene while combat is playing out, satisfying FR-008's combat case for free.
    */
+  /** 033: a floor item's display name, for the full-bag note. */
+  private itemLabel(item: ItemDefinition): string {
+    switch (item.kind) {
+      case "weapon":
+        return this.ctx.weaponCatalog.get(item.payload as WeaponId)?.name ?? "Weapon";
+      case "armor": {
+        const pickup = item.payload as ArmorPickupPayload;
+        return this.ctx.armorCatalog.get(`${pickup.material}:${pickup.slot}`)?.name ?? "Armour";
+      }
+      case "loot":
+        return (item.payload as LootItem).name;
+      default:
+        return "Health potion";
+    }
+  }
+
   openPauseMenu(): void {
     const ctx = this.ctx;
     const data: PauseMenuData = {
@@ -458,7 +476,14 @@ export class FloorScene extends Phaser.Scene {
       : leverEffects;
 
     const collected = new Set(ctx.save.currentFloorState.collectedItemIds);
-    const item = findAvailableItemAt(floor, target, collected);
+    const found = findAvailableItemAt(floor, target, collected);
+    // 033 FR-016a: with a full bag, anything that needs a bag slot stays on its tile (gold and
+    // keys never do, so they always collect).
+    let item = found;
+    if (found && pickupNeedsSlot(ctx.save.character, found) && bagIsFull(ctx.save.character)) {
+      ctx.logEntry(formatBagFullEntry(this.itemLabel(found), "floor"));
+      item = undefined;
+    }
     if (item) {
       ctx.save.character = applyItemPickup(ctx.save.character, item);
       ctx.save.currentFloorState = markItemCollected(ctx.save.currentFloorState, item.id);
@@ -606,7 +631,8 @@ export class FloorScene extends Phaser.Scene {
       monsterSpeciesKey: species?.textureKey ?? "__MISSING",
       playerTier: this.playerTier(),
       playerWeapon: this.playerWeapon(),
-      dropPhrases: describeDrops(enemy.drops),
+      // 033 FR-016a: only what the bag can take is announced as looted.
+      dropPhrases: describeDrops(fitDropsToBag(character, enemy.drops).drops),
       onBattleEnd: (result) => applyBattleResult(ctx, enemy, enemyName, result),
       onContinue: (outcome) => this.onBattleContinue(enemy, outcome),
     };

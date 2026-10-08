@@ -1,11 +1,11 @@
-import { DESIGN_HEIGHT, DESIGN_EVENT_LOG_HEIGHT } from "./scaleConfig";
+import { DESIGN_HEIGHT, DESIGN_EVENT_LOG_HEIGHT, DESIGN_UI_GUTTER } from "./scaleConfig";
 import { UPGRADE_IDS, UPGRADES, priceFor } from "../domain/character/shopUpgrades";
 import type { PlayerCharacterState, UpgradeId } from "../domain/character/save";
 
 /** Mirrors `DESIGN_PLAY_AREA.height` (gameConfig.ts) without importing that module, which pulls
  * in the `phaser` package — this file stays Phaser-free so it's unit-testable without a scene
  * harness (research R12), matching `merchantAnimation.ts` and `shopUpgrades.ts`. */
-const DIALOGUE_PLAY_AREA_HEIGHT = DESIGN_HEIGHT - DESIGN_EVENT_LOG_HEIGHT;
+const DIALOGUE_PLAY_AREA_HEIGHT = DESIGN_HEIGHT - DESIGN_EVENT_LOG_HEIGHT - 3 * DESIGN_UI_GUTTER;
 
 /** 2026-09-30 amendment (analysis finding A1): fixed at a quarter of the play area's height so
  * it isn't left to implementation-time guessing. "Undimmed" (FR-016) means no darkening/tint
@@ -14,7 +14,7 @@ export const DIALOGUE_BAR_HEIGHT = DIALOGUE_PLAY_AREA_HEIGHT * 0.25;
 
 /** Top edge of the bar, in DESIGN_WIDTH/DESIGN_HEIGHT-space units, anchored to the bottom of the
  * play area (FR-016, contract C14). */
-export const DIALOGUE_BAR_Y = DIALOGUE_PLAY_AREA_HEIGHT - DIALOGUE_BAR_HEIGHT;
+export const DIALOGUE_BAR_Y = DESIGN_UI_GUTTER + DIALOGUE_PLAY_AREA_HEIGHT - DIALOGUE_BAR_HEIGHT;
 
 /** The enlarged portrait is sized to the bar, with a small margin (FR-017, contract C15). */
 export const DIALOGUE_PORTRAIT_SIZE = DIALOGUE_BAR_HEIGHT * 0.8;

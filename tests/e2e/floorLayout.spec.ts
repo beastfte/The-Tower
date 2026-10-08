@@ -6,16 +6,13 @@ import { clearSave, waitForActiveScene } from "./helpers";
 // when evaluated in Playwright's Node-side test runner. 014 resized the floor/tile baseline
 // to a fixed 15x15 grid of 64px tiles, growing GAME_WIDTH/GAME_HEIGHT accordingly (via
 // scaleConfig.ts's DESIGN_WIDTH/DESIGN_HEIGHT) so PLAY_AREA now evaluates to exactly 960x960.
-const GAME_WIDTH = 1104;
-const GAME_HEIGHT = 1056;
-const SIDE_PANEL_WIDTH = 144;
-const EVENT_LOG_HEIGHT = 96;
+const GUTTER = 18;
 const TILE_SIZE = 64;
 const PLAY_AREA = {
-  x: 0,
-  y: 0,
-  width: GAME_WIDTH - SIDE_PANEL_WIDTH,
-  height: GAME_HEIGHT - EVENT_LOG_HEIGHT,
+  x: GUTTER,
+  y: GUTTER,
+  width: 960,
+  height: 960,
 };
 
 /** Regression guard for the play-area-tile-overflow bug fix: the floor grid must always

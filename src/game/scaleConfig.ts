@@ -30,12 +30,17 @@ export function scalePx(value: number): number {
  * `TILE_SIZE` (64) on each axis. Deriving these from `GAME_WIDTH`/`GAME_HEIGHT` instead would
  * force this module to import gameConfig.ts (→ `phaser`), breaking the Phaser-free isolation
  * described above (research.md #2). If `TILE_SIZE`, the grid size, or the panel/log sizes ever
- * change, redo this arithmetic: `DESIGN_WIDTH = (15 * TILE_SIZE) / RENDER_SCALE + DESIGN_SIDE_PANEL_WIDTH`,
- * `DESIGN_HEIGHT = (15 * TILE_SIZE) / RENDER_SCALE + DESIGN_EVENT_LOG_HEIGHT`. */
-export const DESIGN_WIDTH = 736;
-export const DESIGN_HEIGHT = 704;
-export const DESIGN_SIDE_PANEL_WIDTH = 96;
-export const DESIGN_EVENT_LOG_HEIGHT = 64;
+ * change, redo this arithmetic: `DESIGN_WIDTH = (15 * TILE_SIZE) / RENDER_SCALE + DESIGN_SIDE_PANEL_WIDTH + 3 * DESIGN_UI_GUTTER`,
+ * `DESIGN_HEIGHT = (15 * TILE_SIZE) / RENDER_SCALE + DESIGN_EVENT_LOG_HEIGHT + 3 * DESIGN_UI_GUTTER`. */
+/** 033 C1: the board is the 640x640 (960x960 render px) tower plus a side-panel card on the
+ * right and an event-log card underneath, separated by `DESIGN_UI_GUTTER` gutters, so its
+ * proportions match the UI mock-up (tower 69% x 75%, panel 27% of the width, log 20% of the
+ * height). `DESIGN_WIDTH = G + 640 + G + PANEL + G`, `DESIGN_HEIGHT = G + 640 + G + LOG + G`. */
+export const DESIGN_UI_GUTTER = 12;
+export const DESIGN_SIDE_PANEL_WIDTH = 246;
+export const DESIGN_EVENT_LOG_HEIGHT = 170;
+export const DESIGN_WIDTH = 922;
+export const DESIGN_HEIGHT = 846;
 
 /** Upper bound on how far Phaser's Scale.FIT can further grow the (now RENDER_SCALE-native)
  * canvas via CSS, as a multiple of GAME_WIDTH/GAME_HEIGHT. Left unchanged at 4 rather than

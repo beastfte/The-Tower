@@ -1,6 +1,7 @@
 import { positionKey, type Position } from "../types";
 import type { PlayerCharacterState } from "../character/save";
-import { ARMOR_MATERIAL_ORDER, type KeyDefinition, type LootItem, type WeaponId } from "../character/types";
+import type { KeyDefinition, LootItem, WeaponId } from "../character/types";
+import { armorPieceKey } from "../../data/armorPieces";
 import type { ArmorPickupPayload, ChestReward, ItemDefinition, FloorDefinition } from "./types";
 
 /** Returns the not-yet-collected item at a position, if any. */
@@ -18,9 +19,9 @@ export function findAvailableItemAt(
  * Applies a collected item to the player character, dispatching by kind:
  * - key (FR-013a): adds the key's type to `keyIds` so matching keyed doors open
  * - loot / currency (FR-006, FR-007): added directly to inventory / currency total (User Story 2)
- * - armor (011 FR-001/FR-004): equips the pickup's slot with its material only if strictly
- *   higher-tier than whatever's already equipped there — independent per slot, override not
- *   additive
+ * - weapon / armor (033 FR-015a): added to the bag (`bagGear`), never worn automatically —
+ *   supersedes 011 FR-004's higher-tier auto-equip and the old "weapon pickup replaces the
+ *   worn weapon"
  * - potion (027 FR-045): carried, not drunk — adds 1 to potionCount; HP is unchanged. Drinking
  *   happens only in battle (domain/combat/battle.ts drinkPotion). Superseded 019 FR-007's heal.
  * - potionAttack / potionDefense (019 FR-005/FR-006): permanently adds 2 / 1 to bonusDamage /
@@ -49,18 +50,14 @@ export function applyItemPickup(character: PlayerCharacterState, item: ItemDefin
       return { ...character, currency: character.currency + amount };
     }
     case "weapon": {
-      const weaponId = item.payload as WeaponId;
-      return { ...character, equippedWeaponId: weaponId };
+      // 033 FR-015a: gear goes to the bag; the player decides whether to wear it.
+      return { ...character, bagGear: [...(character.bagGear ?? []), item.payload as WeaponId] };
     }
     case "armor": {
       const pickup = item.payload as ArmorPickupPayload;
-      const current = character.equippedArmor[pickup.slot];
-      if (current && ARMOR_MATERIAL_ORDER[current] >= ARMOR_MATERIAL_ORDER[pickup.material]) {
-        return character;
-      }
       return {
         ...character,
-        equippedArmor: { ...character.equippedArmor, [pickup.slot]: pickup.material },
+        bagGear: [...(character.bagGear ?? []), armorPieceKey(pickup.material, pickup.slot)],
       };
     }
     case "potion": {

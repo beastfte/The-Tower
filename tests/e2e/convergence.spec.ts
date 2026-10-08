@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { TOWER } from "../../src/data/floors";
 import { createInitialPlayerSave } from "../../src/domain/character/initialState";
 import type { PlayerSave } from "../../src/domain/character/save";
-import { seedSave, waitForActiveScene, gameToPage, startScene } from "./helpers";
+import { seedSave, waitForActiveScene, startScene } from "./helpers";
 
 const firstFloor = TOWER.floors[0]!;
 
@@ -12,69 +12,81 @@ function freshSave(overrides: Partial<PlayerSave> = {}): PlayerSave {
 
 /** Regression coverage for the 3 gaps /speckit-converge found (tasks.md T040-T042). */
 test.describe("Convergence fixes", () => {
-  test("T040: side panel scrolls once the itemized list overflows its visible height", async ({ page }) => {
+  test("T040: the bag grid scrolls once a save holds more entries than fit (033 FR-016c)", async ({ page }) => {
     await seedSave(page, freshSave());
     await page.goto("/");
     await waitForActiveScene(page, "MainMenuScene");
     await page.keyboard.press("Enter");
     await waitForActiveScene(page, "FloorScene");
 
-    // Force overflow: far more inventory entries than fit in the panel's height (704 design
-    // px since 014 — grew from 280 — so 40 entries, enough before, no longer overflow it).
+    // Force overflow: far more distinct loot entries than the 25-slot grid shows at once. An old
+    // save can hold more than the limit; nothing is removed and the grid scrolls instead.
     await page.evaluate(() => {
       const win = window as unknown as {
         __game: { registry: { get: (k: string) => { save: PlayerSave } } };
       };
       const ctx = win.__game.registry.get("ctx");
-      for (let i = 0; i < 200; i++) ctx.save.character.inventory.push(`synthetic-loot-${i}`);
+      for (let i = 0; i < 60; i++) ctx.save.character.inventory.push(`synthetic-loot-${i}`);
     });
     await page.waitForTimeout(200); // let SidePanelScene's update() notice the signature change
 
-    const rowsScrollTop = () => page.locator('[data-testid="side-panel-rows"]').evaluate((el) => el.scrollTop);
+    const grid = page.locator('[data-testid="bag-grid"]');
+    const gridScrollTop = () => grid.evaluate((el) => el.scrollTop);
+    expect(await gridScrollTop()).toBe(0); // not scrolled yet
+    await expect(page.locator('[data-testid="bag-count"]')).toHaveText("60 / 25 · Full");
 
-    expect(await rowsScrollTop()).toBe(0); // not scrolled yet
-
-    const { x, y } = await gameToPage(page, 680, 300); // hover over the side panel (x640-736, y0-704)
-    await page.mouse.move(x, y);
+    await grid.hover();
     await page.mouse.wheel(0, 400); // scroll down (toward later items)
     await page.waitForTimeout(100);
 
-    expect(await rowsScrollTop()).toBeGreaterThan(0); // scrolled down to reveal lower rows
+    expect(await gridScrollTop()).toBeGreaterThan(0);
   });
 
-  test("T041: event log can scroll back to entries older than the visible window", async ({ page }) => {
+  test("T041: the event log follows the newest entry but holds still while scrolled back (033 FR-012)", async ({
+    page,
+  }) => {
     await seedSave(page, freshSave());
     await page.goto("/");
     await waitForActiveScene(page, "MainMenuScene");
     await page.keyboard.press("Enter");
     await waitForActiveScene(page, "FloorScene");
 
-    // Seed more log entries than MAX_VISIBLE_LINES (4) directly via the test hook.
-    await page.evaluate(() => {
-      const win = window as unknown as {
-        __game: { registry: { get: (k: string) => { eventLog: { id: string; timestamp: number; kind: string; message: string }[] } } };
-      };
-      const log = win.__game.registry.get("ctx").eventLog;
-      for (let i = 0; i < 8; i++) {
-        log.push({ id: `synthetic-${i}`, timestamp: Date.now(), kind: "pickup", message: `Synthetic event ${i}` });
-      }
-    });
+    const push = (from: number, to: number) =>
+      page.evaluate(
+        ([a, b]) => {
+          const win = window as unknown as {
+            __game: { registry: { get: (k: string) => { eventLog: { kind: string; message: string }[] } } };
+          };
+          const log = win.__game.registry.get("ctx").eventLog;
+          for (let i = a!; i < b!; i++) log.push({ kind: "pickup", message: `Synthetic event ${i}` });
+        },
+        [from, to],
+      );
+    await push(0, 40);
     await page.waitForTimeout(200);
 
-    const logText = () => page.locator('[data-testid="event-log-text"]').textContent();
+    const list = page.locator('[data-testid="event-log-list"]');
+    const scrollTop = () => list.evaluate((el) => el.scrollTop);
+    const bottomGap = () => list.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
 
-    const before = await logText();
-    expect(before).toContain("Synthetic event 7"); // most recent, visible by default
-    expect(before).not.toContain("Synthetic event 0"); // oldest, not yet visible
+    expect(await bottomGap()).toBeLessThan(3); // following the newest entry
+    await expect(list.locator('[data-testid="event-log-row"]').last()).toContainText("Synthetic event 39");
 
-    const { x, y } = await gameToPage(page, 100, 660); // hover over the event log area (x0-640, y640-704)
-    await page.mouse.move(x, y);
-    await page.mouse.wheel(0, -400); // scroll up (toward older entries)
+    await list.hover();
+    await page.mouse.wheel(0, -400); // scroll back toward older entries
     await page.waitForTimeout(100);
+    const held = await scrollTop();
+    expect(await bottomGap()).toBeGreaterThan(10);
 
-    const after = await logText();
-    expect(after).toContain("scrolled");
-    expect(after).not.toBe(before);
+    await push(40, 41); // a new entry while scrolled back must not move the view
+    await page.waitForTimeout(200);
+    expect(await scrollTop()).toBe(held);
+
+    await page.mouse.wheel(0, 100000); // back to the bottom: following resumes
+    await page.waitForTimeout(100);
+    await push(41, 42);
+    await page.waitForTimeout(200);
+    expect(await bottomGap()).toBeLessThan(3);
   });
 
   test("T042: win screen shows an explicit floors-reached figure", async ({ page }) => {

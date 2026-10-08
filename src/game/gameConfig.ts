@@ -6,6 +6,7 @@ import {
   DESIGN_HEIGHT,
   DESIGN_SIDE_PANEL_WIDTH,
   DESIGN_EVENT_LOG_HEIGHT,
+  DESIGN_UI_GUTTER,
 } from "./scaleConfig";
 
 export { DESIGN_WIDTH, DESIGN_HEIGHT };
@@ -35,51 +36,51 @@ export interface ScreenRegion {
 export const TILE_SIZE = 64;
 
 /** Floor grid / combat display region — never drawn into by the side panel or event log (002 FR-007, FR-016).
- * Sized to exactly fit a 15x15 grid of `TILE_SIZE` tiles (014 FR-006, research.md #2) —
- * `DESIGN_WIDTH`/`DESIGN_HEIGHT` (scaleConfig.ts) are the only values solved for this; every
- * formula below is unchanged from before that feature. */
-export const PLAY_AREA: ScreenRegion = {
-  x: 0,
-  y: 0,
-  width: GAME_WIDTH - SIDE_PANEL_WIDTH,
-  height: GAME_HEIGHT - EVENT_LOG_HEIGHT,
-};
+ * Exactly 960x960 = 15x15 tiles of `TILE_SIZE` (014 FR-006). 033 C1: it now sits inside a
+ * `DESIGN_UI_GUTTER` margin instead of at (0, 0), and the panel and log are separate cards
+ * beside and below it. */
+const GUTTER = DESIGN_UI_GUTTER * RENDER_SCALE;
+const TOWER_SIZE = 15 * TILE_SIZE;
+
+export const PLAY_AREA: ScreenRegion = { x: GUTTER, y: GUTTER, width: TOWER_SIZE, height: TOWER_SIZE };
 
 export const EVENT_LOG_AREA: ScreenRegion = {
-  x: 0,
-  y: GAME_HEIGHT - EVENT_LOG_HEIGHT,
-  width: GAME_WIDTH - SIDE_PANEL_WIDTH,
+  x: GUTTER,
+  y: GUTTER + TOWER_SIZE + GUTTER,
+  width: TOWER_SIZE,
   height: EVENT_LOG_HEIGHT,
 };
 
 export const SIDE_PANEL_AREA: ScreenRegion = {
-  x: GAME_WIDTH - SIDE_PANEL_WIDTH,
-  y: 0,
+  x: GUTTER + TOWER_SIZE + GUTTER,
+  y: GUTTER,
   width: SIDE_PANEL_WIDTH,
-  height: GAME_HEIGHT,
+  height: GAME_HEIGHT - 2 * GUTTER,
 };
 
 /** Design-space (RENDER_SCALE-independent) counterparts of the regions above, used by the
  * DOM/CSS UI overlay (ui/domOverlay.ts) instead of the RENDER_SCALE'd, canvas-only versions. */
+const DESIGN_TOWER_SIZE = TOWER_SIZE / RENDER_SCALE;
+
 export const DESIGN_PLAY_AREA: ScreenRegion = {
-  x: 0,
-  y: 0,
-  width: DESIGN_WIDTH - DESIGN_SIDE_PANEL_WIDTH,
-  height: DESIGN_HEIGHT - DESIGN_EVENT_LOG_HEIGHT,
+  x: DESIGN_UI_GUTTER,
+  y: DESIGN_UI_GUTTER,
+  width: DESIGN_TOWER_SIZE,
+  height: DESIGN_TOWER_SIZE,
 };
 
 export const DESIGN_EVENT_LOG_AREA: ScreenRegion = {
-  x: 0,
-  y: DESIGN_HEIGHT - DESIGN_EVENT_LOG_HEIGHT,
-  width: DESIGN_WIDTH - DESIGN_SIDE_PANEL_WIDTH,
+  x: DESIGN_UI_GUTTER,
+  y: DESIGN_UI_GUTTER + DESIGN_TOWER_SIZE + DESIGN_UI_GUTTER,
+  width: DESIGN_TOWER_SIZE,
   height: DESIGN_EVENT_LOG_HEIGHT,
 };
 
 export const DESIGN_SIDE_PANEL_AREA: ScreenRegion = {
-  x: DESIGN_WIDTH - DESIGN_SIDE_PANEL_WIDTH,
-  y: 0,
+  x: DESIGN_UI_GUTTER + DESIGN_TOWER_SIZE + DESIGN_UI_GUTTER,
+  y: DESIGN_UI_GUTTER,
   width: DESIGN_SIDE_PANEL_WIDTH,
-  height: DESIGN_HEIGHT,
+  height: DESIGN_HEIGHT - 2 * DESIGN_UI_GUTTER,
 };
 
 export function createGameConfig(
@@ -109,7 +110,7 @@ export function createGameConfig(
       // 002 FR-022 / 014 FR-011: bound how far FIT can grow the canvas (MAX_SCALE) but not
       // how far it can shrink — a fixed minimum forces the canvas to overflow the page
       // (page-level scroll bar) whenever the real browser viewport (window height minus
-      // tabs/address bar/etc.) is shorter than that floor, which a 736x704 design resolution
+      // tabs/address bar/etc.) is shorter than that floor, which a 922x846 design resolution
       // routinely is on real desktop browsers at 100% zoom. No `min` lets FIT shrink the
       // whole game (tiles included) to fit whatever viewport it's actually given; the extra
       // backing resolution from RENDER_SCALE keeps it sharp when scaled down.

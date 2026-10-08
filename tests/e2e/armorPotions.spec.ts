@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
 import { clearSave, collectHealthPotion, waitForActiveScene, pressAndWait, getCtxSave, dismissCombat, startFight } from "./helpers";
 
-/** 011 US1: collecting a per-slot armor pickup on floor-01 raises defence by that slot's exact
- * value and shows up in the side panel's matching slot row. */
-test("collecting a leather armor piece raises defence and shows in the side panel", async ({ page }) => {
+/** 011 US1 / 033 FR-015a: collecting a per-slot armor pickup on floor-01 puts it in the bag (it is
+ * not worn automatically); wearing it with Equip raises defence by that slot's exact value. */
+test("collecting a leather armor piece puts it in the bag; equipping it raises defence", async ({ page }) => {
   await clearSave(page);
   await page.goto("/");
   await waitForActiveScene(page, "MainMenuScene");
@@ -37,15 +37,23 @@ test("collecting a leather armor piece raises defence and shows in the side pane
   await pressAndWait(page, "ArrowUp"); // (9,6) -> (9,5)
   await pressAndWait(page, "ArrowUp"); // (9,5) -> (9,4), leather helm
 
-  const save = await getCtxSave(page);
+  let save = await getCtxSave(page);
+  // 033 FR-015a: the helm waits in the bag, unworn, and defence is unchanged.
+  expect(save.character.equippedArmor.helm).toBeUndefined();
+  expect(save.character.bagGear).toEqual(["leather:helm"]);
+  await expect(page.locator('[data-testid="stat-def"]')).toHaveText(String(baseDefence));
+  await expect(page.locator('[data-testid="slot-helm-name"]')).toHaveText("Empty");
+  await expect(page.locator('[data-testid="bag-count"]')).toHaveText("1 / 25");
+
+  // Wearing it: select the bag cell, Equip.
+  await page.locator('[data-testid="bag-cell-0"]').click();
+  await page.locator('[data-testid="bag-equip"]').click();
+  save = await getCtxSave(page);
   expect(save.character.equippedArmor.helm).toBe("leather");
+  expect(save.character.bagGear).toEqual([]);
   expect(save.character.baseStats.defence).toBe(baseDefence); // baseStats itself is unchanged...
-  // ...the +3 shows up in effective defence via the side panel instead.
-  const rows = page.locator('[data-testid="side-panel-rows"]');
-  await expect(rows).toContainText("Def: 5");
-  // 018: side panel icons are generated data: URLs (spriteDataUrl), not static /icons/*.svg
-  // paths, so this asserts by title rather than by src.
-  await expect(rows.locator('div[title*="Leather Helm"]')).toHaveCount(1);
+  await expect(page.locator('[data-testid="stat-def"]')).toHaveText(String(baseDefence + 3)); // ...the +3 is effective
+  await expect(page.locator('[data-testid="slot-helm-name"]')).toHaveText("Leather Helm");
 });
 
 /** 011 US3: Attack/Defense potions apply a permanent, immediately-visible bonus and persist
@@ -100,15 +108,14 @@ test("attack and defense potions permanently raise stats and persist across relo
 
   let save = await getCtxSave(page);
   expect(save.character.bonusDamage).toBe(2);
-  const rows = page.locator('[data-testid="side-panel-rows"]');
-  await expect(rows).toContainText("Dmg: 12");
+  await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("12");
 
   await pressAndWait(page, "ArrowRight"); // (8,13) -> (9,13)
   await pressAndWait(page, "ArrowRight"); // (9,13) -> (10,13), defense potion (logged only)
 
   save = await getCtxSave(page);
   expect(save.character.baseStats.defence).toBe(3); // base 2 + defense potion 1
-  await expect(rows).toContainText("Def: 3");
+  await expect(page.locator('[data-testid="stat-def"]')).toHaveText("3");
 
   await page.reload();
   await waitForActiveScene(page, "MainMenuScene");
@@ -131,7 +138,9 @@ test("a collected health potion leaves HP unchanged and raises the carried count
   const save = await getCtxSave(page);
   expect(save.character.currentHp).toBe(10); // not healed on pickup
   expect(save.character.potionCount).toBe(1);
-  await expect(page.locator('[data-testid="side-panel-rows"] [title^="1 health potion:"]')).toBeVisible();
+  // 033: the carried potion is a bag entry, with a ×N badge once there is more than one.
+  await expect(page.locator('[data-testid="bag-count"]')).toHaveText("1 / 25");
+  await expect(page.locator('[data-testid="bag-cell-0"] img[src^="data:"]')).toBeVisible();
 });
 
 test("drinking a potion mid-battle heals 25% of max HP and uses one (US6, C17)", async ({ page }) => {

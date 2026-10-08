@@ -63,6 +63,11 @@ export class GameContext {
     this.eventLog.push(formatPickupEntry(kind, label));
   }
 
+  /** 033 C7: appends an equip / take-off / discard entry, or a full-bag note, to the session-only log. */
+  logEntry(entry: EventLogEntry): void {
+    this.eventLog.push(entry);
+  }
+
   /** 023 FR-014: appends a completed merchant-upgrade purchase to the session-only event log. */
   logPurchase(label: string, price: number): void {
     this.eventLog.push(formatPurchaseEntry(label, price));

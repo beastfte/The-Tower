@@ -138,3 +138,22 @@ describe("chest pickup applies the exact same effect as its revealed reward (005
     expect(fromChest.currentHp).toBe(character.currentHp);
   });
 });
+
+/** 033 FR-015a: weapon and armour pickups go to the bag; worn gear is never changed. */
+describe("weapon pickup goes to the bag (033 FR-015a)", () => {
+  it("adds the weapon to bagGear and leaves the worn weapon alone", () => {
+    const worn = { ...createInitialPlayerSave("floor-01", position).character, equippedWeaponId: "woodSword" as WeaponId };
+    const item: ItemDefinition = { id: "w", position, kind: "weapon", payload: "goldSword" as WeaponId };
+    const next = applyItemPickup(worn, item);
+    expect(next.equippedWeaponId).toBe("woodSword");
+    expect(next.bagGear).toEqual(["goldSword"]);
+  });
+
+  it("appends in pickup order and does not touch the original object", () => {
+    const start = createInitialPlayerSave("floor-01", position).character;
+    const a = applyItemPickup(start, { id: "a", position, kind: "weapon", payload: "sword" as WeaponId });
+    const b = applyItemPickup(a, { id: "b", position, kind: "armor", payload: { material: "mail", slot: "helm" } });
+    expect(b.bagGear).toEqual(["sword", "mail:helm"]);
+    expect(start.bagGear).toBeUndefined();
+  });
+});

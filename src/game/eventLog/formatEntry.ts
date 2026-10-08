@@ -63,3 +63,15 @@ export function formatPickupEntry(
 export function formatPurchaseEntry(label: string, price: number): EventLogEntry {
   return { kind: "purchase", message: `Purchased ${label} for ${price} gold.` };
 }
+
+/** 033 C7: one unit discarded from the bag. */
+export function formatDiscardEntry(name: string): EventLogEntry {
+  return { kind: "gear", message: `Discarded ${name}.` };
+}
+
+/** 033 C7 / FR-016a: a full bag blocked something. `floor` = a floor item stays put; `lost` = a
+ * monster drop is gone; `worn` = a piece could not be taken off. */
+export function formatBagFullEntry(name: string, outcome: "floor" | "lost" | "worn"): EventLogEntry {
+  const tail = outcome === "floor" ? "stays on the floor" : outcome === "lost" ? "was lost" : "stays on";
+  return { kind: "note", message: `Your bag is full. ${name} ${tail}.` };
+}

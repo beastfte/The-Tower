@@ -1,5 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { formatBattleEntry, formatPickupEntry } from "../../../src/game/eventLog/formatEntry";
+import {
+  formatBagFullEntry,
+  formatBattleEntry,
+  formatDiscardEntry,
+  formatPickupEntry,
+} from "../../../src/game/eventLog/formatEntry";
+
+/** 033 C7 */
+describe("033 gear and note entries", () => {
+  it("formats a discard", () => {
+    expect(formatDiscardEntry("Gem")).toEqual({ kind: "gear", message: "Discarded Gem." });
+  });
+
+  it("formats the three full-bag notes", () => {
+    expect(formatBagFullEntry("Gem", "floor")).toEqual({
+      kind: "note",
+      message: "Your bag is full. Gem stays on the floor.",
+    });
+    expect(formatBagFullEntry("Gem", "lost").message).toBe("Your bag is full. Gem was lost.");
+    expect(formatBagFullEntry("Sword", "worn").message).toBe("Your bag is full. Sword stays on.");
+  });
+});
 
 /** 027 FR-024 / contract C19: one line per battle. */
 describe("formatBattleEntry", () => {

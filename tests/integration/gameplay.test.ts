@@ -7,6 +7,8 @@ import { applyBattleResult } from "../../src/game/battleResult";
 import { MONSTER_SPECIES } from "../../src/data/monsterSpecies";
 import { applyEnemyDefeat, updatePlayerPosition } from "../../src/domain/floor/floorState";
 import { applyItemPickup } from "../../src/domain/floor/itemCollection";
+import { equipFromBag } from "../../src/domain/character/bag";
+import type { PlayerCharacterState } from "../../src/domain/character/save";
 import { computeEffectiveStats } from "../../src/domain/character/combatStats";
 import { completeCurrentFloor } from "../../src/domain/progress/towerProgress";
 import { isWinningDefeat, triggerWin } from "../../src/domain/progress/winState";
@@ -18,6 +20,9 @@ import type { ArmorPieceDefinition, WeaponDefinition, WeaponId } from "../../src
 
 const weaponCatalog: ReadonlyMap<WeaponId, WeaponDefinition> = new Map(Object.entries(WEAPONS) as [WeaponId, WeaponDefinition][]);
 const armorCatalog: ReadonlyMap<string, ArmorPieceDefinition> = new Map(Object.entries(ARMOR_PIECES));
+
+/** 033 FR-015a: a weapon/armour pickup lands in the bag; wearing it is a separate, deliberate step. */
+const wearNewest = (c: PlayerCharacterState): PlayerCharacterState => equipFromBag(c, (c.bagGear ?? []).length - 1);
 
 // Tests must not depend on the live tower's authored content (src/data/floors) — it's
 // replaced wholesale whenever the tower is redesigned. This fixture exercises the same
@@ -110,6 +115,26 @@ describe("gameplay integration", () => {
     expect(persistence.load()!.currentFloorState.defeatedEnemyIds).toContain(enemy.id);
   });
 
+  it("a victory with a full bag keeps gold and keys, loses the loot, and logs a note per lost item (033 FR-016a/b)", () => {
+    const floor = TOWER.floors[0]!;
+    const ctx = new GameContext(TOWER, new InMemoryPersistenceService(), createInitialPlayerSave(floor.id, floor.entrance));
+    ctx.save.character = { ...ctx.save.character, bagGear: Array(25).fill("mail:helm") };
+    const enemy = {
+      ...floor.enemies.find((e) => e.id === "test-goblin")!,
+      drops: { currency: 12, key: { id: "k1", keyType: "bronze" }, loot: [{ id: "gem", name: "Gem" }] },
+    };
+
+    applyBattleResult(ctx, enemy, "Goblin", { outcome: "victory", playerHp: 30, potionCount: 0 });
+
+    expect(ctx.save.character.currency).toBe(12);
+    expect(ctx.save.character.keyIds).toContain("bronze");
+    expect(ctx.save.character.inventory).toEqual([]); // the Gem was lost for good
+    expect(ctx.eventLog).toEqual([
+      { kind: "combat", message: "You won against Goblin, looted 12 gold and a Bronze key." },
+      { kind: "note", message: "Your bag is full. Gem was lost." },
+    ]);
+  });
+
   it("permanently removes a defeated enemy and allows advancing (FR-009, FR-010a)", () => {
     const floor = TOWER.floors[0]!;
     let save = createInitialPlayerSave(floor.id, floor.entrance);
@@ -137,7 +162,7 @@ describe("gameplay integration", () => {
     expect(save.hasWon).toBe(true);
   });
 
-  it("equipping a weapon/armor pickup changes effective stats, and a second pickup replaces rather than stacks (FR-008, FR-010; bug fix: weapon-attack-not-additive)", () => {
+  it("wearing a picked-up weapon/armor changes effective stats, and a second one replaces rather than stacks (FR-008, FR-010; 033 FR-015a; bug fix: weapon-attack-not-additive)", () => {
     const floor = TOWER.floors[0]!;
     let save = createInitialPlayerSave(floor.id, floor.entrance);
 
@@ -145,6 +170,10 @@ describe("gameplay integration", () => {
 
     const swordItem = floor.items.find((i) => i.kind === "weapon")!;
     save.character = applyItemPickup(save.character, swordItem);
+    // 033 FR-015a: picking it up does not wear it — it waits in the bag.
+    expect(save.character.equippedWeaponId).toBeUndefined();
+    expect(save.character.bagGear).toEqual([swordItem.payload]);
+    save.character = wearNewest(save.character);
     expect(save.character.equippedWeaponId).toBe(swordItem.payload);
 
     const afterSword = computeEffectiveStats(save.character, weaponCatalog, armorCatalog);
@@ -160,7 +189,7 @@ describe("gameplay integration", () => {
     // A second, different weapon replaces the first weapon's own contribution (FR-010)
     // rather than stacking with it — but both still add onto the same unarmed base.
     const goldSwordItem = { id: "test-gold-sword", position: floor.entrance, kind: "weapon" as const, payload: "goldSword" as WeaponId };
-    save.character = applyItemPickup(save.character, goldSwordItem);
+    save.character = wearNewest(applyItemPickup(save.character, goldSwordItem));
     expect(save.character.equippedWeaponId).toBe("goldSword");
     const afterGoldSword = computeEffectiveStats(save.character, weaponCatalog, armorCatalog);
     expect(afterGoldSword.damage).toBe(baseline.damage + weaponCatalog.get("goldSword")!.attackValue);
@@ -168,7 +197,7 @@ describe("gameplay integration", () => {
     // 011: armor is now tracked per slot (chest), not as one whole-character tier.
     const leatherItem = floor.items.find((i) => i.kind === "armor")!;
     const leatherPayload = leatherItem.payload as ArmorPickupPayload;
-    save.character = applyItemPickup(save.character, leatherItem);
+    save.character = wearNewest(applyItemPickup(save.character, leatherItem));
     expect(save.character.equippedArmor[leatherPayload.slot]).toBe(leatherPayload.material);
 
     const afterLeather = computeEffectiveStats(save.character, weaponCatalog, armorCatalog);
@@ -176,10 +205,10 @@ describe("gameplay integration", () => {
       baseline.defence + armorCatalog.get(`${leatherPayload.material}:${leatherPayload.slot}`)!.defenceBonus,
     );
 
-    // A higher tier for the same slot replaces the lower one (FR-004) rather than stacking.
+    // Wearing a higher tier for the same slot replaces the lower one rather than stacking.
     const mailPayload: ArmorPickupPayload = { material: "mail", slot: leatherPayload.slot };
     const mailItem = { id: "test-mail", position: floor.entrance, kind: "armor" as const, payload: mailPayload };
-    save.character = applyItemPickup(save.character, mailItem);
+    save.character = wearNewest(applyItemPickup(save.character, mailItem));
     expect(save.character.equippedArmor[leatherPayload.slot]).toBe("mail");
     const afterMail = computeEffectiveStats(save.character, weaponCatalog, armorCatalog);
     expect(afterMail.defence).toBe(

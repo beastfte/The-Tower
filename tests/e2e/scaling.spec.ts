@@ -4,11 +4,11 @@ import { clearSave, startFight } from "./helpers";
 // Deliberately not imported from src/game/gameConfig.ts: that module (and anything else under
 // src/game/) pulls in the `phaser` package, which assumes browser globals at module-load time
 // and crashes when evaluated in Playwright's Node-side test runner. Keep these in sync with
-// GAME_WIDTH/GAME_HEIGHT (736/704 design size * RENDER_SCALE — 014 grew the design size to fit
+// GAME_WIDTH/GAME_HEIGHT (922/846 design size * RENDER_SCALE — 014 grew the design size to fit
 // the fixed 15x15/64px floor baseline) and the scale.max multiplier in
 // src/game/gameConfig.ts / scaleConfig.ts.
-const GAME_WIDTH = 736 * 1.5;
-const GAME_HEIGHT = 704 * 1.5;
+const GAME_WIDTH = 922 * 1.5;
+const GAME_HEIGHT = 846 * 1.5;
 
 // 014 FR-011: Scale.FIT has no minimum at all — a fixed floor (first the native resolution,
 // then the smaller design resolution) forced the canvas to overflow the page (a page-level
@@ -16,8 +16,8 @@ const GAME_HEIGHT = 704 * 1.5;
 // browsers at 100% zoom routinely are once the native resolution grew to fit the fixed
 // 15x15/64px floor baseline. RENDER_SCALE's whole purpose is to give the backing store more
 // detail for exactly this kind of shrink, not to raise a floor beneath it.
-const DESIGN_WIDTH = 736;
-const DESIGN_HEIGHT = 704;
+const DESIGN_WIDTH = 922;
+const DESIGN_HEIGHT = 846;
 
 /**
  * 002 US6 / FR-021-023 (T035): the game must be comfortably readable at default browser
@@ -31,7 +31,9 @@ test.describe("Display scaling and crispness", () => {
     // floor baseline — a 1280x800 window (this test's viewport pre-014) can no longer render
     // it "noticeably larger" at all (it barely fits), so a bigger, still-ordinary desktop
     // viewport and a more modest "noticeably larger" margin are used instead.
-    await page.setViewportSize({ width: 1920, height: 1200 });
+    // 033: the board is now 1383x1269 native (the tower plus the panel and log cards), so a
+    // 1920x1200 window no longer renders it noticeably larger — an even bigger viewport is used.
+    await page.setViewportSize({ width: 2400, height: 1500 });
     await page.goto("/");
     await expect(page).toHaveTitle("The Tower");
 
@@ -69,7 +71,7 @@ test.describe("Display scaling and crispness", () => {
 
     expect(smallBox!.width).toBeLessThan(largeBox!.width);
     // No minimum bound: at a viewport smaller than the design resolution, the canvas shrinks
-    // past it too (not clamped to 736x704) — the exact opposite of the old behavior this test
+    // past it too (not clamped to 922x846) — the exact opposite of the old behavior this test
     // used to assert, and the whole point of FR-011 (no page-level scroll bar at any viewport).
     expect(smallBox!.width).toBeLessThan(DESIGN_WIDTH);
     expect(smallBox!.height).toBeLessThan(DESIGN_HEIGHT);
@@ -81,7 +83,7 @@ test.describe("Display scaling and crispness", () => {
   test("never produces a page-level scroll bar, even at a viewport shorter than the design height (014 SC-007)", async ({
     page,
   }) => {
-    // A typical desktop width but shorter than DESIGN_HEIGHT (704) — representative of a
+    // A typical desktop width but shorter than DESIGN_HEIGHT (846) — representative of a
     // maximized browser window whose visible viewport is reduced by tabs/address bar/etc.
     await page.setViewportSize({ width: 1280, height: 650 });
     await page.goto("/");
@@ -113,8 +115,8 @@ test.describe("Display scaling and crispness", () => {
 });
 
 /** 027 SC-012 (contract C9): the combat modal stays entirely inside the play area at every
- * window size, with nothing overlapping. The play area is the canvas's top-left 640×640 design
- * units (side panel to the right, event log below). */
+ * window size, with nothing overlapping. The play area is the 640×640 design-unit tower card at (12, 12)
+ * (side panel card to the right, event log card below). */
 test("the combat modal fits inside the play area at every window size, nothing overlapping (027 SC-012)", async ({
   page,
 }) => {
@@ -135,10 +137,10 @@ test("the combat modal fits inside the play area at every window size, nothing o
     await page.waitForTimeout(250);
     const canvas = (await page.locator("canvas").boundingBox())!;
     const play = {
-      x: canvas.x,
-      y: canvas.y,
-      right: canvas.x + (640 / DESIGN_WIDTH) * canvas.width,
-      bottom: canvas.y + (640 / DESIGN_HEIGHT) * canvas.height,
+      x: canvas.x + (12 / DESIGN_WIDTH) * canvas.width,
+      y: canvas.y + (12 / DESIGN_HEIGHT) * canvas.height,
+      right: canvas.x + (652 / DESIGN_WIDTH) * canvas.width,
+      bottom: canvas.y + (652 / DESIGN_HEIGHT) * canvas.height,
     };
     const modal = (await page.locator('[data-testid="combat-modal"]').boundingBox())!;
     const slack = 1; // sub-pixel rounding

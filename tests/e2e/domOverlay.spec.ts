@@ -46,8 +46,8 @@ test.describe("DOM UI overlay", () => {
     await page.keyboard.press("KeyN");
     await waitForActiveScene(page, "FloorScene");
 
-    await expect(page.locator('[data-testid="side-panel-rows"]')).toContainText("Player");
-    await expect(page.locator('[data-testid="event-log-text"]')).toContainText("no events yet");
+    await expect(page.locator('[data-testid="side-panel"]')).toContainText("The Prince");
+    await expect(page.locator('[data-testid="event-log"]')).toContainText("no events yet");
   });
 
   test("side panel and event log DOM text is torn down (not left overlapping) once the player dies", async ({
@@ -89,14 +89,14 @@ test.describe("DOM UI overlay", () => {
     await page.keyboard.press("Enter"); // Continue
     await waitForActiveScene(page, "FloorScene");
 
-    await expect(page.locator('[data-testid="side-panel-rows"]')).toBeAttached();
-    await expect(page.locator('[data-testid="event-log-text"]')).toBeAttached();
+    await expect(page.locator('[data-testid="side-panel"]')).toBeAttached();
+    await expect(page.locator('[data-testid="event-log"]')).toBeAttached();
 
     await page.keyboard.press("ArrowRight"); // steps onto the hazard tile; HP 1 -> dies
     await waitForActiveScene(page, "DeathScreenScene");
 
-    await expect(page.locator('[data-testid="side-panel-rows"]')).toHaveCount(0);
-    await expect(page.locator('[data-testid="event-log-text"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="side-panel"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="event-log"]')).toHaveCount(0);
     expect(await isSceneActive(page, "SidePanelScene")).toBe(false);
     expect(await isSceneActive(page, "EventLogScene")).toBe(false);
   });

@@ -46,8 +46,8 @@ test.describe("Main menu", () => {
     await page.goto("/");
     await waitForActiveScene(page, "MainMenuScene");
 
-    // MainMenuScene.ts: "New Game" sits at (DESIGN_WIDTH/2, DESIGN_HEIGHT/2 + 24) = (368, 376).
-    const { x, y } = await gameToPage(page, 368, 376);
+    // MainMenuScene.ts: "New Game" sits at (DESIGN_WIDTH/2, DESIGN_HEIGHT/2 + 24) = (461, 447).
+    const { x, y } = await gameToPage(page, 461, 447);
     await page.mouse.click(x, y);
     await waitForActiveScene(page, "FloorScene");
   });
@@ -109,8 +109,8 @@ test.describe("Win screen return-to-menu round trip", () => {
     await page.goto("/");
     await startScene(page, "WinScreenScene");
 
-    // WinScreenScene.ts places the option at (DESIGN_WIDTH/2, DESIGN_HEIGHT*3/4) = (368, 528).
-    const { x, y } = await gameToPage(page, 368, 528);
+    // WinScreenScene.ts places the option at (DESIGN_WIDTH/2, DESIGN_HEIGHT*3/4) = (461, 634.5).
+    const { x, y } = await gameToPage(page, 461, 634.5);
     await page.mouse.click(x, y);
     await waitForActiveScene(page, "MainMenuScene");
   });
@@ -148,8 +148,8 @@ test.describe("Death screen", () => {
     await page.goto("/");
     await waitForActiveScene(page, "DeathScreenScene");
 
-    // DeathScreenScene.ts places "return to main menu" at (DESIGN_WIDTH/2, DESIGN_HEIGHT/2 + 24) = (368, 376).
-    const { x, y } = await gameToPage(page, 368, 376);
+    // DeathScreenScene.ts places "return to main menu" at (DESIGN_WIDTH/2, DESIGN_HEIGHT/2 + 24) = (461, 447).
+    const { x, y } = await gameToPage(page, 461, 447);
     await page.mouse.click(x, y);
     await waitForActiveScene(page, "MainMenuScene");
 

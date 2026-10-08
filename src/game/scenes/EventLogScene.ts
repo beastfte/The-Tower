@@ -1,22 +1,34 @@
 import Phaser from "phaser";
 import type { GameContext } from "../GameContext";
-import { EVENT_LOG_AREA, DESIGN_EVENT_LOG_AREA } from "../gameConfig";
-import { createUiText, getUiRoot, px } from "../ui/domOverlay";
+import type { EventLogKind } from "../eventLog/types";
+import { DESIGN_EVENT_LOG_AREA } from "../gameConfig";
+import { DESIGN_WIDTH } from "../scaleConfig";
+import { getUiRoot, px } from "../ui/domOverlay";
 
-const MAX_VISIBLE_LINES = 4;
+/** 033 C6 / FR-013: the dot colour for each entry kind. */
+const KIND_COLOR: Record<EventLogKind, string> = {
+  combat: "var(--ui-red)",
+  pickup: "var(--ui-gold)",
+  purchase: "var(--ui-gold)",
+  gear: "var(--ui-green)",
+  note: "var(--ui-muted)",
+};
+
+/** Within this many design units of the bottom counts as "following the newest entry". */
+const FOLLOW_SLACK = 2;
 
 /**
- * 002 FR-015–FR-017: an always-visible, dedicated-area log of combat outcomes and
- * key pickups, in chronological order, for the current browser session only.
- * Shows the most recent entries (scrolled to the bottom) since the log is not capped.
+ * 002 FR-015–FR-017, 033 C6: an always-visible bordered card with a titled header and one row per
+ * session event — a type-coloured dot and the message, newest in bold. A native scrolling list that
+ * keeps following the newest entry, but stays put while the player has scrolled back.
  */
 export class EventLogScene extends Phaser.Scene {
   private ctx!: GameContext;
-  private text!: HTMLDivElement;
-  private lastLength = -1;
-  /** 002 US5 Edge Cases / converge T041: entries hidden below the visible window because
-   * the player scrolled back; 0 = following the most recent entry. */
-  private scrollOffset = 0;
+  private card!: HTMLDivElement;
+  private list!: HTMLDivElement;
+  private rendered = 0;
+  private emptyRow: HTMLElement | undefined;
+  private newestRow: HTMLElement | undefined;
 
   constructor() {
     super("EventLogScene");
@@ -25,79 +37,112 @@ export class EventLogScene extends Phaser.Scene {
   create(): void {
     this.ctx = this.registry.get("ctx") as GameContext;
 
-    this.add
-      .rectangle(
-        EVENT_LOG_AREA.x,
-        EVENT_LOG_AREA.y,
-        EVENT_LOG_AREA.width,
-        EVENT_LOG_AREA.height,
-        0x0d0a0f,
-      )
-      .setOrigin(0, 0)
-      .setDepth(15);
-
-    this.text = createUiText("", {
-      x: DESIGN_EVENT_LOG_AREA.x + 4,
-      y: DESIGN_EVENT_LOG_AREA.y + 4,
-      originX: 0,
-      originY: 0,
-      fontSize: 8,
-      color: "#c9bba0",
-      maxWidth: DESIGN_EVENT_LOG_AREA.width - 8,
-    });
-    this.text.dataset.testid = "event-log-text";
-    // Explicit height (not just auto-sized to content) so the whole event-log area is
-    // wheel-responsive even when there are only a few short lines of text.
-    this.text.style.height = px(DESIGN_EVENT_LOG_AREA.height - 8);
-    // The event log area itself must receive wheel events (it sits in front of the canvas
-    // in the DOM overlay, which is pointer-events:none by default — see ui/domOverlay.ts).
-    this.text.style.pointerEvents = "auto";
-    getUiRoot().appendChild(this.text);
-    this.events.once("shutdown", () => this.text.remove());
-
-    // 002 US5 Edge Cases / converge T041: lets the player scroll back to reach entries
-    // older than the visible window, per spec.md's Assumption that the log "remains
-    // scrollable to reach older entries as it grows".
-    this.text.addEventListener("wheel", (event: WheelEvent) => {
-      event.preventDefault();
-      const maxOffset = Math.max(0, this.ctx.eventLog.length - MAX_VISIBLE_LINES);
-      // Scrolling up (deltaY < 0) reveals older entries (increase offset); scrolling down
-      // (deltaY > 0) moves back toward the most recent entry (decrease offset toward 0).
-      this.scrollOffset = Phaser.Math.Clamp(
-        this.scrollOffset + (event.deltaY > 0 ? -1 : 1),
-        0,
-        maxOffset,
-      );
-      this.redraw();
+    this.card = document.createElement("div");
+    this.card.className = "ui-card";
+    this.card.dataset.testid = "event-log";
+    Object.assign(this.card.style, {
+      left: px(DESIGN_EVENT_LOG_AREA.x),
+      top: px(DESIGN_EVENT_LOG_AREA.y),
+      width: px(DESIGN_EVENT_LOG_AREA.width),
+      height: px(DESIGN_EVENT_LOG_AREA.height),
+      display: "flex",
+      flexDirection: "column",
+      borderWidth: "2px",
+      background: "var(--ui-elev)",
     });
 
-    this.lastLength = -1;
+    const header = document.createElement("div");
+    header.textContent = "Event log";
+    Object.assign(header.style, {
+      padding: `${px(7)} ${px(14)}`,
+      background: "var(--ui-card)",
+      borderBottom: "1px solid var(--ui-border)",
+      fontSize: px(9),
+      fontWeight: "700",
+      letterSpacing: "0.08em",
+      textTransform: "uppercase",
+      color: "var(--ui-gold)",
+    });
+    this.card.appendChild(header);
+
+    this.list = document.createElement("div");
+    this.list.dataset.testid = "event-log-list";
+    Object.assign(this.list.style, {
+      flex: "1",
+      minHeight: "0",
+      overflowY: "auto",
+      scrollbarWidth: "thin",
+      scrollbarColor: "var(--ui-border) transparent",
+      padding: `${px(3)} 0`,
+    });
+    this.card.appendChild(this.list);
+
+    getUiRoot().appendChild(this.card);
+    this.events.once("shutdown", () => this.card.remove());
+
+    this.rendered = 0;
+    this.newestRow = undefined;
+    this.emptyRow = undefined;
     this.redraw();
+    this.list.scrollTop = this.list.scrollHeight;
   }
 
   override update(): void {
-    if (this.ctx.eventLog.length === this.lastLength) return;
-    this.lastLength = this.ctx.eventLog.length;
+    if (this.ctx.eventLog.length === this.rendered) return;
     this.redraw();
   }
 
+  private makeRow(kind: EventLogKind, message: string): HTMLDivElement {
+    const row = document.createElement("div");
+    row.dataset.testid = "event-log-row";
+    row.dataset.kind = kind;
+    Object.assign(row.style, {
+      display: "flex",
+      alignItems: "center",
+      gap: px(9),
+      padding: `${px(3)} ${px(14)}`,
+      fontSize: px(10),
+    });
+    const dot = document.createElement("span");
+    Object.assign(dot.style, {
+      width: px(6),
+      height: px(6),
+      borderRadius: "50%",
+      background: KIND_COLOR[kind],
+      flex: "none",
+    });
+    const text = document.createElement("span");
+    text.textContent = message;
+    row.append(dot, text);
+    return row;
+  }
+
   private redraw(): void {
-    const total = this.ctx.eventLog.length;
-    const maxOffset = Math.max(0, total - MAX_VISIBLE_LINES);
-    this.scrollOffset = Phaser.Math.Clamp(this.scrollOffset, 0, maxOffset);
+    const log = this.ctx.eventLog;
+    const scale = getUiRoot().getBoundingClientRect().width / DESIGN_WIDTH;
+    const atBottom = this.list.scrollHeight - this.list.scrollTop - this.list.clientHeight <= FOLLOW_SLACK * scale;
 
-    const end = total - this.scrollOffset;
-    const start = Math.max(0, end - MAX_VISIBLE_LINES);
-    const entries = this.ctx.eventLog.slice(start, end);
-
-    if (entries.length === 0) {
-      this.text.textContent = "(no events yet)";
+    if (log.length === 0) {
+      if (!this.emptyRow) {
+        this.emptyRow = document.createElement("div");
+        this.emptyRow.textContent = "(no events yet)";
+        Object.assign(this.emptyRow.style, { padding: `${px(3)} ${px(14)}`, fontSize: px(10), color: "var(--ui-faint)" });
+        this.list.appendChild(this.emptyRow);
+      }
+      this.rendered = 0;
       return;
     }
-    const lines = entries.map((e) => e.message);
-    if (this.scrollOffset > 0) {
-      lines.push(`(scrolled — ${this.scrollOffset} newer hidden, scroll down to catch up)`);
+    this.emptyRow?.remove();
+    this.emptyRow = undefined;
+
+    for (let i = this.rendered; i < log.length; i++) {
+      if (this.newestRow) this.newestRow.style.fontWeight = "400";
+      const entry = log[i]!;
+      this.newestRow = this.makeRow(entry.kind, entry.message);
+      this.newestRow.style.fontWeight = "700";
+      this.list.appendChild(this.newestRow);
     }
-    this.text.textContent = lines.join("\n");
+    this.rendered = log.length;
+    if (atBottom) this.list.scrollTop = this.list.scrollHeight;
   }
 }
