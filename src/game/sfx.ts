@@ -23,20 +23,20 @@ export const sfxPlayerAttack = "sfxPlayerAttack";
 export const sfxPlayerHurt = "sfxPlayerHurt";
 
 export const SFX_ASSETS: ReadonlyArray<readonly [key: string, path: string]> = [
-  [sfxClick, "/Sound/Button click.wav"],
-  [sfxHover, "/Sound/Menu option onhover.wav"],
-  [sfxError, "/Sound/Error.wav"],
-  [sfxChest, "/Sound/Chest Open.wav"],
-  [sfxDoor, "/Sound/Door unlock.wav"],
-  [sfxCoin, "/Sound/Coin.wav"],
-  [sfxEquipment, "/Sound/Equipment.wav"],
-  [sfxKey, "/Sound/Key.wav"],
-  [sfxPotion, "/Sound/Potion.wav"],
-  [sfxEncounter, "/Sound/Encounter start.wav"],
-  [sfxVictory, "/Sound/Victory.wav"],
-  [sfxDeath, "/Sound/Death.wav"],
-  [sfxPlayerAttack, "/Sound/Player attack.wav"],
-  [sfxPlayerHurt, "/Sound/Player taking damage.wav"],
+  [sfxClick, "Sound/Button click.wav"],
+  [sfxHover, "Sound/Menu option onhover.wav"],
+  [sfxError, "Sound/Error.wav"],
+  [sfxChest, "Sound/Chest Open.wav"],
+  [sfxDoor, "Sound/Door unlock.wav"],
+  [sfxCoin, "Sound/Coin.wav"],
+  [sfxEquipment, "Sound/Equipment.wav"],
+  [sfxKey, "Sound/Key.wav"],
+  [sfxPotion, "Sound/Potion.wav"],
+  [sfxEncounter, "Sound/Encounter start.wav"],
+  [sfxVictory, "Sound/Victory.wav"],
+  [sfxDeath, "Sound/Death.wav"],
+  [sfxPlayerAttack, "Sound/Player attack.wav"],
+  [sfxPlayerHurt, "Sound/Player taking damage.wav"],
 ];
 
 /** Applied per-sound on every playSfx call — never to the sound manager itself, so a future

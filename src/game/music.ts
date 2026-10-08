@@ -4,12 +4,12 @@ import type Phaser from "phaser";
  * game needs loads there, once, before the main menu appears). Paths are URL-rooted since Vite
  * serves public/ at /. */
 export const MENU_MUSIC_KEY = "menuMusic";
-export const MENU_MUSIC_PATH = "/Sound/Intro Menu Music.wav";
+export const MENU_MUSIC_PATH = "Sound/Intro Menu Music.wav";
 export const GAME_MUSIC_KEY = "gameMusic";
-export const GAME_MUSIC_PATH = "/Sound/Game background.wav";
+export const GAME_MUSIC_PATH = "Sound/Game background.wav";
 /** 028 US3: loops for the length of a battle, outcome panel included (FloorScene owns the switch). */
 export const COMBAT_MUSIC_KEY = "combatMusic";
-export const COMBAT_MUSIC_PATH = "/Sound/Combat soundtrack.wav";
+export const COMBAT_MUSIC_PATH = "Sound/Combat soundtrack.wav";
 
 /** Every track, for BootScene's preload loop (mirrors sfx.ts's SFX_ASSETS). */
 export const MUSIC_ASSETS: ReadonlyArray<readonly [key: string, path: string]> = [

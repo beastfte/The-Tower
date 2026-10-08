@@ -19,7 +19,7 @@ export class BootScene extends Phaser.Scene {
       }
     }
     for (const key of ["lever-off", "lever-on"]) {
-      if (!this.textures.exists(key)) this.load.svg(key, `/icons/${key}.svg`, { width: 64, height: 64 });
+      if (!this.textures.exists(key)) this.load.svg(key, `icons/${key}.svg`, { width: 64, height: 64 });
     }
   }
 
