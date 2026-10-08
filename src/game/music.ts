@@ -57,6 +57,8 @@ export function playMusic(sound: Phaser.Sound.BaseSoundManager, key: string): vo
 function start(sound: Phaser.Sound.BaseSoundManager, key: string): void {
   const instance = sound.get(key) ?? sound.add(key, { loop: true, volume: musicVolume });
   if (currentSound !== instance) currentSound?.pause();
+  // A reused track kept the level it last played at; the slider may have moved since.
+  (instance as unknown as { setVolume(value: number): void }).setVolume(musicVolume);
   if (instance.isPaused) instance.resume();
   else instance.play();
   currentSound = instance;

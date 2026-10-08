@@ -77,4 +77,13 @@ describe("composeSprites", () => {
     expect(out).toHaveLength(2);
     for (const row of out) expect(row).toHaveLength(3);
   });
+
+  it("paints several overlays in argument order, later ones winning, skipping nulls (035)", () => {
+    const first = grid(["#aaaaaa"], ["2a1.", "3."]);
+    const second = grid(["#bbbbbb"], ["1.1a1.", "3."]);
+    expect(composeSprites(base, first, null, second)).toEqual([
+      ["#aaaaaa", "#bbbbbb", "#111111"],
+      ["#111111", "#111111", "#111111"],
+    ]);
+  });
 });

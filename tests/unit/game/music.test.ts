@@ -177,6 +177,20 @@ describe("music volume", () => {
     expect(getMusicVolume()).toBe(0.25);
   });
 
+  it("applies a level changed while a track was paused when that track is resumed", () => {
+    const sound = createStubSoundManager();
+    playMusic(sound as never, GAME_MUSIC_KEY);
+    playMusic(sound as never, COMBAT_MUSIC_KEY);
+    playMusic(sound as never, GAME_MUSIC_KEY); // combat is now paused, not current
+    setMusicVolume(0.2);
+    const combat = sound.get(COMBAT_MUSIC_KEY)!;
+    combat.setVolume.mockClear();
+
+    playMusic(sound as never, COMBAT_MUSIC_KEY);
+
+    expect(combat.setVolume).toHaveBeenCalledWith(0.2);
+  });
+
   it("preserves the level across a track switch rather than resetting to full", () => {
     const sound = createStubSoundManager();
     setMusicVolume(0.7);

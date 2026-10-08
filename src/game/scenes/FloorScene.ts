@@ -49,14 +49,15 @@ import type {
   SpikePitDefinition,
   ZoneThemeId,
 } from "../../domain/floor/types";
-import { ARMOR_MATERIAL_ORDER } from "../../domain/character/types";
-import type { ArmorMaterialId, KeyDefinition, LootItem, WeaponId } from "../../domain/character/types";
+import type { ArmorSlotId, KeyDefinition, LootItem, WeaponId } from "../../domain/character/types";
 import {
   ensureLavaGlowTexture,
   ensureMonsterCombatTexture,
+  monsterSpriteKey,
   ensurePlayerTexture,
   ensureSpriteTexture,
   ensureZoneTileTexture,
+  type PlayerArmourLook,
 } from "../render/spriteTextures";
 import type { ArmourTierId, PlayerDirection } from "../render/spriteData";
 import { computePlayerIdleFrame, computePlayerWalkFrame, facingForDirection } from "../playerAnimation";
@@ -606,6 +607,8 @@ export class FloorScene extends Phaser.Scene {
     // look it up — mirrors the species lookup already used for enemy rendering above.
     const species = ctx.monsterSpeciesCatalog.get(enemy.species);
     const enemyName = species?.name ?? "Unknown creature";
+    // 036 C3: elite art when flagged elite and the sheet has it; combat looks it up by this key.
+    const speciesKey = species ? monsterSpriteKey(species.textureKey, enemy.isElite) : undefined;
     const character = ctx.save.character;
     const stats = computeEffectiveStats(character, ctx.weaponCatalog, ctx.armorCatalog);
     const floorNumber = ctx.tower.floors.findIndex((f) => f.id === ctx.save.currentFloorId) + 1;
@@ -629,12 +632,12 @@ export class FloorScene extends Phaser.Scene {
       monster: monsterCombatant(eliteStats(enemy), species, enemy.dodgeChance),
       playerMaxHp: computeMaxHp(character),
       potionCount: character.potionCount ?? 0,
-      playerTextureKey: ensurePlayerTexture(this, this.playerTier(), this.playerWeapon(), "right", "idle"),
+      playerTextureKey: ensurePlayerTexture(this, this.playerArmourLook(), this.playerWeapon(), "right", "idle"),
       // 030 (research R10): the side profile, facing the Prince, for both the intro and the duel.
       // The floor marker keeps the front sprite (addTextureMarker below).
-      monsterTextureKey: species ? ensureMonsterCombatTexture(this, species.textureKey, "idle") : "__MISSING",
-      monsterSpeciesKey: species?.textureKey ?? "__MISSING",
-      playerTier: this.playerTier(),
+      monsterTextureKey: speciesKey ? ensureMonsterCombatTexture(this, speciesKey, "idle") : "__MISSING",
+      monsterSpeciesKey: speciesKey ?? "__MISSING",
+      playerArmourLook: this.playerArmourLook(),
       playerWeapon: this.playerWeapon(),
       // 033 FR-016a: only what the bag can take is announced as looted.
       dropPhrases: describeDrops(fitted),
@@ -840,7 +843,7 @@ export class FloorScene extends Phaser.Scene {
       if (defeated.has(enemy.id)) continue;
       const species = ctx.monsterSpeciesCatalog.get(enemy.species);
       const marker = species
-        ? this.addTextureMarker(enemy.position, species.textureKey, species.spriteScale)
+        ? this.addTextureMarker(enemy.position, monsterSpriteKey(species.textureKey, enemy.isElite), species.spriteScale)
         : this.addMarker(enemy.position, COLORS.enemy, 0.8);
       this.livingMarkers.push({
         gameObject: marker,
@@ -987,20 +990,17 @@ export class FloorScene extends Phaser.Scene {
     if (this.playerSprite) {
       const moving = time < (this.playerMovingUntil ?? 0);
       const frame = moving ? computePlayerWalkFrame(time) : computePlayerIdleFrame(time);
-      const key = ensurePlayerTexture(this, this.playerTier(), this.playerWeapon(), this.playerFacing, frame);
+      const key = ensurePlayerTexture(this, this.playerArmourLook(), this.playerWeapon(), this.playerFacing, frame);
       if (this.playerSprite.texture.key !== key) this.playerSprite.setTexture(key);
     }
   }
 
-  /** Whichever equipped slot carries the most protective material picks the body's tier — the
-   * sheet composes worn armour as one whole-body state (contract C3), not per-slot overlays, so
-   * a mixed loadout still needs exactly one tier to render. */
-  private playerTier(): ArmourTierId {
-    const materials = Object.values(this.ctx.save.character.equippedArmor).filter(
-      (m): m is ArmorMaterialId => !!m,
-    );
-    if (materials.length === 0) return "none";
-    return materials.reduce((best, m) => (ARMOR_MATERIAL_ORDER[m] > ARMOR_MATERIAL_ORDER[best] ? m : best));
+  /** 035 (contract C4): what each slot wears, read live — an empty slot is `none`. No reduction to
+   * one tier: the Prince is drawn slot by slot, so a plate helm over leather legs shows both. */
+  private playerArmourLook(): PlayerArmourLook {
+    const worn = this.ctx.save.character.equippedArmor;
+    const tier = (slot: ArmorSlotId): ArmourTierId => worn[slot] ?? "none";
+    return { helm: tier("helm"), chest: tier("chest"), legs: tier("legs"), boots: tier("boots") };
   }
 
   /** 031 (contract C4): the sword drawn in the Prince's hand — read live, so an equip shows on the
@@ -1009,9 +1009,9 @@ export class FloorScene extends Phaser.Scene {
     return this.ctx.save.character.equippedWeaponId ?? null;
   }
 
-  /** 018 (contract C3): one composed image — base body plus tier-recoloured armour overlay,
-   * baked into a single texture by ensurePlayerTexture — replacing the old base-plus-four-
-   * separate-overlay-images approach that rendered armour off-centre. */
+  /** 035 (contract C3): one composed image — the unarmoured body, then each worn slot's armour
+   * layer (legs, boots, chest, helm) in that slot's own tier, then the sword — baked into a single
+   * texture by ensurePlayerTexture, so armour never renders off-centre. */
   private drawPlayer(position: Position): void {
     if (this.playerSprite) this.playerSprite.destroy();
 
@@ -1022,7 +1022,7 @@ export class FloorScene extends Phaser.Scene {
 
     // 021 US2: seed with the idle frame for the current facing — update() corrects to the
     // walk frame on the very next tick if the move that triggered this redraw is still active.
-    const key = ensurePlayerTexture(this, this.playerTier(), this.playerWeapon(), this.playerFacing, "idle");
+    const key = ensurePlayerTexture(this, this.playerArmourLook(), this.playerWeapon(), this.playerFacing, "idle");
     this.playerSprite = this.add.image(px, py, key);
     this.playerSprite.setDisplaySize(displaySize, displaySize);
     this.tileLayer.add(this.playerSprite);

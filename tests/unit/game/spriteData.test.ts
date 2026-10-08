@@ -7,12 +7,26 @@ import { LAVA_GLOW_FRAME, SPRITES, ZONE_TILES, type SheetZone, type SpriteGrid }
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
-const PLAYER_TIERS = ["none", "leather", "mail", "plate"];
+/** 035: only the unarmoured body is a full sprite; worn armour is per-slot layers (below). */
+const PLAYER_TIERS = ["none"];
+const ARMOUR_TIERS = ["leather", "mail", "plate"];
+const ARMOUR_SLOTS = ["helm", "chest", "legs", "boots"];
 const PLAYER_DIRECTIONS = ["front", "right", "back", "left"];
 const PLAYER_FRAMES = ["idle", "stepA", "stepB", "breath"];
 const PLAYER_BODIES = PLAYER_TIERS.flatMap((tier) =>
   PLAYER_DIRECTIONS.flatMap((dir) =>
     PLAYER_FRAMES.map((frame) => `player${capitalize(tier)}${capitalize(dir)}${capitalize(frame)}`),
+  ),
+);
+
+/** 035 (contract C1): `armour<Tier><Slot><Dir><Frame>`, right gets the two attack frames too. */
+const ARMOUR_LAYERS = ARMOUR_TIERS.flatMap((t) =>
+  ARMOUR_SLOTS.flatMap((sl) =>
+    ["front", "right", "back", "left"].flatMap((d) =>
+      (d === "right" ? [...PLAYER_FRAMES, "attackA", "attackB"] : PLAYER_FRAMES).map(
+        (f) => `armour${capitalize(t)}${capitalize(sl)}${capitalize(d)}${capitalize(f)}`,
+      ),
+    ),
   ),
 );
 
@@ -25,8 +39,11 @@ const MONSTER_LEFT_FRAMES = ["Idle", "Breath", "AttackA", "AttackB"];
 
 const FAMILIES = {
   playerBodies: PLAYER_BODIES,
+  armourLayers: ARMOUR_LAYERS,
   monsters: MONSTERS,
   monsterLeft: MONSTERS.flatMap((m) => MONSTER_LEFT_FRAMES.map((f) => `${m}Left${f}`)),
+  /** 036: elite front sprite plus the same side-profile frames (contract C1). */
+  monsterElite: MONSTERS.flatMap((m) => [`${m}Elite`, ...MONSTER_LEFT_FRAMES.map((f) => `${m}EliteLeft${f}`)]),
   /** 023: unlike every combat monster above (one `.idle` frame each), the merchant adopts both
    * `.idle` and `.breath` — a real 2-frame breathing animation (FR-002). */
   merchant: ["merchantIdle", "merchantBreath"],
@@ -60,9 +77,9 @@ function opaqueMask(grid: SpriteGrid): boolean[][] {
 }
 
 describe("SPRITES inventory (contract C6)", () => {
-  it("has exactly the 210 non-zone adopted sprites", () => {
+  it("has exactly the 417 non-zone adopted sprites (incl. 45 elite, 036)", () => {
     expect(new Set(Object.keys(SPRITES))).toEqual(new Set(ALL_ADOPTED));
-    expect(Object.keys(SPRITES)).toHaveLength(210);
+    expect(Object.keys(SPRITES)).toHaveLength(417);
   });
 
   it("has no out-of-scope tile key", () => {
@@ -108,7 +125,30 @@ describe("monster side profiles (030 contract C2)", () => {
 
   it("no non-attack sprite carries a draw offset", () => {
     const offset = Object.entries(SPRITES).filter(([, g]) => g.dx !== undefined).map(([k]) => k);
-    expect(offset.sort()).toEqual(MONSTERS.flatMap((m) => [`${m}LeftAttackA`, `${m}LeftAttackB`]).sort());
+    const attackKeys = MONSTERS.flatMap((m) => ["", "Elite"].flatMap((e) => [`${m}${e}LeftAttackA`, `${m}${e}LeftAttackB`]));
+    expect(offset.sort()).toEqual(attackKeys.sort());
+  });
+});
+
+describe("elite monster sprites (036 contract C1)", () => {
+  it.each(MONSTERS)("'%s' elite front and side-profile idle/breath are 32x32 with no draw offset", (m) => {
+    for (const key of [`${m}Elite`, `${m}EliteLeftIdle`, `${m}EliteLeftBreath`]) {
+      const grid = SPRITES[key]!;
+      expect([grid.w, grid.h]).toEqual([32, 32]);
+      expect(grid.dx ?? 0).toBe(0);
+    }
+  });
+
+  it.each(MONSTERS)("'%s' elite attack frames match the regular geometry", (m) => {
+    for (const f of ["AttackA", "AttackB"]) {
+      const grid = SPRITES[`${m}EliteLeft${f}`]!;
+      expect([grid.w, grid.h]).toEqual([44, 32]);
+      expect(grid.dx).toBe(32 - grid.w);
+    }
+  });
+
+  it("the merchant has no elite sprite", () => {
+    expect(SPRITES.merchantElite).toBeUndefined();
   });
 });
 
@@ -133,6 +173,39 @@ describe("player attack frames and held swords (031)", () => {
     for (const tier of PLAYER_TIERS) {
       const body = SPRITES[`player${capitalize(tier)}${suffix}`]!;
       expect([sword.w, sword.h]).toEqual([body.w, body.h]);
+    }
+  });
+});
+
+describe("per-slot armour layers (035)", () => {
+  const dirs = ["front", "right", "back", "left"];
+  const framesFor = (d: string) => (d === "right" ? [...PLAYER_FRAMES, "attackA", "attackB"] : PLAYER_FRAMES);
+  const cases = ARMOUR_TIERS.flatMap((t) => dirs.flatMap((d) => framesFor(d).map((f) => [t, d, f] as const)));
+
+  it.each(cases)("%s %s %s: layers match the body size, never overlap, and are not all empty", (tier, dir, frame) => {
+    const body = SPRITES[`playerNone${capitalize(dir)}${capitalize(frame)}`]!;
+    const masks = ARMOUR_SLOTS.map((slot) => {
+      const g = SPRITES[`armour${capitalize(tier)}${capitalize(slot)}${capitalize(dir)}${capitalize(frame)}`]!;
+      expect([g.w, g.h]).toEqual([body.w, body.h]);
+      return opaqueMask(g);
+    });
+    let opaque = 0;
+    for (let y = 0; y < body.h; y++) {
+      for (let x = 0; x < body.w; x++) {
+        const n = masks.filter((m) => m[y]![x]).length;
+        expect(n).toBeLessThanOrEqual(1);
+        opaque += n;
+      }
+    }
+    expect(opaque).toBeGreaterThan(0);
+  });
+
+  it("helm, chest, legs and boots each carry pixels in every tier (front idle)", () => {
+    for (const tier of ARMOUR_TIERS) {
+      for (const slot of ARMOUR_SLOTS) {
+        const g = SPRITES[`armour${capitalize(tier)}${capitalize(slot)}FrontIdle`]!;
+        expect(opaqueMask(g).flat().some(Boolean)).toBe(true);
+      }
     }
   });
 });

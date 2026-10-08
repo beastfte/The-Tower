@@ -23,8 +23,7 @@ import {
 } from "../sfx";
 import { computeMonsterAttackFrame, MONSTER_ATTACK_IMPACT_MS, type MonsterCombatFrame } from "../monsterAnimation";
 import { computePlayerAttackFrame, type PlayerAttackFrame } from "../playerAnimation";
-import { ensureMonsterCombatTexture, ensurePlayerTexture, hasMonsterCombatFrames } from "../render/spriteTextures";
-import type { ArmourTierId } from "../render/spriteData";
+import { ensureMonsterCombatTexture, ensurePlayerTexture, hasMonsterCombatFrames, type PlayerArmourLook } from "../render/spriteTextures";
 import type { WeaponId } from "../../domain/character/types";
 
 type HitEvent = Extract<BattleEvent, { kind: "hit" }>;
@@ -46,7 +45,7 @@ export interface CombatOverlayData {
   monsterSpeciesKey: string;
   /** 031 (contract C5): the Prince's raw look, so the duel can bake his attack frames too —
    * `playerTextureKey` alone only covers idle. */
-  playerTier: ArmourTierId;
+  playerArmourLook: PlayerArmourLook;
   playerWeapon: WeaponId | null;
   /** Readable drop phrases for the victory panel (`describeDrops`). */
   dropPhrases: string[];
@@ -458,8 +457,8 @@ export class CombatOverlay extends Phaser.Scene {
   private setPlayerFrame(frame: "idle" | PlayerAttackFrame): void {
     if (frame === this.playerAttackFrame_) return;
     this.playerAttackFrame_ = frame;
-    const { playerTier, playerWeapon } = this.data_;
-    this.views_.player.sprite.setTexture(ensurePlayerTexture(this, playerTier, playerWeapon, "right", frame));
+    const { playerArmourLook, playerWeapon } = this.data_;
+    this.views_.player.sprite.setTexture(ensurePlayerTexture(this, playerArmourLook, playerWeapon, "right", frame));
   }
 
   /** C11/FR-018: a critical strike's number is larger and red, unmistakable from a normal hit. */

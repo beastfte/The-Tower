@@ -84,6 +84,90 @@ function grid(name: string, raw: RawGrid | undefined): RawGrid {
   return dx ? { w, h, pal, rows, dx } : { w, h, pal, rows };
 }
 
+
+const ARMOUR_SLOTS = ["helm", "chest", "legs", "boots"] as const;
+type ArmourSlot = (typeof ARMOUR_SLOTS)[number];
+const ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+function decodeGrid(g: RawGrid): (string | null)[][] {
+  return g.rows.map((row) => {
+    const out: (string | null)[] = [];
+    for (const [, count, ch] of row.matchAll(RLE)) {
+      for (let i = 0; i < Number(count); i++) out.push(ch === "." ? null : g.pal[ALPHABET.indexOf(ch!)]!);
+    }
+    return out;
+  });
+}
+
+function encodeGrid(px: (string | null)[][]): RawGrid {
+  const pal: string[] = [];
+  const rows = px.map((row) => {
+    let out = "";
+    for (let x = 0; x < row.length; ) {
+      let n = 1;
+      while (x + n < row.length && row[x + n] === row[x]) n++;
+      const c = row[x];
+      if (c == null) out += `${n}.`;
+      else {
+        let i = pal.indexOf(c);
+        if (i < 0) pal.push(c), (i = pal.length - 1);
+        if (i >= ALPHABET.length) fail("armour layer palette exceeds 52 colours");
+        out += `${n}${ALPHABET[i]}`;
+      }
+      x += n;
+    }
+    return out;
+  });
+  return { w: px[0]!.length, h: px.length, pal, rows };
+}
+
+const topRow = (px: (string | null)[][]): number => px.findIndex((r) => r.some((c) => c != null));
+const firstRowOf = (px: (string | null)[][]): number => {
+  const y = topRow(px);
+  if (y < 0) fail("armour layer has no pixels");
+  return y;
+};
+
+/** 035 research R3: one tier/direction/frame's full body split into helm/chest/legs/boots by row
+ * band. Cuts are the first rows of the sheet's authored chest/legs/boots layers (front cuts serve
+ * front+back, right cuts serve right+left), shifted by the frame's body bob versus idle. Verifies
+ * the split is lossless: none + layers must equal the sheet's own full-tier body. */
+function deriveArmourLayers(
+  tier: string,
+  dir: string,
+  frame: string,
+  PLAYER: Record<string, Record<string, Record<string, RawGrid>>>,
+  LAYERS: Record<string, Record<string, Record<string, RawGrid>>>,
+): Record<ArmourSlot, RawGrid> {
+  const label = `${tier}.${dir}.${frame}`;
+  const none = decodeGrid(grid(`PLAYER.none.${dir}.${frame}`, PLAYER.none?.[dir]?.[frame]));
+  const full = decodeGrid(grid(`PLAYER.${tier}.${dir}.${frame}`, PLAYER[tier]?.[dir]?.[frame]));
+  if (none.length !== full.length || none[0]!.length !== full[0]!.length) fail(`${label}: tier body size differs from the unarmoured body`);
+
+  const authoredDir = dir === "front" || dir === "back" ? "front" : "right";
+  const cut = (slot: string): number => firstRowOf(decodeGrid(grid(`ARMOUR_LAYERS.${tier}.${slot}.${authoredDir}`, LAYERS[tier]?.[slot]?.[authoredDir])));
+  const idleNone = decodeGrid(grid(`PLAYER.none.${dir}.idle`, PLAYER.none?.[dir]?.idle));
+  const bob = topRow(none) - topRow(idleNone);
+  const chestAt = cut("chest") + bob, legsAt = cut("legs") + bob, bootsAt = cut("boots") + bob;
+
+  const layers = Object.fromEntries(ARMOUR_SLOTS.map((s) => [s, none.map((r) => r.map(() => null as string | null))])) as Record<ArmourSlot, (string | null)[][]>;
+  for (let y = 0; y < full.length; y++) {
+    const slot: ArmourSlot = y >= bootsAt ? "boots" : y >= legsAt ? "legs" : y >= chestAt ? "chest" : "helm";
+    for (let x = 0; x < full[y]!.length; x++) {
+      const a = none[y]![x]!, b = full[y]![x]!;
+      if (a != null && b == null) fail(`${label}: armour clears an unarmoured pixel at ${x},${y}`);
+      if (b != null && b !== a) layers[slot][y]![x] = b;
+    }
+  }
+
+  const recomposed = none.map((r) => r.slice());
+  for (const slot of ARMOUR_SLOTS) layers[slot].forEach((r, y) => r.forEach((c, x) => { if (c != null) recomposed[y]![x] = c; }));
+  for (let y = 0; y < full.length; y++) for (let x = 0; x < full[y]!.length; x++) {
+    if (recomposed[y]![x] !== full[y]![x]) fail(`${label}: layers do not recompose to the full-tier body at ${x},${y}`);
+  }
+  return Object.fromEntries(ARMOUR_SLOTS.map((s) => [s, encodeGrid(layers[s])])) as Record<ArmourSlot, RawGrid>;
+}
+
 function main(): void {
   const htmlPath = process.argv[2];
   if (!htmlPath) fail("usage: extract-sprites.ts <path-to-reference-sheet.html>");
@@ -113,26 +197,32 @@ function main(): void {
   // is hand-placed, not a mirror of `right` (verified by decoding both and comparing pixels).
   // All 4 tiers x 4 directions x 4 frames are adopted so movement/animation has real art for
   // every combination, named player<Tier><Dir><Frame> (e.g. playerMailLeftStepA).
-  const playerTiers = ["none", "leather", "mail", "plate"];
   const playerDirections = ["front", "right", "back", "left"];
   const playerFrames = ["idle", "stepA", "stepB", "breath"];
+  const attackFrames = ["attackA", "attackB"];
+  const framesFor = (dir: string) => (dir === "right" ? [...playerFrames, ...attackFrames] : playerFrames);
+  // 035 (research R5): only the unarmoured body is adopted as a full sprite — worn armour is now
+  // per-slot layers, composed at runtime. 031 research R4: attack frames exist for `right` only.
   let playerSpriteCount = 0;
-  for (const tier of playerTiers) {
-    for (const dir of playerDirections) {
-      for (const frame of playerFrames) {
-        const key = `player${capitalize(tier)}${capitalize(dir)}${capitalize(frame)}`;
-        sprites[key] = grid(`PLAYER.${tier}.${dir}.${frame}`, PLAYER[tier]?.[dir]?.[frame]);
-        playerSpriteCount++;
-      }
+  for (const dir of playerDirections) {
+    for (const frame of framesFor(dir)) {
+      sprites[`playerNone${capitalize(dir)}${capitalize(frame)}`] = grid(`PLAYER.none.${dir}.${frame}`, PLAYER.none?.[dir]?.[frame]);
+      playerSpriteCount++;
     }
   }
-  // 031 research R4: the sheet draws the attack (frames 5/6, "Attack Right 2f") for `right` only —
-  // the one facing combat uses. 44x32 with no dx: the reach extends right, at the enemy (R5).
-  const attackFrames = ["attackA", "attackB"];
-  for (const tier of playerTiers) {
-    for (const frame of attackFrames) {
-      sprites[`player${capitalize(tier)}Right${capitalize(frame)}`] = grid(`PLAYER.${tier}.right.${frame}`, PLAYER[tier]?.right?.[frame]);
-      playerSpriteCount++;
+
+  // 035 (contract C1, research R3): derive per-slot armour layers from the sheet's full-tier bodies,
+  // because the sheet's own ARMOUR_LAYERS exist for front/right idle only.
+  const ARMOUR_LAYERS = TS.ARMOUR_LAYERS as Record<string, Record<string, Record<string, RawGrid>>>;
+  for (const tier of ["leather", "mail", "plate"]) {
+    for (const dir of playerDirections) {
+      for (const frame of framesFor(dir)) {
+        const layers = deriveArmourLayers(tier, dir, frame, PLAYER, ARMOUR_LAYERS);
+        for (const slot of ARMOUR_SLOTS) {
+          sprites[`armour${capitalize(tier)}${capitalize(slot)}${capitalize(dir)}${capitalize(frame)}`] = layers[slot]!;
+          playerSpriteCount++;
+        }
+      }
     }
   }
 
@@ -142,11 +232,21 @@ function main(): void {
   // 030 (contract C1): each combat monster's side profile, facing the Prince, for the combat
   // screens only — the front `.idle` above stays the floor sprite. attackA/attackB are 44x32
   // with the extra width on the left; the right 32 columns are the body (research R2).
-  // eliteIdle/eliteBreath are deliberately not adopted — the game has no elite monsters.
   const monsterLeftFrames = ["idle", "breath", "attackA", "attackB"] as const;
   for (const name of monsterNames) {
     for (const frame of monsterLeftFrames) {
       sprites[`${name}Left${capitalize(frame)}`] = grid(`MONSTER_SPRITES.${name}.left.${frame}`, MONSTER_SPRITES[name]?.left?.[frame]);
+    }
+  }
+
+  // 036 (contract C1): the elite variants — recoloured full grids, same geometry as the regular
+  // ones. `<m>Elite` is the floor sprite, `<m>EliteLeft<Frame>` the combat frames. eliteBreath is
+  // not adopted: the regular front `.breath` isn't either, so elites mirror regular monsters.
+  const eliteLeftFrames = ["idle", "breath", "attackA", "attackB"] as const;
+  for (const name of monsterNames) {
+    sprites[`${name}Elite`] = grid(`MONSTER_SPRITES.${name}.eliteIdle`, MONSTER_SPRITES[name]?.eliteIdle);
+    for (const frame of eliteLeftFrames) {
+      sprites[`${name}EliteLeft${capitalize(frame)}`] = grid(`MONSTER_SPRITES.${name}.eliteLeft.${frame}`, MONSTER_SPRITES[name]?.eliteLeft?.[frame]);
     }
   }
 
@@ -197,6 +297,7 @@ function main(): void {
 
   const expectedCount =
     playerSpriteCount + monsterNames.length + monsterNames.length * monsterLeftFrames.length +
+    monsterNames.length * (1 + eliteLeftFrames.length) /* 036 elites */ +
     2 /* merchantIdle, merchantBreath */ +
     weaponNames.length + heldSwordCount + armourNames.length + itemNames.length + propNames.length + tileNames.length;
   if (Object.keys(sprites).length !== expectedCount) {
@@ -233,7 +334,7 @@ function main(): void {
 
   const banner = `/**
  * GENERATED FILE — do not hand-edit. Produced by scripts/extract-sprites.ts from the reference
- * sprite sheet ("The Tower - Sprite Sheet (11).html", section 10 "THE SHEET"). Regenerate with:
+ * sprite sheet ("The Tower - Sprite Sheet (1).html", section 11 "THE SHEET"). Regenerate with:
  *   npx tsx scripts/extract-sprites.ts "<path to reference sheet.html>"
  */
 `;

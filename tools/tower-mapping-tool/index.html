@@ -1141,6 +1141,14 @@
 
         for (const e of floor.enemies) {
           drawShape(ctx, e.position, tileSize, "circle", MONSTER_COLOR[e.species] || "#666", MONSTER_GLYPH[e.species] || e.species[0].toUpperCase());
+          // 036 C4: gold ring on elites, so the Elite tickbox is visible on the map.
+          if (e.isElite === true && tileSize >= 6) {
+            ctx.strokeStyle = ELITE_RING_COLOR;
+            ctx.lineWidth = Math.max(1.5, tileSize * 0.08);
+            ctx.beginPath();
+            ctx.arc(e.position.x * tileSize + tileSize / 2, e.position.y * tileSize + tileSize / 2, tileSize * 0.36 + ctx.lineWidth, 0, Math.PI * 2);
+            ctx.stroke();
+          }
         }
         for (const it of floor.items) {
           const itemColor = it.kind === "key" ? keyColorForTier(it.payload.keyType) : ITEM_COLOR[it.kind] || "#888";
@@ -1182,6 +1190,8 @@
           ctx.stroke();
         }
       }
+
+      const ELITE_RING_COLOR = "#f2c14e";
 
       function drawGlyph(ctx, pos, tileSize, glyph, color, sizeOverride) {
         const cx = pos.x * tileSize + tileSize / 2;
@@ -1738,6 +1748,8 @@
         row(EXIT_COLOR, "U", "Stairs up (exit)", "circle");
         cat("Monsters");
         for (const m of PALETTE.monsters) row(MONSTER_COLOR[m.id], MONSTER_GLYPH[m.id], m.name, "circle");
+        row("transparent", "", "Elite monster (gold ring)", "circle");
+        box.lastChild.firstChild.style.border = "3px solid " + ELITE_RING_COLOR;
         cat("Items");
         for (const k of PALETTE.itemKinds) {
           if (k.id === "key") continue;

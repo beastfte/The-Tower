@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import type { ZoneThemeId } from "../../domain/floor/types";
 import type { MonsterCombatFrame } from "../monsterAnimation";
-import type { WeaponId } from "../../domain/character/types";
+import type { ArmorSlotId, WeaponId } from "../../domain/character/types";
 import type { PlayerAttackFrame, PlayerFrame } from "../playerAnimation";
 import { composeSprites, paintPixelsTo, paintSprite, type PixelGrid } from "./painters";
 import {
@@ -84,24 +84,32 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-/** One pre-composed body per (tier, facing, frame) — armour is baked into the body, so there is
- * no recolour step (018 contract C3). 021: the key carries facing and animation frame.
- * 031 (contract C2): the equipped weapon is the one overlay — `held<Weapon><Facing><Frame>`
- * painted over the body (the sheet's own drawChar order) and baked into the same texture;
- * `weapon: null` is the bare-handed body alone. Attack frames exist for `right` only. */
+/** 035 (data-model §1): the tier worn in each armour slot — `none` for an empty slot. */
+export type PlayerArmourLook = Readonly<Record<ArmorSlotId, ArmourTierId>>;
+
+/** Composition order, bottom layer first (035 FR-005, the sheet's mix-and-match order). */
+const LOOK_LAYER_ORDER: readonly ArmorSlotId[] = ["legs", "boots", "chest", "helm"];
+
+/** 035 (contract C3): the unarmoured body, then each worn slot's layer in the tier that slot
+ * carries, then — 031 contract C2 — the equipped sword, all baked into one texture. Slots are
+ * independent, so a plate helm over leather legs draws exactly that. `weapon: null` is bare-handed.
+ * Attack frames exist for `right` only. Built lazily, cached by the full look. */
 export function ensurePlayerTexture(
   scene: Phaser.Scene,
-  tier: ArmourTierId,
+  look: PlayerArmourLook,
   weapon: WeaponId | null,
   facing: PlayerDirection,
   frame: PlayerFrame | PlayerAttackFrame,
 ): string {
-  const key = `sprite-player-${tier}-${weapon ?? "bare"}-${facing}-${frame}`;
+  const key = `sprite-player-${look.helm}-${look.chest}-${look.legs}-${look.boots}-${weapon ?? "bare"}-${facing}-${frame}`;
   if (!scene.textures.exists(key)) {
     const suffix = `${capitalize(facing)}${capitalize(frame)}`;
-    const body = requireGrid(`player${capitalize(tier)}${suffix}`);
+    const body = requireGrid(`playerNone${suffix}`);
+    const layers = LOOK_LAYER_ORDER.filter((slot) => look[slot] !== "none").map((slot) =>
+      requireGrid(`armour${capitalize(look[slot])}${capitalize(slot)}${suffix}`),
+    );
     const sword = weapon ? requireGrid(`held${capitalize(weapon)}${suffix}`) : null;
-    paintPixelsToTexture(scene, key, composeSprites(body, sword));
+    paintPixelsToTexture(scene, key, composeSprites(body, ...layers, sword));
   }
   return key;
 }
@@ -110,6 +118,12 @@ export function ensurePlayerTexture(
  * and keeps the pre-030 flash-only hit feedback (FR-009). */
 export function hasMonsterCombatFrames(speciesTextureKey: string): boolean {
   return SPRITES[`${speciesTextureKey}LeftIdle`] !== undefined;
+}
+
+/** 036 (contract C2): the sprite key to draw a monster with — its elite set when it is elite and the
+ * sheet has one, else the regular key. The combat `<key>Left<Frame>` lookup then needs no change. */
+export function monsterSpriteKey(textureKey: string, isElite: boolean | undefined): string {
+  return isElite === true && SPRITES[`${textureKey}Elite`] !== undefined ? `${textureKey}Elite` : textureKey;
 }
 
 /** 030 (contract C3): a combat monster's side-profile frame, `<species>Left<Frame>` as

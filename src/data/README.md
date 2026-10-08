@@ -40,6 +40,8 @@ See `specs/012-tower-mapping-tool/quickstart.md` for the full walkthrough. In sh
 Monsters carry no authored drops. Each fight rolls one result (`rollMonsterDrop`): a regular
 monster leaves gear 20% / nothing 20% / 1–10 gold 60%; a monster ticked "Elite" in the tool (or
 the end boss) leaves gear 50% / 10–30 gold 50%, and elites have +50% HP, damage and defence.
+A ticked elite also uses its own recoloured art on the floor and in combat (the end boss only
+if it is ticked too), and the tool marks it with a gold ring.
 Gear is graded (common to legendary) and its tier follows the floor number:
 
 | Floors | Armour | Weapon |
