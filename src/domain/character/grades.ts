@@ -1,4 +1,4 @@
-import type { ArmorMaterialId, ArmorSlotId, WeaponId } from "./types";
+import { ARMOR_MATERIAL_ORDER, type ArmorMaterialId, type ArmorSlotId, type WeaponId } from "./types";
 import type { CombatStats } from "../types";
 
 /** 034: a worn-gear slot: the weapon or one armour slot. */
@@ -39,15 +39,25 @@ export function gradedValue(common: number, grade: GradeId): number {
   return Math.round(common * Math.pow(1.1, GRADE_ORDER.indexOf(grade)));
 }
 
-/** 034 research R5: whole-percent ranges, the same for every grade. */
-export const EXTRA_STAT_RANGES: Record<ExtraStatId, { min: number; max: number }> = {
-  critChance: { min: 2, max: 5 },
-  critDamage: { min: 10, max: 25 },
-  attackSpeed: { min: 5, max: 10 },
-  dodge: { min: 2, max: 5 },
+/** 037: material tier of a piece of gear (1 leather/wood, 2 mail/metal, 3 plate/diamond). */
+export type GearGrade = 1 | 2 | 3;
+
+const WEAPON_GEAR_GRADE: Record<WeaponId, GearGrade> = { woodSword: 1, sword: 2, diamondSword: 3 };
+
+/** 037 C1: gear grade from a weapon id or a "material:slot" armour key. */
+export function gearGradeOf(key: string): GearGrade {
+  const material = key.split(":")[0] as ArmorMaterialId;
+  return key.includes(":") ? ((ARMOR_MATERIAL_ORDER[material] + 1) as GearGrade) : WEAPON_GEAR_GRADE[key as WeaponId];
+}
+
+/** 037 C2 (supersedes 034 R5): whole-percent ranges per gear grade. */
+export const EXTRA_STAT_RANGES: Record<GearGrade, Record<ExtraStatId, { min: number; max: number }>> = {
+  1: { critChance: { min: 1, max: 1 }, dodge: { min: 1, max: 1 }, attackSpeed: { min: 1, max: 5 }, critDamage: { min: 1, max: 10 } },
+  2: { critChance: { min: 2, max: 3 }, dodge: { min: 2, max: 3 }, attackSpeed: { min: 5, max: 10 }, critDamage: { min: 1, max: 15 } },
+  3: { critChance: { min: 3, max: 5 }, dodge: { min: 3, max: 5 }, attackSpeed: { min: 5, max: 20 }, critDamage: { min: 1, max: 20 } },
 };
 
-const EXTRA_IDS = Object.keys(EXTRA_STAT_RANGES) as ExtraStatId[];
+const EXTRA_IDS = Object.keys(EXTRA_STAT_RANGES[1]) as ExtraStatId[];
 
 /** 034 C2: a gear item of `grade` with exactly `extraCount` distinct extras. */
 export function rollGear(key: string, grade: GradeId, rng: () => number): GearItem {
@@ -55,7 +65,7 @@ export function rollGear(key: string, grade: GradeId, rng: () => number): GearIt
   const extras: ExtraStats = {};
   for (let i = 0; i < GRADES[grade].extraCount; i++) {
     const id = pool.splice(Math.floor(rng() * pool.length), 1)[0]!;
-    const { min, max } = EXTRA_STAT_RANGES[id];
+    const { min, max } = EXTRA_STAT_RANGES[gearGradeOf(key)][id];
     extras[id] = (min + Math.floor(rng() * (max - min + 1))) / 100;
   }
   return { key, grade, extras };

@@ -37,4 +37,11 @@ describe("normalizeGear (034 C10)", () => {
     const once = normalizeGear(legacySave());
     expect(normalizeGear(once)).toEqual(once);
   });
+
+  it("keeps extras above the 037 grade 1 limits (no clamping)", () => {
+    const old = { key: "leather:helm", grade: "uncommon" as const, extras: { critChance: 0.04 } };
+    const save = createInitialPlayerSave("f", { x: 0, y: 0 });
+    const withRoll = { ...save, character: { ...save.character, bagGear: [old] } };
+    expect(normalizeGear(withRoll).character.bagGear?.[0]?.extras.critChance).toBe(0.04);
+  });
 });

@@ -5,6 +5,8 @@ import {
   GRADES,
   bandFor,
   eliteStats,
+  type ExtraStatId,
+  gearGradeOf,
   gradedValue,
   rollGear,
   rollGold,
@@ -48,15 +50,53 @@ describe("rollGear (034 C2)", () => {
     for (let i = 0; i < 200; i++) {
       GRADE_ORDER.forEach((grade, n) => {
         const item = rollGear("sword", grade, rng);
-        const ids = Object.keys(item.extras) as (keyof typeof EXTRA_STAT_RANGES)[];
+        const ids = Object.keys(item.extras) as ExtraStatId[];
         expect(ids).toHaveLength(n);
         expect(GRADES[grade].extraCount).toBe(n);
         for (const id of ids) {
           const pct = Math.round(item.extras[id]! * 100);
-          expect(pct).toBeGreaterThanOrEqual(EXTRA_STAT_RANGES[id].min);
-          expect(pct).toBeLessThanOrEqual(EXTRA_STAT_RANGES[id].max);
+          expect(pct).toBeGreaterThanOrEqual(EXTRA_STAT_RANGES[gearGradeOf("sword")][id].min);
+          expect(pct).toBeLessThanOrEqual(EXTRA_STAT_RANGES[gearGradeOf("sword")][id].max);
         }
       });
+    }
+  });
+});
+
+describe("gearGradeOf (037 C1)", () => {
+  it("maps weapons and armour materials to gear grades 1-3", () => {
+    expect(["woodSword", "leather:helm"].map(gearGradeOf)).toEqual([1, 1]);
+    expect(["sword", "mail:chest"].map(gearGradeOf)).toEqual([2, 2]);
+    expect(["diamondSword", "plate:boots"].map(gearGradeOf)).toEqual([3, 3]);
+  });
+});
+
+describe("rollGear per gear grade (037 C3)", () => {
+  const cases: [string, number][] = [
+    ["woodSword", 1], ["leather:helm", 1], ["sword", 2], ["mail:legs", 2], ["diamondSword", 3], ["plate:boots", 3],
+  ];
+  it.each(cases)("%s stays inside, and covers, grade %i ranges", (key) => {
+    const ranges = EXTRA_STAT_RANGES[gearGradeOf(key)];
+    const seen: Record<string, Set<number>> = { critChance: new Set(), critDamage: new Set(), attackSpeed: new Set(), dodge: new Set() };
+    const rng = seeded(7);
+    for (let i = 0; i < 10000; i++) {
+      const { extras } = rollGear(key, "legendary", rng);
+      for (const [id, v] of Object.entries(extras)) seen[id]!.add(Math.round(v * 100));
+    }
+    for (const [id, { min, max }] of Object.entries(ranges)) {
+      const got = [...seen[id]!].sort((a, b) => a - b);
+      expect(got[0]).toBe(min);
+      expect(got[got.length - 1]).toBe(max);
+      expect(got).toHaveLength(max - min + 1);
+    }
+  });
+
+  it("grade 1 crit chance and dodge are always exactly 1%", () => {
+    const rng = seeded(3);
+    for (let i = 0; i < 2000; i++) {
+      const { extras } = rollGear("woodSword", "legendary", rng);
+      expect(extras.critChance).toBe(0.01);
+      expect(extras.dodge).toBe(0.01);
     }
   });
 });
