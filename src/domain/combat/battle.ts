@@ -53,19 +53,22 @@ const MIN_INTERVAL_SEC = 0.01;
 /** Overshoots this close together count as the same instant (FR-007's tie). */
 const TIE_EPSILON = 1e-9;
 
-/** Used when an enemy's species isn't in the catalog (FR-031). */
-export const MONSTER_COMBAT_FALLBACK = { attackIntervalSec: 1, critChance: 0.05, critDamageBonus: 0, dodgeChance: 0.1 } as const;
+/** Used when an enemy's species isn't in the catalog (FR-031). The validator rejects unknown
+ * species, so this only guards hand-built data. */
+export const MONSTER_COMBAT_FALLBACK = {
+  baselineStats: { damage: 1, defence: 0, hp: 1 },
+  attackIntervalSec: 1,
+  critChance: 0.05,
+  critDamageBonus: 0,
+  dodgeChance: 0.1,
+} as const;
 
 /**
- * 027 FR-032 (research R6, contract C6): a placement's authored `stats.damage` is its damage
- * per second, so its per-hit attack is that × its species interval. Its raw DPS is therefore
- * unchanged by the revamp for every placement, and the generated floor files stay untouched.
+ * 027 FR-032 (research R6, contract C6): `stats.damage` is damage per second, so the per-hit
+ * attack is that × the species interval. Every monster stat comes from its species in code;
+ * floors only say which species stands where and whether it is elite.
  */
-export function monsterCombatant(
-  stats: CombatStats,
-  species: MonsterSpecies | undefined,
-  dodgeOverride?: number,
-): CombatantStats {
+export function monsterCombatant(stats: CombatStats, species: MonsterSpecies | undefined): CombatantStats {
   const speed = species ?? MONSTER_COMBAT_FALLBACK;
   return {
     hp: stats.hp,
@@ -74,7 +77,7 @@ export function monsterCombatant(
     attackIntervalSec: speed.attackIntervalSec,
     critChance: speed.critChance,
     critDamageBonus: speed.critDamageBonus,
-    dodgeChance: dodgeOverride ?? speed.dodgeChance,
+    dodgeChance: speed.dodgeChance,
   };
 }
 
@@ -134,7 +137,8 @@ export function advanceBattle(
     }
     const isCrit = rng() < attacker.critChance;
     const damage = resolveHit(attacker, defender, isCrit);
-    defender.hp = Math.max(0, defender.hp - damage);
+    // Fractional damage: treat a floating-point sliver as dead rather than alive at 0.0000001.
+    defender.hp = defender.hp - damage < 1e-6 ? 0 : defender.hp - damage;
     events.push({ kind: "hit", target: playerFirst ? "monster" : "player", damage, isCrit });
 
     if (defender.hp === 0) {

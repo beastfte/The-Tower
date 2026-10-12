@@ -35,14 +35,12 @@ export interface MonsterSpecies {
 export interface EnemyDefinition {
   id: string;
   position: Position;
-  stats: CombatStats;
+  /** Every combat stat comes from the species (src/data/monsterSpecies.ts), never the floor. */
   species: MonsterSpeciesId;
   isEndBoss?: boolean;
   /** 034 FR-021: +50% HP/damage/defence and a 50% equipment drop chance. The end boss gets the
    * drop chance either way. */
   isElite?: boolean;
-  /** 032 FR-007/FR-008: per-placement dodge override (0-1); absent = the species default. */
-  dodgeChance?: number;
 }
 
 /** 023 FR-004: a merchant NPC — deliberately not an `EnemyDefinition`. Combat is reachable

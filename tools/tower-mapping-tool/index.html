@@ -616,93 +616,39 @@
         "monsters": [
           {
             "id": "goblin",
-            "name": "Goblin",
-            "baseline": {
-              "damage": 4,
-              "defence": 1,
-              "hp": 12,
-              "dodgeChance": 0.12
-            }
+            "name": "Goblin"
           },
           {
             "id": "ogre",
-            "name": "Ogre",
-            "baseline": {
-              "damage": 6,
-              "defence": 4,
-              "hp": 30,
-              "dodgeChance": 0.03
-            }
+            "name": "Ogre"
           },
           {
             "id": "wizard",
-            "name": "Wizard",
-            "baseline": {
-              "damage": 8,
-              "defence": 0,
-              "hp": 10,
-              "dodgeChance": 0.06
-            }
+            "name": "Wizard"
           },
           {
             "id": "bat",
-            "name": "Bat",
-            "baseline": {
-              "damage": 3,
-              "defence": 0,
-              "hp": 6,
-              "dodgeChance": 0.2
-            }
+            "name": "Bat"
           },
           {
             "id": "slime",
-            "name": "Slime",
-            "baseline": {
-              "damage": 2,
-              "defence": 2,
-              "hp": 14,
-              "dodgeChance": 0.02
-            }
+            "name": "Slime"
           },
           {
             "id": "skeleton",
-            "name": "Skeleton Soldier",
-            "baseline": {
-              "damage": 5,
-              "defence": 2,
-              "hp": 16,
-              "dodgeChance": 0.05
-            }
+            "name": "Skeleton Soldier"
           },
           {
             "id": "necromancer",
-            "name": "Necromancer",
-            "baseline": {
-              "damage": 7,
-              "defence": 1,
-              "hp": 12,
-              "dodgeChance": 0.06
-            }
+            "name": "Necromancer"
           },
           {
             "id": "bandit",
-            "name": "Bandit",
-            "baseline": {
-              "damage": 6,
-              "defence": 2,
-              "hp": 14,
-              "dodgeChance": 0.12
-            }
+            "name": "Bandit"
           },
           {
             "id": "voidwalker",
-            "name": "Voidwalker",
-            "baseline": {
-              "damage": 9,
-              "defence": 3,
-              "hp": 20,
-              "dodgeChance": 0.1
-            }
+            "name": "Voidwalker"
           }
         ],
         "weapons": [
@@ -1805,7 +1751,7 @@
       function updateHint() {
         const hint = q("editor-hint");
         if (activeTool.kind === "select") hint.textContent = "Click a placed element to inspect or edit it.";
-        else if (activeTool.kind === "paintOpen") hint.textContent = "Click or drag to carve open floor.";
+        else if (activeTool.kind === "paintOpen") hint.textContent = "Click or drag to carve open floor (clears any element there).";
         else if (activeTool.kind === "paintWall") hint.textContent = "Click or drag to fill in wall (clears any element there first).";
         else if (activeTool.kind === "setEntrance") hint.textContent = "Click an open tile to set the arrival point.";
         else if (activeTool.kind === "setExit") hint.textContent = "Click an open tile to set the stairs-up (exit) tile.";
@@ -1872,6 +1818,8 @@
 
         if (activeTool.kind === "paintOpen") {
           const cleared = clearWallDecorationsAt(floor, tile);
+          const removedLabel = removeElementAtTile(floor, tile, occupied);
+          if (removedLabel) cleared.push(removedLabel);
           floor.walls[tile.y][tile.x] = false;
           scheduleSave(floor.id);
           renderCanvas();
@@ -1980,13 +1928,11 @@
         const [kind, subtype, variant] = value.split(":");
         let arrayKey, el;
         if (kind === "enemy") {
-          const species = PALETTE.monsters.find((m) => m.id === subtype);
           arrayKey = "enemies";
           el = {
             id: freshElementId(floor, "enemy"),
             position: tile,
             species: subtype,
-            stats: { ...species.baseline },
           };
         } else if (kind === "item") {
           arrayKey = "items";
@@ -2153,26 +2099,6 @@
         return field(label, inp);
       }
 
-      function dodgeField(el, baseline, onChange) {
-        const inp = document.createElement("input");
-        inp.type = "number";
-        inp.min = "0";
-        inp.max = "100";
-        inp.value = el.dodgeChance === undefined ? "" : Math.round(el.dodgeChance * 100);
-        inp.placeholder = baseline ? String(Math.round(baseline.dodgeChance * 100)) : "";
-        inp.addEventListener("change", () => {
-          const v = Number(inp.value);
-          if (inp.value === "") delete el.dodgeChance;
-          else if (Number.isFinite(v) && v >= 0 && v <= 100) el.dodgeChance = v / 100;
-          else {
-            inp.value = el.dodgeChance === undefined ? "" : Math.round(el.dodgeChance * 100); // reject out of range
-            return;
-          }
-          onChange();
-        });
-        return field("Dodge % (blank = type default)", inp);
-      }
-
       function textField(label, value, onChange) {
         const inp = document.createElement("input");
         inp.type = "text";
@@ -2212,13 +2138,6 @@
           content.appendChild(checkField("End boss", !!el.isEndBoss, (v) => { el.isEndBoss = v || undefined; commit(floor); }));
           // 034 FR-021: elite = +50% HP/damage/defence and a 50% equipment drop chance.
           content.appendChild(checkField("Elite", !!el.isElite, (v) => { el.isElite = v || undefined; commit(floor); }));
-          content.appendChild(numberField("Damage", el.stats.damage, (v) => { el.stats.damage = v; commit(floor); }));
-          content.appendChild(numberField("Defence", el.stats.defence, (v) => { el.stats.defence = v; commit(floor); }));
-          content.appendChild(numberField("HP", el.stats.hp, (v) => { el.stats.hp = v; commit(floor); }));
-          // 032 C5: per-monster dodge override in whole percent; empty reverts to the species default.
-          content.appendChild(
-            dodgeField(el, (PALETTE.monsters.find((m) => m.id === el.species) || {}).baseline, () => commit(floor)),
-          );
         } else if (arrayKey === "items") {
           content.appendChild(
             selectField("Kind", PALETTE.itemKinds, el.kind, (v) => {

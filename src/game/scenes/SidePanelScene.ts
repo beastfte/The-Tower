@@ -481,7 +481,7 @@ export class SidePanelScene extends Phaser.Scene {
       wrap,
     );
     make("span", {}, labels, "HP");
-    make("span", { color: isLowHp(hp, maxHp) ? "var(--ui-red)" : "var(--ui-muted)" }, labels, `${hp} / ${maxHp}`).dataset.testid =
+    make("span", { color: isLowHp(hp, maxHp) ? "var(--ui-red)" : "var(--ui-muted)" }, labels, `${Math.ceil(hp)} / ${maxHp}`).dataset.testid =
       "panel-hp-text";
     const track = make("div", { height: px(8), background: "var(--ui-soft)", borderRadius: "999px", overflow: "hidden" }, wrap);
     const fill = make("div", { height: "100%", background: "var(--ui-red)", borderRadius: "999px" }, track);

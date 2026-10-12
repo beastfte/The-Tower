@@ -116,7 +116,7 @@ export async function approach(
     // Only the shapes this helper reads — the real types live in src/ and pull in Phaser.
     type P = { x: number; y: number };
     type Placed = { position: P };
-    type Enemy = Placed & { species: string; stats: { hp: number; damage: number } };
+    type Enemy = Placed & { species: string };
     type Item = Placed & { id: string; kind: string; payload: unknown };
     type Floor = {
       grid: { walkable: boolean }[][];
@@ -128,7 +128,7 @@ export async function approach(
     type Ctx = {
       currentFloor: Floor;
       save: { character: Record<string, unknown>; currentFloorState: { playerPosition: P } };
-      monsterSpeciesCatalog: Map<string, { name: string }>;
+      monsterSpeciesCatalog: Map<string, { name: string; baselineStats: { hp: number; damage: number } }>;
     };
     const win = window as unknown as { __game: { registry: { get: (k: string) => Ctx } } };
     const ctx = win.__game.registry.get("ctx");
@@ -149,9 +149,11 @@ export async function approach(
     const candidates: { position: P; name: string }[] =
       target === "enemy"
         ? [...floor.enemies]
-            .sort((a, b) =>
-              opts.strongestEnemy ? b.stats.damage - a.stats.damage : a.stats.hp - b.stats.hp,
-            )
+            .sort((a, b) => {
+              const sa = ctx.monsterSpeciesCatalog.get(a.species)?.baselineStats ?? { hp: 0, damage: 0 };
+              const sb = ctx.monsterSpeciesCatalog.get(b.species)?.baselineStats ?? { hp: 0, damage: 0 };
+              return opts.strongestEnemy ? sb.damage - sa.damage : sa.hp - sb.hp;
+            })
             .map((enemy) => ({
               position: enemy.position,
               name: ctx.monsterSpeciesCatalog.get(enemy.species)?.name ?? "Unknown creature",

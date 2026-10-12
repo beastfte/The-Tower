@@ -26,7 +26,7 @@ import { findLeverAt, resolveLeverEffects } from "../../domain/hazard/lever";
 import { findCrackedWallAt, resolveBrokenWallPositions, resolveWallZone } from "../../domain/floor/wall";
 import { ensureWallTexture, ensureDoorTexture, type DoorTier } from "../render/wallSprites";
 import { hasDiedFromHazard, markDead } from "../../domain/hazard/death";
-import { monsterCombatant } from "../../domain/combat/battle";
+import { MONSTER_COMBAT_FALLBACK, monsterCombatant } from "../../domain/combat/battle";
 import { computeEffectiveStats, computeMaxHp } from "../../domain/character/combatStats";
 import { describeDrops, formatBagFullEntry } from "../eventLog/formatEntry";
 import { eliteStats, GRADES, rollMonsterDrop } from "../../domain/character/grades";
@@ -628,8 +628,8 @@ export class FloorScene extends Phaser.Scene {
         critDamageBonus: stats.critDamageBonus,
         dodgeChance: stats.dodgeChance,
       },
-      // FR-032 (research R6): authored damage × species interval; floor data is untouched.
-      monster: monsterCombatant(eliteStats(enemy), species, enemy.dodgeChance),
+      // Every monster stat comes from its species in code, ×1.5 for elites.
+      monster: monsterCombatant(eliteStats((species ?? MONSTER_COMBAT_FALLBACK).baselineStats, enemy.isElite), species),
       playerMaxHp: computeMaxHp(character),
       potionCount: character.potionCount ?? 0,
       playerTextureKey: ensurePlayerTexture(this, this.playerArmourLook(), this.playerWeapon(), "right", "idle"),

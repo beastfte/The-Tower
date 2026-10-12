@@ -228,14 +228,14 @@ test.describe("US4: bag actions and the 25-slot limit (033)", () => {
   test("a picked-up weapon lands in the bag; Equip wears it and logs the stat change", async ({ page }) => {
     await newGame(page);
     await setCharacter(page, { equippedWeaponId: "woodSword" });
-    await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("13");
+    await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("8");
 
     const { onto } = await placeItemAhead(page, { id: "e2e-diamond-sword", kind: "weapon", payload: "diamondSword" });
     await pressAndWait(page, onto);
     const save = await getCtxSave(page);
     expect(save.character.bagGear).toEqual([item("diamondSword")]);
     expect(save.character.equippedWeaponId).toBe("woodSword"); // not worn automatically
-    await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("13");
+    await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("8");
     await expect(page.locator('[data-testid="bag-count"]')).toHaveText("1 / 25");
 
     await expect(page.locator('[data-testid="bag-equip"]')).toBeDisabled();
@@ -244,7 +244,7 @@ test.describe("US4: bag actions and the 25-slot limit (033)", () => {
     await expect(page.locator('[data-testid="bag-use"]')).toBeDisabled();
     await page.locator('[data-testid="bag-equip"]').click();
 
-    await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("24");
+    await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("19");
     await expect(page.locator('[data-testid="slot-weapon-name"]')).toHaveText("Diamond Sword");
     expect((await getCtxSave(page)).character.bagGear).toEqual([item("woodSword")]);
     await expect(page.locator('[data-testid="bag-equip"]')).toBeDisabled(); // selection cleared
@@ -256,7 +256,7 @@ test.describe("US4: bag actions and the 25-slot limit (033)", () => {
     await page.locator('[data-testid="slot-weapon"]').click();
     await expect(page.locator('[data-testid="slot-weapon-name"]')).toHaveText("Empty");
     await expect(page.locator('[data-testid="bag-count"]')).toHaveText("1 / 25");
-    await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("10");
+    await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("5");
   });
 
   test("Discard removes one unit and logs it; Use is disabled outside battle", async ({ page }) => {

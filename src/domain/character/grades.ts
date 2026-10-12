@@ -109,10 +109,10 @@ function rollGrade(rng: () => number): GradeId {
   return "common";
 }
 
-/** 034 C5: regular 20% gear / 20% nothing / 60% gold (1–10); elite 50% gear / 50% gold (10–30). */
+/** 034 C5 (037: regular gear 20%→10%): regular 10% gear / 30% nothing / 60% gold (1–10); elite 50% gear / 50% gold (10–30). */
 export function rollMonsterDrop(floorNumber: number, elite: boolean, rng: () => number): DropTable {
   const roll = rng();
-  if (roll < (elite ? 0.5 : 0.2)) {
+  if (roll < (elite ? 0.5 : 0.1)) {
     const band = bandFor(floorNumber);
     const slot = SLOT_CHOICES[Math.floor(rng() * SLOT_CHOICES.length)]!;
     const key = slot === "weapon" ? band.weapon : `${band.material}:${slot}`;
@@ -122,9 +122,9 @@ export function rollMonsterDrop(floorNumber: number, elite: boolean, rng: () => 
   return { currency: elite ? rollGold(20, 5, 10, 30, rng) : rollGold(3, 3, 1, 10, rng) };
 }
 
-/** 034 C8: an elite's HP, damage and defence are ×1.5, rounded up. */
-export function eliteStats(enemy: { stats: CombatStats; isElite?: boolean }): CombatStats {
-  if (!enemy.isElite) return enemy.stats;
-  const { hp, damage, defence } = enemy.stats;
-  return { ...enemy.stats, hp: Math.ceil(hp * 1.5), damage: Math.ceil(damage * 1.5), defence: Math.ceil(defence * 1.5) };
+/** 034 C8: an elite's HP, damage and defence are ×1.5 of its species baseline, rounded up. */
+export function eliteStats(stats: CombatStats, isElite: boolean | undefined): CombatStats {
+  if (!isElite) return stats;
+  const { hp, damage, defence } = stats;
+  return { ...stats, hp: Math.ceil(hp * 1.5), damage: Math.ceil(damage * 1.5), defence: Math.ceil(defence * 1.5) };
 }

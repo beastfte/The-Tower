@@ -29,11 +29,6 @@ export const FLOOR_2: FloorDefinition = {
         "y": 1
       },
       "species": "goblin",
-      "stats": {
-        "damage": 4,
-        "defence": 1,
-        "hp": 12
-      },
       "isEndBoss": true
     }
   ],

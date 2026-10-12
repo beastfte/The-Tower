@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveAttack, resolveHit } from "../../../src/domain/combat/resolveAttack";
+import { DEFENCE_K, formatDamage, resolveAttack, resolveHit } from "../../../src/domain/combat/resolveAttack";
 
 const attacker = (attack: number, attackIntervalSec: number, critDamageBonus = 0) => ({
   attack,
@@ -7,38 +7,60 @@ const attacker = (attack: number, attackIntervalSec: number, critDamageBonus = 0
   critDamageBonus,
 });
 
-/** 027 contract C4: every hit deals the agreed formula, rounded up last. */
-describe("resolveHit (027 C4)", () => {
+/** 038: a hit lands at K / (K + defence) of its size, then crit multiplies; no rounding. */
+describe("resolveHit (038)", () => {
   it.each([
-    { atk: 20, def: 5, interval: 2.0, crit: false, bonus: 0, hit: 10, note: "slow attacker" },
-    { atk: 5, def: 5, interval: 0.5, crit: false, bonus: 0, hit: 3, note: "fast attacker, 2.5 rounds up" },
-    { atk: 10, def: 4, interval: 1.0, crit: false, bonus: 0, hit: 6, note: "1s = pre-revamp max(0, ATK-DEF)" },
-    { atk: 10, def: 4, interval: 1.0, crit: true, bonus: 0, hit: 9, note: "crit: ceil(6 x 1.5)" },
-    { atk: 10, def: 4, interval: 1.0, crit: true, bonus: 0.25, hit: 11, note: "bonus is additive: ceil(6 x 1.75)" },
-    { atk: 10, def: 5, interval: 0.6, crit: false, bonus: 0, hit: 7, note: "float guard: 10 - 5x0.6 is not 8" },
-    { atk: 3, def: 5, interval: 1.0, crit: true, bonus: 0, hit: 0, note: "crit on 0 stays 0" },
-  ])("$note → $hit", ({ atk, def, interval, crit, bonus, hit }) => {
-    expect(resolveHit(attacker(atk, interval, bonus), { defence: def }, crit)).toBe(hit);
+    { atk: 12, def: 0, crit: false, bonus: 0, hit: 12, note: "no defence: the full hit" },
+    { atk: 12, def: 10, crit: false, bonus: 0, hit: 6, note: "defence = K halves it" },
+    { atk: 12, def: 30, crit: false, bonus: 0, hit: 3, note: "defence = 3K quarters it" },
+    { atk: 1.5, def: 5, crit: false, bonus: 0, hit: 1, note: "fractional, not rounded" },
+    { atk: 12, def: 10, crit: true, bonus: 0, hit: 9, note: "crit after defence: 6 x 1.5" },
+    { atk: 12, def: 10, crit: true, bonus: 0.25, hit: 10.5, note: "bonus is additive: 6 x 1.75" },
+  ])("$note → $hit", ({ atk, def, crit, bonus, hit }) => {
+    expect(resolveHit(attacker(atk, 1, bonus), { defence: def }, crit)).toBeCloseTo(hit, 10);
   });
 
-  it("never returns a negative number, even when defence dwarfs attack", () => {
-    expect(resolveHit(attacker(1, 2), { defence: 100 }, false)).toBe(0);
-    expect(Object.is(resolveHit(attacker(1, 2), { defence: 100 }, true), -0)).toBe(false);
+  it("never reaches 0 however high defence goes, and never goes negative", () => {
+    expect(resolveHit(attacker(1, 2), { defence: 1000 }, false)).toBeGreaterThan(0);
+    expect(resolveHit(attacker(-5, 1), { defence: 0 }, true)).toBe(0);
   });
 
-  it("multiplies the crit after defence, not before", () => {
-    // (12 - 2x2) x 1.5 = 12, whereas (12 x 1.5) - 4 would be 14.
-    expect(resolveHit(attacker(12, 2), { defence: 2 }, true)).toBe(12);
+  it("each extra point of defence helps, but less than the one before", () => {
+    const taken = (def: number) => resolveHit(attacker(10, 1), { defence: def }, false);
+    for (let d = 0; d < 30; d++) {
+      expect(taken(d + 1)).toBeLessThan(taken(d));
+      expect(taken(d) - taken(d + 1)).toBeGreaterThan(taken(d + 1) - taken(d + 2));
+    }
+  });
+
+  it("does not depend on attack speed, so equal raw DPS stays equal DPS", () => {
+    const slow = resolveHit(attacker(20, 2), { defence: 5 }, false) / 2;
+    const fast = resolveHit(attacker(5, 0.5), { defence: 5 }, false) / 0.5;
+    expect(slow).toBeCloseTo(fast, 10);
+  });
+
+  it("uses K = 10", () => {
+    expect(DEFENCE_K).toBe(10);
   });
 });
 
-/** Trap/hazard damage is out of scope for 027 and keeps the flat rule. */
-describe("resolveAttack (hazards only)", () => {
-  it("deals damage minus defence", () => {
-    expect(resolveAttack({ damage: 10, defence: 3, hp: 1 }, { damage: 0, defence: 4, hp: 1 })).toBe(6);
+describe("resolveAttack (hazards)", () => {
+  it("uses the same diminishing defence as combat", () => {
+    expect(resolveAttack({ damage: 8, defence: 3, hp: 1 }, { damage: 0, defence: 10, hp: 1 })).toBe(4);
   });
 
   it("never deals negative damage", () => {
-    expect(resolveAttack({ damage: 2, defence: 0, hp: 1 }, { damage: 0, defence: 10, hp: 1 })).toBe(0);
+    expect(resolveAttack({ damage: -2, defence: 0, hp: 1 }, { damage: 0, defence: 10, hp: 1 })).toBe(0);
+  });
+});
+
+describe("formatDamage", () => {
+  it.each([
+    [6, "6"],
+    [1.36, "1.4"],
+    [0.04, "0"],
+    [10.5, "10.5"],
+  ])("%d → %s", (d, s) => {
+    expect(formatDamage(d)).toBe(s);
   });
 });

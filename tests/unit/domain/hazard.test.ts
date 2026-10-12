@@ -9,8 +9,8 @@ import { createTower } from "../../../src/domain/floor/tower";
 import type { FloorDefinition } from "../../../src/domain/floor/types";
 
 describe("applyHazardDamage", () => {
-  it("reduces HP by damage minus defence", () => {
-    expect(applyHazardDamage({ id: "h1", position: { x: 0, y: 0 }, damage: 8 }, 2, 20)).toBe(14);
+  it("reduces HP by damage × 10/(10+defence)", () => {
+    expect(applyHazardDamage({ id: "h1", position: { x: 0, y: 0 }, damage: 8 }, 10, 20)).toBe(16);
   });
 
   it("never reduces HP below 0", () => {

@@ -33,7 +33,7 @@ const FIRST_FLOOR: FloorDefinition = {
   grid: [[{ walkable: true }, { walkable: true }]],
   entrance: { x: 0, y: 0 },
   exit: { x: 1, y: 0 },
-  enemies: [{ id: "test-goblin", position: { x: 1, y: 0 }, species: "goblin", stats: { damage: 4, defence: 1, hp: 12 } }],
+  enemies: [{ id: "test-goblin", position: { x: 1, y: 0 }, species: "goblin" }],
   items: [
     { id: "test-sword", position: { x: 0, y: 0 }, kind: "weapon", payload: "sword" },
     { id: "test-leather-chest", position: { x: 0, y: 0 }, kind: "armor", payload: { material: "leather", slot: "chest" } },
@@ -57,7 +57,6 @@ const FINAL_FLOOR: FloorDefinition = {
       id: "test-boss",
       position: { x: 1, y: 0 },
       species: "ogre",
-      stats: { damage: 5, defence: 3, hp: 25 },
       isEndBoss: true,
     },
   ],
@@ -95,7 +94,7 @@ describe("gameplay integration", () => {
     const stats = computeEffectiveStats(ctx.save.character, weaponCatalog, armorCatalog);
     let state: BattleState = startBattle(
       { hp: ctx.save.character.currentHp, attack: stats.damage, defence: stats.defence, attackIntervalSec: 1, critChance: 0, critDamageBonus: 0, dodgeChance: 0 },
-      monsterCombatant(enemy.stats, MONSTER_SPECIES.goblin),
+      monsterCombatant(MONSTER_SPECIES[enemy.species].baselineStats, MONSTER_SPECIES.goblin),
       30,
       0,
     );

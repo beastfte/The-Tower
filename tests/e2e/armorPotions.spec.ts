@@ -108,14 +108,14 @@ test("attack and defense potions permanently raise stats and persist across relo
 
   let save = await getCtxSave(page);
   expect(save.character.bonusDamage).toBe(2);
-  await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("12");
+  await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("7");
 
   await pressAndWait(page, "ArrowRight"); // (8,13) -> (9,13)
   await pressAndWait(page, "ArrowRight"); // (9,13) -> (10,13), defense potion (logged only)
 
   save = await getCtxSave(page);
-  expect(save.character.baseStats.defence).toBe(3); // base 2 + defense potion 1
-  await expect(page.locator('[data-testid="stat-def"]')).toHaveText("3");
+  expect(save.character.baseStats.defence).toBe(2); // base 1 + defense potion 1
+  await expect(page.locator('[data-testid="stat-def"]')).toHaveText("2");
 
   await page.reload();
   await waitForActiveScene(page, "MainMenuScene");
@@ -124,7 +124,7 @@ test("attack and defense potions permanently raise stats and persist across relo
 
   const afterResume = await getCtxSave(page);
   expect(afterResume.character.bonusDamage).toBe(2);
-  expect(afterResume.character.baseStats.defence).toBe(3);
+  expect(afterResume.character.baseStats.defence).toBe(2);
 });
 
 /** 027 US6 (contracts C16–C18): health potions are carried, not drunk on pickup. Uses runtime

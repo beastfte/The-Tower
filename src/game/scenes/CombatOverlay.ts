@@ -25,6 +25,7 @@ import { computeMonsterAttackFrame, MONSTER_ATTACK_IMPACT_MS, type MonsterCombat
 import { computePlayerAttackFrame, type PlayerAttackFrame } from "../playerAnimation";
 import { ensureMonsterCombatTexture, ensurePlayerTexture, hasMonsterCombatFrames, type PlayerArmourLook } from "../render/spriteTextures";
 import type { WeaponId } from "../../domain/character/types";
+import { formatDamage } from "../../domain/combat/resolveAttack";
 
 type HitEvent = Extract<BattleEvent, { kind: "hit" }>;
 /** 032 C6: a dodge lands (and waits for the strike frame) exactly where a hit would. */
@@ -369,7 +370,7 @@ export class CombatOverlay extends Phaser.Scene {
       const c = this.state_[side];
       const maxHp = side === "player" ? this.state_.playerMaxHp : this.data_.monster.hp;
       const view = this.views_[side];
-      view.hpNumber.textContent = String(c.hp);
+      view.hpNumber.textContent = String(Math.ceil(c.hp)); // fractional HP; a living side never shows 0
       view.hpFill.style.width = `${Math.round((c.hp / Math.max(1, maxHp)) * 100)}%`;
       const charge = this.ended_ ? 0 : Math.min(1, c.charge / c.attackIntervalSec);
       view.barFill.style.width = `${Math.round(charge * 100)}%`;
@@ -406,7 +407,7 @@ export class CombatOverlay extends Phaser.Scene {
     const sprite = this.views_[event.target].sprite;
     sprite.setTintFill(0xffffff);
     this.time.delayedCall(HIT_FLASH_MS, () => sprite.clearTint());
-    this.floatNumber(event.target, String(event.damage), this.popStyle(event));
+    this.floatNumber(event.target, formatDamage(event.damage), this.popStyle(event));
   }
 
   /** 030 (C6): (re)starts the attack from its wind-up. A hit still waiting on an earlier strike

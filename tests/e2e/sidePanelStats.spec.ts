@@ -11,8 +11,8 @@ test("a new game shows damage, defence, attack speed, crit, crit damage and dodg
   await page.keyboard.press("KeyN");
   await waitForActiveScene(page, "FloorScene");
 
-  await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("10");
-  await expect(page.locator('[data-testid="stat-def"]')).toHaveText("2");
+  await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("5");
+  await expect(page.locator('[data-testid="stat-def"]')).toHaveText("1");
   await expect(page.locator('[data-testid="stat-spd"]')).toHaveText("1.00/s");
   await expect(page.locator('[data-testid="stat-crit"]')).toHaveText("5%");
   await expect(page.locator('[data-testid="stat-critdmg"]')).toHaveText("150%");

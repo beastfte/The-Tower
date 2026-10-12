@@ -38,7 +38,6 @@ describe("validateTower — end boss must be geometrically unavoidable (017, inv
       id: "boss",
       position: { x: 7, y: 7 },
       species: "ogre",
-      stats: { damage: 6, defence: 4, hp: 30 },
       isEndBoss: true,
     };
     // Only row 7 is open at all — the boss's own tile is the sole crossing point.
@@ -52,7 +51,6 @@ describe("validateTower — end boss must be geometrically unavoidable (017, inv
       id: "boss",
       position: { x: 7, y: 7 },
       species: "ogre",
-      stats: { damage: 6, defence: 4, hp: 30 },
       isEndBoss: true,
     };
     // Row 6 is ALSO fully open now — a second corridor lets the player cross entirely without

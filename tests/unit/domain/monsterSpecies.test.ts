@@ -23,10 +23,9 @@ describe("MONSTER_SPECIES live-battle stats (027)", () => {
     expect(c).toEqual({ hp: 20, attack: 7, defence: 2, attackIntervalSec: 1, critChance: 0.05, critDamageBonus: 0, dodgeChance: 0.1 });
   });
 
-  it("resolves dodge as override, then species default, then fallback (032 C2)", () => {
+  it("takes dodge from the species, else the fallback (032 C2)", () => {
     const bat = MONSTER_SPECIES.bat;
     const stats = { damage: 1, defence: 0, hp: 1 };
-    expect(monsterCombatant(stats, bat, 0.5).dodgeChance).toBe(0.5);
     expect(monsterCombatant(stats, bat).dodgeChance).toBe(bat.dodgeChance);
     expect(monsterCombatant(stats, undefined).dodgeChance).toBe(0.1);
   });

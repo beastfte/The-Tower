@@ -19,10 +19,6 @@ describe("sync-tool-palette — palette generation matches the game's source cat
     expect(buildPalette()).toEqual(embedded);
   });
 
-  it("carries each species' default dodge chance as part of its baseline (032 C5)", () => {
-    for (const m of buildPalette().monsters) expect(m.baseline.dodgeChance).toBeGreaterThanOrEqual(0.02);
-  });
-
   it("includes every monster species, weapon, armor material/slot, door/key tier, lever effect kind, item kind, and hazard kind the game currently defines", () => {
     const palette = buildPalette();
     expect(palette.monsters.map((m) => m.id).sort()).toEqual([
@@ -73,7 +69,7 @@ describe("MONSTER_COLOR / MONSTER_GLYPH — hand-maintained, but completeness is
 
 describe("findRemovedEntries — FR-020's repo-side refuse-and-report check", () => {
   const base: PaletteManifest = {
-    monsters: [{ id: "goblin", name: "Goblin", baseline: { damage: 4, defence: 1, hp: 12, dodgeChance: 0.1 } }],
+    monsters: [{ id: "goblin", name: "Goblin" }],
     weapons: [{ id: "sword", name: "Sword" }],
     armorMaterials: ["cloth"],
     armorSlots: ["helm"],
@@ -86,7 +82,7 @@ describe("findRemovedEntries — FR-020's repo-side refuse-and-report check", ()
   it("reports nothing when nothing disappears (an addition is fine)", () => {
     const withAddition: PaletteManifest = {
       ...base,
-      monsters: [...base.monsters, { id: "ogre", name: "Ogre", baseline: { damage: 6, defence: 4, hp: 30, dodgeChance: 0.1 } }],
+      monsters: [...base.monsters, { id: "ogre", name: "Ogre" }],
     };
     expect(findRemovedEntries(base, withAddition)).toEqual([]);
   });
@@ -150,7 +146,7 @@ describe("syncPalette — refuses to write when a removal is detected (FR-020)",
     const before = readFileSync(scratchPath, "utf-8");
     const withFakeMonster = before.replace(
       `"monsters": [`,
-      `"monsters": [\n          { "id": "totally-fake-species", "name": "Fake", "baseline": { "damage": 1, "defence": 1, "hp": 1 } },`,
+      `"monsters": [\n          { "id": "totally-fake-species", "name": "Fake" },`,
     );
     expect(withFakeMonster).not.toBe(before);
     writeFileSync(scratchPath, withFakeMonster, "utf-8");

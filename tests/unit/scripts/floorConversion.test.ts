@@ -17,7 +17,6 @@ function sampleDefinition(): FloorDefinition {
       {
         id: "e1",
         position: { x: 1, y: 1 },
-        stats: { damage: 4, defence: 1, hp: 12 },
         species: "goblin",
       },
     ],
@@ -140,13 +139,13 @@ describe("floorDefinitionToExport / floorExportToDefinition round-trip", () => {
   });
 });
 
-describe("enemy dodgeChance override (032 C5)", () => {
-  it("survives export and back, and an enemy without one gains none", () => {
-    const def = sampleDefinition();
-    def.enemies.push({ id: "e2", position: { x: 1, y: 1 }, stats: { damage: 1, defence: 0, hp: 1 }, species: "bat", dodgeChance: 0.5 });
-    const back = floorExportToDefinition(floorDefinitionToExport(def, 0));
-    expect(back.enemies.find((e) => e.id === "e2")?.dodgeChance).toBe(0.5);
-    expect(back.enemies.find((e) => e.id === "e1")).not.toHaveProperty("dodgeChance");
+describe("monster stats are never imported", () => {
+  it("drops a stale export's stats and dodgeChance, keeping species, elite and boss flags", () => {
+    const fe = floorDefinitionToExport(sampleDefinition(), 0);
+    const stale = { id: "e2", position: { x: 1, y: 1 }, species: "bat", isElite: true, stats: { damage: 9, defence: 9, hp: 9 }, dodgeChance: 0.5 };
+    fe.enemies.push(stale as unknown as (typeof fe.enemies)[number]);
+    const back = floorExportToDefinition(fe).enemies.find((e) => e.id === "e2");
+    expect(back).toEqual({ id: "e2", position: { x: 1, y: 1 }, species: "bat", isElite: true });
   });
 });
 

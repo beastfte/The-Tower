@@ -24,7 +24,6 @@ function buildFixtureFloor(): FloorDefinition {
         id: "test-boss",
         position: { x: 1, y: 1 },
         species: "ogre",
-        stats: { damage: 5, defence: 3, hp: 25 },
         isEndBoss: true,
       },
     ],

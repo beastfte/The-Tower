@@ -154,14 +154,15 @@ describe("advanceBattle crits (C5)", () => {
   });
 
   it("applies the crit multiplier to the damage dealt", () => {
-    const state = startBattle(fighter({ attack: 10, critChance: 1 }), fighter({ defence: 4, attackIntervalSec: 1e9 }), 1e6, 0);
+    // 12 × 10/(10+10) = 6, × 1.5 = 9.
+    const state = startBattle(fighter({ attack: 12, critChance: 1 }), fighter({ defence: 10, attackIntervalSec: 1e9 }), 1e6, 0);
     const { events } = advanceBattle(state, 1, () => 0.999);
     expect(events[0]).toEqual({ kind: "hit", target: "monster", damage: 9, isCrit: true });
   });
 });
 
-/** 027 US5 (SC-002, SC-003): defence removes damage per second, not damage per hit. */
-describe("defence normalises damage per second across attack speeds (US5)", () => {
+/** 038: defence scales damage by K/(K+DEF), so attackers with equal raw DPS stay equal. */
+describe("defence scales damage per second equally across attack speeds", () => {
   /** Damage per second a fixed-defence target takes from one attacker over 100 simulated seconds. */
   function dps(attack: number, attackIntervalSec: number, defence: number): number {
     const state = startBattle(
@@ -175,27 +176,15 @@ describe("defence normalises damage per second across attack speeds (US5)", () =
     return total / 100;
   }
 
-  it.each([0, 1, 3, 5, 9])("DEF %i: a slow and a fast attacker with equal raw DPS lose exactly DEF each (SC-003)", (def) => {
-    // 20 per 2s and 10 per 1s are both 10 raw DPS; DEF × interval is a whole number, so no rounding.
-    expect(dps(20, 2, def)).toBe(10 - def);
-    expect(dps(10, 1, def)).toBe(10 - def);
+  it.each([0, 1, 3, 5, 10, 40])("DEF %i: slow, normal and fast attackers with 10 raw DPS all deal 10 × 10/(10+DEF)", (def) => {
+    const ideal = (10 * 10) / (10 + def);
+    expect(dps(20, 2, def)).toBeCloseTo(ideal, 6);
+    expect(dps(10, 1, def)).toBeCloseTo(ideal, 6);
+    expect(dps(5, 0.5, def)).toBeCloseTo(ideal, 6);
   });
 
-  it("each extra point of defence lowers DPS by exactly 1, whatever the speed, until it reaches 0", () => {
-    for (let def = 0; def < 10; def++) {
-      expect(dps(20, 2, def) - dps(20, 2, def + 1)).toBe(1);
-      expect(dps(10, 1, def) - dps(10, 1, def + 1)).toBe(1);
-    }
-    expect(dps(20, 2, 12)).toBe(0);
-  });
-
-  it.each([0, 1, 2, 3])("DEF %i: a fast attacker's DPS exceeds the ideal only by per-hit rounding (SC-002)", (def) => {
-    // 5 per 0.5s is also 10 raw DPS. Rounding each hit up adds under 1 point per hit, i.e. < 2 DPS.
-    const ideal = 10 - def;
-    const fast = dps(5, 0.5, def);
-    expect(fast).toBeGreaterThanOrEqual(ideal);
-    expect(fast).toBeLessThan(ideal + 1 / 0.5);
-    expect(dps(20, 2, def)).toBe(ideal);
+  it("defence never takes DPS to 0", () => {
+    expect(dps(10, 1, 1000)).toBeGreaterThan(0);
   });
 });
 

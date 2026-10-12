@@ -1,12 +1,19 @@
 import type { CombatStats } from "../types";
 
+/** 038: defence is a diminishing reduction — a hit lands at K / (K + defence) of its size, so
+ * 10 defence halves it and no amount of defence ever cancels it. */
+export const DEFENCE_K = 10;
+
+export function defenceMultiplier(defence: number): number {
+  return DEFENCE_K / (DEFENCE_K + Math.max(0, defence));
+}
+
 /**
- * Flat per-hit damage: max(0, attacker.damage - defender.defence). Combat no longer uses this
- * (see `resolveHit`); it remains the trap/hazard damage rule (`hazard/hazardDamage.ts`), which
- * 027 deliberately leaves unchanged (spec Assumptions: no change to trap damage).
+ * Trap/hazard damage (`hazard/hazardDamage.ts`): the same diminishing defence as combat, no
+ * crit, no rounding.
  */
 export function resolveAttack(attacker: CombatStats, defender: CombatStats): number {
-  return Math.max(0, attacker.damage - defender.defence);
+  return Math.max(0, attacker.damage) * defenceMultiplier(defender.defence);
 }
 
 export interface HitAttacker {
@@ -20,16 +27,16 @@ export interface HitDefender {
 }
 
 /**
- * 027 FR-011/FR-012 (contract C4): one hit in a live battle.
- * Defence is scaled by the attacker's interval, so it removes a fixed amount of damage *per
- * second* regardless of how often the attacker swings. The crit multiplier (1.5 + bonus,
- * FR-016) applies after defence, and rounding up is the very last step.
- *
- * The `- 1e-9` guards binary-fraction error: `10 - 5 * 0.6` is 7.000000000000001, which a bare
- * ceil would turn into 8 (research R4). Real fractional damage (e.g. 2.5) still rounds up.
+ * One hit in a live battle (038, supersedes 027 FR-011/C4's flat per-second defence and
+ * round-up). The hit is reduced by `defenceMultiplier`, then the crit multiplier (1.5 + bonus,
+ * FR-016) applies. Damage is fractional; the UI rounds what it shows.
  */
 export function resolveHit(attacker: HitAttacker, defender: HitDefender, isCrit: boolean): number {
-  const raw = Math.max(0, attacker.attack - defender.defence * attacker.attackIntervalSec);
   const multiplier = isCrit ? 1.5 + attacker.critDamageBonus : 1;
-  return Math.max(0, Math.ceil(raw * multiplier - 1e-9));
+  return Math.max(0, attacker.attack) * defenceMultiplier(defender.defence) * multiplier;
+}
+
+/** A hit as shown to the player: one decimal place, no trailing ".0". */
+export function formatDamage(damage: number): string {
+  return String(Math.round(damage * 10) / 10);
 }

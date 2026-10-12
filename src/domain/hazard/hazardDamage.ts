@@ -12,7 +12,7 @@ export function findHazardAt(
 
 /**
  * Applies a hazard's damage to the player's current HP, reusing the same
- * damage-minus-defence formula as combat (FR-013b, contracts/combat-resolution-contract.md).
+ * diminishing-defence reduction as combat (038; fractional, no rounding).
  * Unlike combat, this is not pre-blocked and can reduce HP to 0.
  */
 export function applyHazardDamage(

@@ -4,6 +4,7 @@ import type { ArmorPickupPayload, EnemyDefinition, FloorDefinition } from "./typ
 import { DOOR_KEY_TIERS, type WeaponId } from "../character/types";
 import { ARMOR_PIECES, armorPieceKey } from "../../data/armorPieces";
 import { WEAPONS } from "../../data/weapons";
+import { MONSTER_SPECIES } from "../../data/monsterSpecies";
 
 export interface ValidationResult {
   valid: boolean;
@@ -201,11 +202,10 @@ export function validateFloorDefinition(floor: FloorDefinition): ValidationResul
     errors.push(`Floor "${floor.id}": exit tile coincides with occupied content (invariant 1)`);
   }
 
-  // 032 C4: a per-placement dodge override must be a probability.
+  // Every monster stat comes from its species, so the species must exist.
   for (const enemy of floor.enemies) {
-    const d = enemy.dodgeChance;
-    if (d !== undefined && !(Number.isFinite(d) && d >= 0 && d <= 1)) {
-      errors.push(`Floor "${floor.id}": enemy "${enemy.id}" dodgeChance must be a number from 0 to 1`);
+    if (!Object.hasOwn(MONSTER_SPECIES, enemy.species)) {
+      errors.push(`Floor "${floor.id}": enemy "${enemy.id}" has unknown species "${enemy.species}"`);
     }
     if (enemy.isElite !== undefined && typeof enemy.isElite !== "boolean") {
       errors.push(`Floor "${floor.id}": enemy "${enemy.id}" isElite must be a boolean`);

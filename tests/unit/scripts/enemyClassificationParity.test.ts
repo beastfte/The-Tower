@@ -76,7 +76,7 @@ function buildFixture(openRows: boolean[][], entrance: { x: number; y: number },
 }
 
 function enemyAt(id: string, x: number, y: number): EnemyDefinition {
-  return { id, position: { x, y }, species: "goblin", stats: { damage: 1, defence: 0, hp: 1 } };
+  return { id, position: { x, y }, species: "goblin" };
 }
 
 describe("enemy classification parity (017, contract §3) — domain vs. mapping tool", () => {

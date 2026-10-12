@@ -122,12 +122,12 @@ describe("rollMonsterDrop (034 C5)", () => {
   const share = (drops: ReturnType<typeof run>, pick: (d: (typeof drops)[number]) => boolean) =>
     drops.filter(pick).length / drops.length;
 
-  it("regular monsters: ~20% gear, ~20% nothing, ~60% gold", () => {
+  it("regular monsters: ~10% gear, ~30% nothing, ~60% gold", () => {
     const drops = run(3, false, 7);
-    expect(share(drops, (d) => !!d.gear)).toBeGreaterThan(0.17);
-    expect(share(drops, (d) => !!d.gear)).toBeLessThan(0.23);
-    expect(share(drops, (d) => !d.gear && !d.currency)).toBeGreaterThan(0.17);
-    expect(share(drops, (d) => !d.gear && !d.currency)).toBeLessThan(0.23);
+    expect(share(drops, (d) => !!d.gear)).toBeGreaterThan(0.08);
+    expect(share(drops, (d) => !!d.gear)).toBeLessThan(0.12);
+    expect(share(drops, (d) => !d.gear && !d.currency)).toBeGreaterThan(0.27);
+    expect(share(drops, (d) => !d.gear && !d.currency)).toBeLessThan(0.33);
     expect(share(drops, (d) => !!d.currency)).toBeGreaterThan(0.56);
     expect(share(drops, (d) => !!d.currency)).toBeLessThan(0.64);
   });
@@ -192,11 +192,11 @@ describe("rollMonsterDrop (034 C5)", () => {
 describe("eliteStats (034 C8)", () => {
   const stats = { hp: 11, damage: 5, defence: 3 };
   it("leaves a non-elite alone, including an unflagged end boss", () => {
-    expect(eliteStats({ stats })).toBe(stats);
-    expect(eliteStats({ stats, isElite: false })).toBe(stats);
+    expect(eliteStats(stats, undefined)).toBe(stats);
+    expect(eliteStats(stats, false)).toBe(stats);
   });
   it("multiplies HP, damage and defence by 1.5, rounded up", () => {
-    expect(eliteStats({ stats, isElite: true })).toEqual({ hp: 17, damage: 8, defence: 5 });
+    expect(eliteStats(stats, true)).toEqual({ hp: 17, damage: 8, defence: 5 });
   });
 });
 

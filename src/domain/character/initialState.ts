@@ -3,8 +3,8 @@ import { emptyFloorProgress, type PlayerSave } from "./save";
 
 /** Base combat stats for a brand-new playable character. */
 const BASE_PLAYER_STATS = {
-  damage: 10,
-  defence: 2,
+  damage: 5,
+  defence: 1,
   hp: 30,
 };
 
