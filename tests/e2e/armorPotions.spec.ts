@@ -107,8 +107,8 @@ test("attack and defense potions permanently raise stats and persist across relo
   await pressAndWait(page, "ArrowRight"); // (7,13) -> (8,13), attack potion (logged only)
 
   let save = await getCtxSave(page);
-  expect(save.character.bonusDamage).toBe(2);
-  await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("7");
+  expect(save.character.bonusDamage).toBe(1); // 038: attack potion +1
+  await expect(page.locator('[data-testid="stat-dmg"]')).toHaveText("6");
 
   await pressAndWait(page, "ArrowRight"); // (8,13) -> (9,13)
   await pressAndWait(page, "ArrowRight"); // (9,13) -> (10,13), defense potion (logged only)
@@ -123,7 +123,7 @@ test("attack and defense potions permanently raise stats and persist across relo
   await waitForActiveScene(page, "FloorScene");
 
   const afterResume = await getCtxSave(page);
-  expect(afterResume.character.bonusDamage).toBe(2);
+  expect(afterResume.character.bonusDamage).toBe(1);
   expect(afterResume.character.baseStats.defence).toBe(2);
 });
 
@@ -153,18 +153,18 @@ test("drinking a potion mid-battle heals 25% of max HP and uses one (US6, C17)",
   });
   const potion = page.locator('[data-testid="combat-potion"]');
   const playerHp = page.locator('[data-testid="combat-player-hp-value"]');
-  await expect(potion).toHaveText("Potion ×2");
+  await expect(potion).toHaveText("Health Potion ×2");
   await expect(potion).toBeEnabled();
   await expect(playerHp).toHaveText("20");
 
   await potion.click();
   await expect(playerHp).toHaveText("30");
-  await expect(potion).toHaveText("Potion ×1");
+  await expect(potion).toHaveText("Health Potion ×1");
   await expect(page.locator('[data-testid="combat-pop"]').filter({ hasText: "+10" })).toBeAttached();
 
   await potion.click(); // 30 → 40, capped
   await expect(playerHp).toHaveText("40");
-  await expect(potion).toHaveText("Potion ×0");
+  await expect(potion).toHaveText("Health Potion ×0");
   await expect(potion).toBeDisabled(); // no potions left (and at full HP)
 
   await page.locator('[data-testid="combat-flee"]').click();

@@ -146,7 +146,7 @@ test.describe("US2: item tooltip (033)", () => {
 
     // Potion stack and key tile: a description and their own hints.
     await page.locator('[data-testid="bag-cell-0"]').hover();
-    await expect(tip.locator('[data-testid="tooltip-name"]')).toHaveText("Health potion");
+    await expect(tip.locator('[data-testid="tooltip-name"]')).toHaveText("Health Potion");
     await expect(tip.locator('[data-testid="tooltip-hint"]')).toHaveText("Drink during battle");
     await page.locator('[data-testid="key-bronze"]').hover();
     await expect(tip.locator('[data-testid="tooltip-name"]')).toHaveText("Bronze key");
@@ -334,7 +334,7 @@ test.describe("US4: bag actions and the 25-slot limit (033)", () => {
     await expect(page.locator('[data-testid="bag-use"]')).toBeEnabled();
     await page.locator('[data-testid="bag-use"]').click();
     await expect(page.locator('[data-testid="combat-player-hp-value"]')).toHaveText("30");
-    await expect(page.locator('[data-testid="combat-potion"]')).toHaveText("Potion ×1");
+    await expect(page.locator('[data-testid="combat-potion"]')).toHaveText("Health Potion ×1");
   });
 });
 

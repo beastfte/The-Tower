@@ -35,6 +35,11 @@ describe("sync-tool-palette — palette generation matches the game's source cat
     expect(palette.hazardKinds.map((h) => h.id).sort()).toEqual(["lava", "spike", "water"]);
   });
 
+  it("carries each monster's base stats for the tool's floor-scaled readout (038 C8)", () => {
+    const goblin = buildPalette().monsters.find((m) => m.id === "goblin");
+    expect(goblin).toMatchObject({ hp: 20, damage: 4, defence: 1, attackIntervalSec: 0.8 });
+  });
+
   it("every item kind and hazard kind has a non-empty display name", () => {
     const palette = buildPalette();
     for (const k of [...palette.itemKinds, ...palette.hazardKinds]) {
@@ -68,8 +73,9 @@ describe("MONSTER_COLOR / MONSTER_GLYPH — hand-maintained, but completeness is
 });
 
 describe("findRemovedEntries — FR-020's repo-side refuse-and-report check", () => {
+  const stats = { hp: 1, damage: 1, defence: 0, attackIntervalSec: 1 };
   const base: PaletteManifest = {
-    monsters: [{ id: "goblin", name: "Goblin" }],
+    monsters: [{ id: "goblin", name: "Goblin", ...stats }],
     weapons: [{ id: "sword", name: "Sword" }],
     armorMaterials: ["cloth"],
     armorSlots: ["helm"],
@@ -82,7 +88,7 @@ describe("findRemovedEntries — FR-020's repo-side refuse-and-report check", ()
   it("reports nothing when nothing disappears (an addition is fine)", () => {
     const withAddition: PaletteManifest = {
       ...base,
-      monsters: [...base.monsters, { id: "ogre", name: "Ogre" }],
+      monsters: [...base.monsters, { id: "ogre", name: "Ogre", ...stats }],
     };
     expect(findRemovedEntries(base, withAddition)).toEqual([]);
   });

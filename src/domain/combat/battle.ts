@@ -1,6 +1,7 @@
 import { resolveHit } from "./resolveAttack";
 import type { CombatStats } from "../types";
 import type { MonsterSpecies } from "../floor/types";
+import { eliteStats } from "../character/grades";
 
 /**
  * 027 (research R1/R2): a live battle as pure data. The modal scene feeds it elapsed time and a
@@ -24,7 +25,7 @@ export interface CombatantStats {
   dodgeChance: number;
 }
 
-export interface Combatant extends CombatantStats {
+interface Combatant extends CombatantStats {
   /** Seconds accumulated toward the next attack. Starts at 0 (FR-006). */
   charge: number;
 }
@@ -41,9 +42,10 @@ export type BattleEvent =
   | { kind: "hit"; target: Side; damage: number; isCrit: boolean }
   /** 032 C1: the attack was avoided entirely; `target` is the side that dodged. */
   | { kind: "dodge"; target: Side }
-  | { kind: "heal"; amount: number };
+  /** 038: `auto` marks a potion the battle drank itself (HP fell under 25% after a monster hit). */
+  | { kind: "heal"; amount: number; auto?: true };
 
-export interface BattleStep {
+interface BattleStep {
   state: BattleState;
   events: BattleEvent[];
 }
@@ -55,7 +57,7 @@ const TIE_EPSILON = 1e-9;
 
 /** Used when an enemy's species isn't in the catalog (FR-031). The validator rejects unknown
  * species, so this only guards hand-built data. */
-export const MONSTER_COMBAT_FALLBACK = {
+const MONSTER_COMBAT_FALLBACK = {
   baselineStats: { damage: 1, defence: 0, hp: 1 },
   attackIntervalSec: 1,
   critChance: 0.05,
@@ -79,6 +81,25 @@ export function monsterCombatant(stats: CombatStats, species: MonsterSpecies | u
     critDamageBonus: speed.critDamageBonus,
     dodgeChance: speed.dodgeChance,
   };
+}
+
+/** 038 FR-005: floor 1 is 100%, each later floor ×1.1; HP, per-hit attack and defence always round up. */
+const FLOOR_SCALE = 1.1;
+const ROUND_UP_TOLERANCE = 1e-9; // 20 × 1.1 is 22.000000000000004 in floating point
+
+/**
+ * 038 C1: the one place a fight's monster stats are built — elite ×1.5 on the stored damage per
+ * second, then per-hit attack, then the floor multiplier. Attack speed, crit and dodge never scale.
+ */
+export function monsterOnFloor(
+  species: MonsterSpecies | undefined,
+  isElite: boolean | undefined,
+  floorNumber: number,
+): CombatantStats {
+  const base = monsterCombatant(eliteStats((species ?? MONSTER_COMBAT_FALLBACK).baselineStats, isElite), species);
+  const multiplier = FLOOR_SCALE ** (Math.max(1, floorNumber) - 1);
+  const scale = (v: number) => Math.max(0, Math.ceil(v * multiplier - ROUND_UP_TOLERANCE)) + 0; // + 0: no -0
+  return { ...base, hp: scale(base.hp), attack: scale(base.attack), defence: scale(base.defence) };
 }
 
 export function startBattle(
@@ -119,6 +140,7 @@ export function advanceBattle(
   const monster = { ...state.monster, charge: state.monster.charge + elapsedSec };
   const events: BattleEvent[] = [];
   let outcome: BattleOutcome = "ongoing";
+  let potionCount = state.potionCount;
 
   for (;;) {
     const playerOvershoot = player.charge - player.attackIntervalSec;
@@ -145,9 +167,22 @@ export function advanceBattle(
       outcome = playerFirst ? "victory" : "defeat";
       break;
     }
+
+    // 038 C2: a monster's hit that leaves the player under 25% drinks one carried potion at once.
+    if (!playerFirst && potionCount > 0 && player.hp < state.playerMaxHp * 0.25) {
+      const amount = potionHeal(player.hp, state.playerMaxHp);
+      player.hp += amount;
+      potionCount -= 1;
+      events.push({ kind: "heal", amount, auto: true });
+    }
   }
 
-  return { state: { ...state, player, monster, outcome }, events };
+  return { state: { ...state, player, monster, potionCount, outcome }, events };
+}
+
+/** 027 FR-047: a potion heals ceil(25% of max HP), capped at max. Shared by manual and automatic use. */
+export function potionHeal(hp: number, maxHp: number): number {
+  return Math.min(Math.ceil(maxHp * 0.25), maxHp - hp);
 }
 
 /** 027 FR-019/FR-020 (contract C13): ends the battle at once. HP is left exactly as it stood —
@@ -168,7 +203,7 @@ export function drinkPotion(state: BattleState): BattleStep {
   if (state.outcome !== "ongoing" || potionCount <= 0 || player.hp >= playerMaxHp) {
     return { state, events: [] };
   }
-  const heal = Math.min(Math.ceil(playerMaxHp * 0.25), playerMaxHp - player.hp);
+  const heal = potionHeal(player.hp, playerMaxHp);
   return {
     state: { ...state, player: { ...player, hp: player.hp + heal }, potionCount: potionCount - 1 },
     events: [{ kind: "heal", amount: heal }],

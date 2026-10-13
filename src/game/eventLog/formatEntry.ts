@@ -5,7 +5,7 @@ import type { WeaponId } from "../../domain/character/types";
 import type { EventLogEntry } from "./types";
 
 /** 034: a piece's catalog name, e.g. "Mail Helm". */
-export function gearBaseName(key: string): string {
+function gearBaseName(key: string): string {
   return (key.includes(":") ? ARMOR_PIECES[key]?.name : WEAPONS[key as WeaponId]?.name) ?? key;
 }
 

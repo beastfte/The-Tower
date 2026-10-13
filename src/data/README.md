@@ -20,11 +20,6 @@ See `specs/012-tower-mapping-tool/quickstart.md` for the full walkthrough. In sh
   (`validateFloorDefinition`/`validateTower`, unmodified) and writes nothing at all if any
   floor fails an integrity check (an unobtainable key, no end boss, etc.); the CLI prints
   every problem found instead.
-- **Game → design** (bringing a hand-authored floor like `floor-01`/`floor-final` under the
-  tool's management): run `npm run export-existing-floors -- <output-path.json>`, then use the
-  tool's "Import tower" action on that file. From then on, syncing regenerates that floor's
-  file too — any hand-authored content the tool's data model can't represent (e.g. a narrative
-  comment) does not survive the first sync after importing.
 - The tool's own palette (monster species, weapons, armor materials/slots, door/key tiers,
   lever effect kinds) is generated from this directory's own source catalogs — run
   `npm run sync-tool-palette` after adding or changing any of `monsterSpecies.ts`, `weapons.ts`,

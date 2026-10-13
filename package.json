@@ -13,7 +13,6 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "sync-tower": "tsx scripts/sync-tower.ts",
-    "export-existing-floors": "tsx scripts/export-existing-floors.ts",
     "sync-tool-palette": "tsx scripts/sync-tool-palette.ts"
   },
   "dependencies": {

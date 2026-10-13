@@ -26,10 +26,11 @@ import { findLeverAt, resolveLeverEffects } from "../../domain/hazard/lever";
 import { findCrackedWallAt, resolveBrokenWallPositions, resolveWallZone } from "../../domain/floor/wall";
 import { ensureWallTexture, ensureDoorTexture, type DoorTier } from "../render/wallSprites";
 import { hasDiedFromHazard, markDead } from "../../domain/hazard/death";
-import { MONSTER_COMBAT_FALLBACK, monsterCombatant } from "../../domain/combat/battle";
+import { monsterOnFloor, type CombatantStats } from "../../domain/combat/battle";
+import type { SidePanelScene } from "./SidePanelScene";
 import { computeEffectiveStats, computeMaxHp } from "../../domain/character/combatStats";
 import { describeDrops, formatBagFullEntry } from "../eventLog/formatEntry";
-import { eliteStats, GRADES, rollMonsterDrop } from "../../domain/character/grades";
+import { GRADES, rollMonsterDrop } from "../../domain/character/grades";
 import { pickupNeedsSlot, bagIsFull, fitDropsToBag } from "../../domain/character/bag";
 import { isWinningDefeat } from "../../domain/progress/winState";
 import { completeCurrentFloor, returnToPreviousFloor } from "../../domain/progress/towerProgress";
@@ -64,6 +65,7 @@ import { computePlayerIdleFrame, computePlayerWalkFrame, facingForDirection } fr
 import { computeMerchantIdleFrame } from "../merchantAnimation";
 import { PLAY_AREA, DESIGN_PLAY_AREA, TILE_SIZE } from "../gameConfig";
 import { createUiText, getUiRoot } from "../ui/domOverlay";
+import { buildMonsterTooltip } from "../sidePanel/tooltipContent";
 import { scalePx } from "../scaleConfig";
 import { computeTileLayerOrigin } from "../floorLayout";
 import { computeBobOffset, computePositionPhase } from "../livingAnimation";
@@ -119,7 +121,7 @@ function resolveDoorTier(doorType: string): DoorTier {
  * (`ctx.fillStyle = "#0a0d14"`, used for its canvas/atlas background). */
 const OUTLINE_COLOR = 0x0a0d14;
 
-export const COLORS = {
+const COLORS = {
   /** 017: was split into enemyCompulsory/enemyOptional by `enemy.placement` — that field is
    * gone (placement is now computed, not authored) and this fallback marker only ever renders
    * for an enemy whose species is missing from the catalog, which never happens for valid data
@@ -207,6 +209,8 @@ export class FloorScene extends Phaser.Scene {
 
     this.redraw();
     this.setupInput();
+    // 038: leaving the canvas doesn't fire pointerout on a marker, so the monster card would stay up.
+    this.input.on(Phaser.Input.Events.GAME_OUT, () => this.sidePanel()?.hideTooltip());
     this.time.addEvent({
       delay: TRAP_TICK_MS,
       loop: true,
@@ -594,6 +598,57 @@ export class FloorScene extends Phaser.Scene {
     this.redraw();
   }
 
+  /** The player as they would enter a fight right now (shared by engage and the monster hover card). */
+  private playerCombatant(): CombatantStats {
+    const { character } = this.ctx.save;
+    const stats = computeEffectiveStats(character, this.ctx.weaponCatalog, this.ctx.armorCatalog);
+    return {
+      hp: character.currentHp,
+      attack: stats.damage,
+      defence: stats.defence,
+      attackIntervalSec: stats.attackIntervalSec,
+      critChance: stats.critChance,
+      critDamageBonus: stats.critDamageBonus,
+      dodgeChance: stats.dodgeChance,
+    };
+  }
+
+  private sidePanel(): SidePanelScene | undefined {
+    return this.scene.isActive("SidePanelScene") ? (this.scene.get("SidePanelScene") as SidePanelScene) : undefined;
+  }
+
+  /** 038 C6: the monster card — scaled stats and survival chance from the current save, shown beside the marker. */
+  private showMonsterCard(enemy: EnemyDefinition, marker: Phaser.GameObjects.Image): void {
+    if (!this.canMove) return;
+    const ctx = this.ctx;
+    const species = ctx.monsterSpeciesCatalog.get(enemy.species);
+    const floorNumber = this.floorNumber();
+    const character = ctx.save.character;
+    const card = buildMonsterTooltip({
+      name: species?.name ?? "Unknown creature",
+      floorNumber,
+      isElite: !!enemy.isElite,
+      monster: monsterOnFloor(species, enemy.isElite, floorNumber),
+      player: this.playerCombatant(),
+      playerMaxHp: computeMaxHp(character),
+      potionCount: character.potionCount ?? 0,
+    });
+    const canvas = this.game.canvas.getBoundingClientRect();
+    const k = canvas.width / this.scale.width; // CSS px per canvas px
+    const b = marker.getBounds();
+    this.sidePanel()?.showContentTooltip(card, {
+      left: canvas.left + b.left * k,
+      right: canvas.left + b.right * k,
+      top: canvas.top + b.top * k,
+    });
+  }
+
+  /** 1-based position of the current floor in the tower (038: drives monster scaling and the hover panel). */
+  private floorNumber(): number {
+    const { tower, save } = this.ctx;
+    return tower.floors.findIndex((f) => f.id === save.currentFloorId) + 1;
+  }
+
   /** 027 FR-001 (contract C1): every living monster can be fought — there is no pre-combat
    * simulation and no "too weak" refusal any more. The battle itself runs live in CombatOverlay. */
   private engage(enemy: EnemyDefinition): void {
@@ -603,6 +658,7 @@ export class FloorScene extends Phaser.Scene {
     // reason as the pickup-modal and pause-menu branches.
     this.heldDirection = null;
     this.canMove = false;
+    this.sidePanel()?.hideTooltip();
     // 019 FR-003: resolve the display name here, once, rather than teaching CombatOverlay to
     // look it up — mirrors the species lookup already used for enemy rendering above.
     const species = ctx.monsterSpeciesCatalog.get(enemy.species);
@@ -610,8 +666,7 @@ export class FloorScene extends Phaser.Scene {
     // 036 C3: elite art when flagged elite and the sheet has it; combat looks it up by this key.
     const speciesKey = species ? monsterSpriteKey(species.textureKey, enemy.isElite) : undefined;
     const character = ctx.save.character;
-    const stats = computeEffectiveStats(character, ctx.weaponCatalog, ctx.armorCatalog);
-    const floorNumber = ctx.tower.floors.findIndex((f) => f.id === ctx.save.currentFloorId) + 1;
+    const floorNumber = this.floorNumber();
     // 034 C6: the drop is rolled once per fight; the victory panel shows it and the result applies it.
     const rolled = rollMonsterDrop(floorNumber, !!(enemy.isElite || enemy.isEndBoss), Math.random);
     const fitted = fitDropsToBag(character, rolled).drops;
@@ -619,17 +674,9 @@ export class FloorScene extends Phaser.Scene {
     const data: CombatOverlayData = {
       floorNumber,
       enemyName,
-      player: {
-        hp: character.currentHp,
-        attack: stats.damage,
-        defence: stats.defence,
-        attackIntervalSec: stats.attackIntervalSec,
-        critChance: stats.critChance,
-        critDamageBonus: stats.critDamageBonus,
-        dodgeChance: stats.dodgeChance,
-      },
-      // Every monster stat comes from its species in code, ×1.5 for elites.
-      monster: monsterCombatant(eliteStats((species ?? MONSTER_COMBAT_FALLBACK).baselineStats, enemy.isElite), species),
+      player: this.playerCombatant(),
+      // 038 C1: species stats, ×1.5 for elites, then the floor multiplier.
+      monster: monsterOnFloor(species, enemy.isElite, floorNumber),
       playerMaxHp: computeMaxHp(character),
       potionCount: character.potionCount ?? 0,
       playerTextureKey: ensurePlayerTexture(this, this.playerArmourLook(), this.playerWeapon(), "right", "idle"),
@@ -726,6 +773,7 @@ export class FloorScene extends Phaser.Scene {
   }
 
   private redraw(): void {
+    this.sidePanel()?.hideTooltip(); // a destroyed marker never fires pointerout
     const ctx = this.ctx;
     const floor = ctx.currentFloor;
     const progress = ctx.save.currentFloorState;
@@ -850,6 +898,11 @@ export class FloorScene extends Phaser.Scene {
         baseY: marker.y,
         phase: computePositionPhase(enemy.position),
       });
+      if (marker instanceof Phaser.GameObjects.Image) {
+        marker.setInteractive();
+        marker.on("pointerover", () => this.showMonsterCard(enemy, marker));
+        marker.on("pointerout", () => this.sidePanel()?.hideTooltip());
+      }
     }
 
     for (const merchant of floor.merchants ?? []) {

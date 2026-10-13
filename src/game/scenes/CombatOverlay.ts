@@ -23,8 +23,9 @@ import {
 } from "../sfx";
 import { computeMonsterAttackFrame, MONSTER_ATTACK_IMPACT_MS, type MonsterCombatFrame } from "../monsterAnimation";
 import { computePlayerAttackFrame, type PlayerAttackFrame } from "../playerAnimation";
-import { ensureMonsterCombatTexture, ensurePlayerTexture, hasMonsterCombatFrames, type PlayerArmourLook } from "../render/spriteTextures";
+import { ensureFlashTexture, ensureMonsterCombatTexture, ensurePlayerTexture, hasMonsterCombatFrames, type PlayerArmourLook } from "../render/spriteTextures";
 import type { WeaponId } from "../../domain/character/types";
+import { POTION_DESCRIPTION } from "../sidePanel/tooltipContent";
 import { formatDamage } from "../../domain/combat/resolveAttack";
 
 type HitEvent = Extract<BattleEvent, { kind: "hit" }>;
@@ -89,7 +90,8 @@ const SPRITE_CENTRE_X: Record<Side, number> = {
 const CENTRE_X = FRAME_X + FRAME.w / 2;
 
 const GOLD = "#d9aa3b";
-const HIT_FLASH_MS = 140;
+const HIT_FLASH_ALPHA = 0.55;
+const HIT_FLASH_MS = 180;
 
 const toCanvas = (designUnits: number) => designUnits * RENDER_SCALE;
 
@@ -119,6 +121,8 @@ function div(styles: Partial<CSSStyleDeclaration>, testId?: string): HTMLDivElem
 
 interface SideView {
   sprite: Phaser.GameObjects.Image;
+  /** 038 C4: white silhouette laid over the sprite; alpha 0 except while a hit flashes. */
+  flash: Phaser.GameObjects.Image;
   hpNumber: HTMLElement;
   hpFill: HTMLDivElement;
   barFill: HTMLDivElement;
@@ -153,6 +157,8 @@ export class CombatOverlay extends Phaser.Scene {
   /** 031: ms into the Prince's swing on the same gated clock; null = not swinging. */
   private playerAttackElapsedMs_: number | null = null;
   private playerAttackFrame_: "idle" | PlayerAttackFrame = "idle";
+  /** 038 C3: auto-potion heals held back until the monster hit that caused them lands. */
+  private pendingAutoHeals_: number[] = [];
 
   constructor() {
     super("CombatOverlay");
@@ -171,6 +177,7 @@ export class CombatOverlay extends Phaser.Scene {
     this.attackFrame_ = "idle";
     this.playerAttackElapsedMs_ = null;
     this.playerAttackFrame_ = "idle";
+    this.pendingAutoHeals_ = [];
   }
 
   create(): void {
@@ -231,6 +238,7 @@ export class CombatOverlay extends Phaser.Scene {
 
     // C17: drinks one carried potion at once; disabled with none left, at full HP, or once ended.
     this.potionButton_ = this.addActionButton("", POTION_Y, "combat-potion", () => this.drinkPotion());
+    this.potionButton_.title = POTION_DESCRIPTION; // 038 C3: native hover text, no shortcut
     Object.assign(this.potionButton_.style, { background: GOLD, color: "#1a1206", borderColor: GOLD });
 
     // C13: Flee works at any moment until an outcome appears, and closes the modal at once.
@@ -330,7 +338,8 @@ export class CombatOverlay extends Phaser.Scene {
     const barFill = div({ left: "0", top: "0", height: "100%", background: isPlayer ? GOLD : "#ff7a3a" });
     barTrack.appendChild(barFill);
 
-    return { sprite, hpNumber, hpFill, barFill };
+    const flash = this.add.image(sprite.x, sprite.y, key).setDepth(3).setAlpha(0);
+    return { sprite, flash, hpNumber, hpFill, barFill };
   }
 
   override update(_time: number, delta: number): void {
@@ -376,7 +385,7 @@ export class CombatOverlay extends Phaser.Scene {
       view.barFill.style.width = `${Math.round(charge * 100)}%`;
     }
     const { potionCount, player, playerMaxHp } = this.state_;
-    this.potionButton_.textContent = `Potion ×${potionCount}`;
+    this.potionButton_.textContent = `Health Potion ×${potionCount}`;
     this.potionButton_.disabled = this.ended_ || potionCount <= 0 || player.hp >= playerMaxHp;
     this.potionButton_.style.opacity = this.potionButton_.disabled ? "0.4" : "1";
   }
@@ -391,9 +400,20 @@ export class CombatOverlay extends Phaser.Scene {
       if (event.target === "monster") this.startPlayerAttack();
       return;
     }
+    if (event.auto) {
+      // 038 C3: shown after the monster hit that triggered it, never before.
+      if (this.pendingImpact_) this.pendingAutoHeals_.push(event.amount);
+      else this.showAutoHeal(event.amount);
+      return;
+    }
     const sfxKey = battleEventToSfxKey(event); // 028 C5–C8
     if (sfxKey) playSfx(this.sound, sfxKey);
     this.floatNumber("player", `+${event.amount}`, { fontSize: 34, color: "#7fd18a" });
+  }
+
+  private showAutoHeal(amount: number): void {
+    playSfx(this.sound, sfxPotion);
+    this.floatNumber("player", `Auto potion +${amount}`, { fontSize: 30, color: "#7fd18a" });
   }
 
   /** C11: hits flash the target white and float their damage up over it. */
@@ -404,10 +424,23 @@ export class CombatOverlay extends Phaser.Scene {
     }
     const sfxKey = battleEventToSfxKey(event); // 028 C5–C8
     if (sfxKey) playSfx(this.sound, sfxKey);
-    const sprite = this.views_[event.target].sprite;
-    sprite.setTintFill(0xffffff);
-    this.time.delayedCall(HIT_FLASH_MS, () => sprite.clearTint());
+    this.flashHit(event.target);
     this.floatNumber(event.target, formatDamage(event.damage), this.popStyle(event));
+  }
+
+  /** 038 C4: a new hit restarts the flash from full strength. */
+  private flashHit(side: Side): void {
+    const { sprite, flash } = this.views_[side];
+    this.tweens.killTweensOf(flash);
+    flash.setOrigin(sprite.originX, sprite.originY).setPosition(sprite.x, sprite.y).setScale(sprite.scaleX, sprite.scaleY);
+    flash.setTexture(ensureFlashTexture(this, sprite.texture.key)).setAlpha(HIT_FLASH_ALPHA);
+    this.tweens.add({ targets: flash, alpha: 0, duration: HIT_FLASH_MS });
+  }
+
+  /** The silhouette follows an attack frame change while a flash is still visible. */
+  private syncFlash(side: Side): void {
+    const { sprite, flash } = this.views_[side];
+    if (flash.alpha > 0) flash.setTexture(ensureFlashTexture(this, sprite.texture.key));
   }
 
   /** 030 (C6): (re)starts the attack from its wind-up. A hit still waiting on an earlier strike
@@ -433,12 +466,14 @@ export class CombatOverlay extends Phaser.Scene {
     const event = this.pendingImpact_;
     this.pendingImpact_ = null;
     this.applyHitFeedback(event);
+    for (const amount of this.pendingAutoHeals_.splice(0)) this.showAutoHeal(amount);
   }
 
   private setMonsterFrame(frame: MonsterCombatFrame): void {
     if (frame === this.attackFrame_) return;
     this.attackFrame_ = frame;
     this.views_.monster.sprite.setTexture(ensureMonsterCombatTexture(this, this.data_.monsterSpeciesKey, frame));
+    this.syncFlash("monster");
   }
 
   /** 031 (C5): (re)starts the Prince's swing from attackA, so a fast attacker never drops one. */
@@ -460,6 +495,7 @@ export class CombatOverlay extends Phaser.Scene {
     this.playerAttackFrame_ = frame;
     const { playerArmourLook, playerWeapon } = this.data_;
     this.views_.player.sprite.setTexture(ensurePlayerTexture(this, playerArmourLook, playerWeapon, "right", frame));
+    this.syncFlash("player");
   }
 
   /** C11/FR-018: a critical strike's number is larger and red, unmistakable from a normal hit. */

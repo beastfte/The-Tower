@@ -191,7 +191,8 @@ export class SidePanelScene extends Phaser.Scene {
 
   // ---- tooltip (C3/C4) ----------------------------------------------------------------
 
-  private hideTooltip(): void {
+  /** 038 C6: public so FloorScene can show a monster card through the same tooltip. */
+  hideTooltip(): void {
     this.tooltip.style.display = "none";
   }
 
@@ -199,17 +200,24 @@ export class SidePanelScene extends Phaser.Scene {
     if (this.isBusy()) return;
     const content = buildTooltipContent(this.ctx.save.character, source, this.catalogs);
     if (!content) return this.hideTooltip();
+    this.showContentTooltip(content, target.getBoundingClientRect());
+  }
+
+  /** 038 C6: shows `content` beside a client-space rect — left of it, or right when there is no room. */
+  showContentTooltip(content: TooltipContent, target: { left: number; top: number; right: number }): void {
+    if (this.isBusy()) return;
     this.fillTooltip(content);
     this.tooltip.style.visibility = "hidden";
     this.tooltip.style.display = "block";
 
     const rootRect = getUiRoot().getBoundingClientRect();
     const scale = rootRect.width / DESIGN_WIDTH; // CSS px per design unit
-    const t = target.getBoundingClientRect();
     const height = this.tooltip.getBoundingClientRect().height / scale;
     const g = DESIGN_UI_GUTTER;
-    const left = (t.left - rootRect.left) / scale - TOOLTIP_WIDTH - TOOLTIP_GAP;
-    const top = Math.max(g, Math.min((t.top - rootRect.top) / scale - 6, DESIGN_HEIGHT - g - height));
+    const leftOf = (target.left - rootRect.left) / scale - TOOLTIP_WIDTH - TOOLTIP_GAP;
+    const left =
+      leftOf >= g ? leftOf : Math.min((target.right - rootRect.left) / scale + TOOLTIP_GAP, DESIGN_WIDTH - g - TOOLTIP_WIDTH);
+    const top = Math.max(g, Math.min((target.top - rootRect.top) / scale - 6, DESIGN_HEIGHT - g - height));
     this.tooltip.style.left = px(Math.max(g, left));
     this.tooltip.style.top = px(top);
     this.tooltip.style.visibility = "visible";
@@ -353,7 +361,7 @@ export class SidePanelScene extends Phaser.Scene {
   }
 
   private nameOfEntry(e: BagEntry): string {
-    if (e.kind === "potion") return "Health potion";
+    if (e.kind === "potion") return "Health Potion";
     if (e.kind === "loot") return this.catalogs.lootNames.get(e.id) ?? e.id;
     return gearInfo(e.key, this.catalogs, e.item)?.name ?? e.key;
   }

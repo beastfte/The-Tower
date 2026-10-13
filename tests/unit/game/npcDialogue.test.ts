@@ -12,9 +12,10 @@ describe("buildMerchantOptions (contracts C16-C17)", () => {
     const character = { ...freshCharacter(), currency: 100 };
     const options = buildMerchantOptions(character, () => {});
     expect(options.map((o) => o.text)).toEqual([
-      "Become more vicious (+5 attack) — 5 gold",
-      "Become more sturdy (+5 defence) — 5 gold",
+      "Become more vicious (+1 attack) — 5 gold",
+      "Become more sturdy (+1 defence) — 5 gold",
       "Become more versatile (+5 max HP) — 5 gold",
+      "Buy a Health Potion (+1 potion) — 15 gold",
     ]);
   });
 

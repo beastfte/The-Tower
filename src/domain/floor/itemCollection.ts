@@ -25,7 +25,7 @@ export function findAvailableItemAt(
  *   worn weapon"
  * - potion (027 FR-045): carried, not drunk — adds 1 to potionCount; HP is unchanged. Drinking
  *   happens only in battle (domain/combat/battle.ts drinkPotion). Superseded 019 FR-007's heal.
- * - potionAttack / potionDefense (019 FR-005/FR-006): permanently adds 2 / 1 to bonusDamage /
+ * - potionAttack / potionDefense (019 FR-005/FR-006): permanently adds 1 / 1 (038) to bonusDamage /
  *   baseStats.defence — cumulative across repeated pickups, no cap
  * - chest (005 FR-005): applies the exact same effect as its revealed reward, by reusing
  *   the matching case's own logic rather than re-deriving it
@@ -65,7 +65,7 @@ export function applyItemPickup(character: PlayerCharacterState, item: ItemDefin
       return addPotion(character);
     }
     case "potionAttack": {
-      return { ...character, bonusDamage: character.bonusDamage + 2 };
+      return { ...character, bonusDamage: character.bonusDamage + 1 };
     }
     case "potionDefense": {
       return {

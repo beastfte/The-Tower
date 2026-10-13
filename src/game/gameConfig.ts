@@ -17,12 +17,6 @@ export { DESIGN_WIDTH, DESIGN_HEIGHT };
 export const GAME_WIDTH = DESIGN_WIDTH * RENDER_SCALE;
 export const GAME_HEIGHT = DESIGN_HEIGHT * RENDER_SCALE;
 
-/** Side panel (002 FR-001): full height, right-hand side. */
-export const SIDE_PANEL_WIDTH = DESIGN_SIDE_PANEL_WIDTH * RENDER_SCALE;
-
-/** Event log (002 FR-016): dedicated strip under the play area, left of the panel. */
-export const EVENT_LOG_HEIGHT = DESIGN_EVENT_LOG_HEIGHT * RENDER_SCALE;
-
 export interface ScreenRegion {
   x: number;
   y: number;
@@ -43,20 +37,6 @@ const GUTTER = DESIGN_UI_GUTTER * RENDER_SCALE;
 const TOWER_SIZE = 15 * TILE_SIZE;
 
 export const PLAY_AREA: ScreenRegion = { x: GUTTER, y: GUTTER, width: TOWER_SIZE, height: TOWER_SIZE };
-
-export const EVENT_LOG_AREA: ScreenRegion = {
-  x: GUTTER,
-  y: GUTTER + TOWER_SIZE + GUTTER,
-  width: TOWER_SIZE,
-  height: EVENT_LOG_HEIGHT,
-};
-
-export const SIDE_PANEL_AREA: ScreenRegion = {
-  x: GUTTER + TOWER_SIZE + GUTTER,
-  y: GUTTER,
-  width: SIDE_PANEL_WIDTH,
-  height: GAME_HEIGHT - 2 * GUTTER,
-};
 
 /** Design-space (RENDER_SCALE-independent) counterparts of the regions above, used by the
  * DOM/CSS UI overlay (ui/domOverlay.ts) instead of the RENDER_SCALE'd, canvas-only versions. */

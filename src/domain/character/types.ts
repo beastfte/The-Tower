@@ -7,7 +7,6 @@ export interface LootItem {
  * tooling (e.g. scripts/sync-tool-palette.ts) can derive this set instead of hand-mirroring it.
  * Previously a bare `string` convention with no compiler-enforced or runtime-visible set. */
 export const DOOR_KEY_TIERS = ["bronze", "silver", "gold"] as const;
-export type DoorKeyTier = (typeof DOOR_KEY_TIERS)[number];
 
 export interface KeyDefinition {
   id: string;

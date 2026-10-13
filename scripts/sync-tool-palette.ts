@@ -39,7 +39,8 @@ const HAZARD_KIND_LABELS = {
 } satisfies Record<HazardKind, string>;
 
 export interface PaletteManifest {
-  monsters: { id: string; name: string }[];
+  /** 038 C8: base stats so the tool can show floor-scaled values (damage is the stored per-second figure). */
+  monsters: { id: string; name: string; hp: number; damage: number; defence: number; attackIntervalSec: number }[];
   weapons: { id: string; name: string }[];
   armorMaterials: string[];
   armorSlots: string[];
@@ -51,7 +52,14 @@ export interface PaletteManifest {
 
 export function buildPalette(): PaletteManifest {
   return {
-    monsters: Object.values(MONSTER_SPECIES).map((m) => ({ id: m.id, name: m.name })),
+    monsters: Object.values(MONSTER_SPECIES).map((m) => ({
+      id: m.id,
+      name: m.name,
+      hp: m.baselineStats.hp,
+      damage: m.baselineStats.damage,
+      defence: m.baselineStats.defence,
+      attackIntervalSec: m.attackIntervalSec,
+    })),
     weapons: Object.values(WEAPONS).map((w) => ({ id: w.id, name: w.name })),
     armorMaterials: [...new Set(Object.values(ARMOR_PIECES).map((p) => p.material))],
     armorSlots: [...new Set(Object.values(ARMOR_PIECES).map((p) => p.slot))],
@@ -110,7 +118,7 @@ export function readEmbeddedPalette(html: string): PaletteManifest {
   return new Function(`"use strict"; return (${paletteMatch[1]});`)() as PaletteManifest;
 }
 
-export interface PaletteSyncResult {
+interface PaletteSyncResult {
   ok: boolean;
   changed?: boolean;
   removed?: string[];

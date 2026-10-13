@@ -20,13 +20,13 @@ export function isArmourKey(key: string): boolean {
   return key.includes(":");
 }
 
-export function parseArmourKey(key: string): { material: ArmorMaterialId; slot: ArmorSlotId } {
+function parseArmourKey(key: string): { material: ArmorMaterialId; slot: ArmorSlotId } {
   const [material, slot] = key.split(":");
   return { material: material as ArmorMaterialId, slot: slot as ArmorSlotId };
 }
 
 /** The slot a `bagGear` key would be worn in. */
-export function gearSlotOf(key: string): GearSlot {
+function gearSlotOf(key: string): GearSlot {
   return isArmourKey(key) ? parseArmourKey(key).slot : "weapon";
 }
 

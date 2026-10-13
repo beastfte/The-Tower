@@ -1,7 +1,7 @@
 import type Phaser from "phaser";
 import { getUiRoot, px } from "./domOverlay";
 
-export interface VolumeSliderConfig {
+interface VolumeSliderConfig {
   /** DESIGN_WIDTH/DESIGN_HEIGHT-space coordinates (see gameConfig.ts), same convention as
    * MenuOptionConfig. */
   x: number;

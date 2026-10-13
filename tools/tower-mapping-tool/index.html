@@ -616,39 +616,75 @@
         "monsters": [
           {
             "id": "goblin",
-            "name": "Goblin"
+            "name": "Goblin",
+            "hp": 20,
+            "damage": 4,
+            "defence": 1,
+            "attackIntervalSec": 0.8
           },
           {
             "id": "ogre",
-            "name": "Ogre"
+            "name": "Ogre",
+            "hp": 60,
+            "damage": 15,
+            "defence": 8,
+            "attackIntervalSec": 2
           },
           {
             "id": "wizard",
-            "name": "Wizard"
+            "name": "Wizard",
+            "hp": 40,
+            "damage": 20,
+            "defence": 4,
+            "attackIntervalSec": 1.5
           },
           {
             "id": "bat",
-            "name": "Bat"
+            "name": "Bat",
+            "hp": 15,
+            "damage": 3,
+            "defence": 0,
+            "attackIntervalSec": 0.5
           },
           {
             "id": "slime",
-            "name": "Slime"
+            "name": "Slime",
+            "hp": 10,
+            "damage": 2,
+            "defence": 2,
+            "attackIntervalSec": 1
           },
           {
             "id": "skeleton",
-            "name": "Skeleton Soldier"
+            "name": "Skeleton Soldier",
+            "hp": 30,
+            "damage": 5,
+            "defence": 2,
+            "attackIntervalSec": 1
           },
           {
             "id": "necromancer",
-            "name": "Necromancer"
+            "name": "Necromancer",
+            "hp": 50,
+            "damage": 25,
+            "defence": 4,
+            "attackIntervalSec": 1.5
           },
           {
             "id": "bandit",
-            "name": "Bandit"
+            "name": "Bandit",
+            "hp": 40,
+            "damage": 6,
+            "defence": 2,
+            "attackIntervalSec": 0.5
           },
           {
             "id": "voidwalker",
-            "name": "Voidwalker"
+            "name": "Voidwalker",
+            "hp": 80,
+            "damage": 20,
+            "defence": 15,
+            "attackIntervalSec": 1
           }
         ],
         "weapons": [
@@ -2125,6 +2161,20 @@
         renderCanvas();
       }
 
+      // 038 C8: mirrors monsterOnFloor() in src/domain/combat/battle.ts — elite x1.5 (ceil) on the
+      // stored damage per second, per-hit attack, then x1.1 per floor after the first, always rounded up.
+      function monsterStatsOnFloor(floor, el) {
+        const m = PALETTE.monsters.find((p) => p.id === el.species);
+        if (!m) return "unknown species";
+        const rank = [...floors.values()].sort((a, b) => a.order - b.order).findIndex((f) => f.id === floor.id);
+        const mult = Math.pow(1.1, Math.max(0, rank));
+        const up = (v) => Math.max(0, Math.ceil(v * mult - 1e-9)) + 0;
+        const elite = (v) => (el.isElite ? Math.ceil(v * 1.5) : v);
+        const fmt = (v) => String(Math.round(v * 100) / 100);
+        const hp = elite(m.hp), def = elite(m.defence), atk = elite(m.damage) * m.attackIntervalSec;
+        return "HP " + up(hp) + " (base " + m.hp + ") · ATK " + up(atk) + " (base " + fmt(m.damage * m.attackIntervalSec) + ") · DEF " + up(def) + " (base " + m.defence + ")";
+      }
+
       function buildElementForm(content, floor, arrayKey, el) {
         if (arrayKey === "enemies") {
           content.appendChild(
@@ -2132,12 +2182,14 @@
               el.species = v;
               commit(floor);
               renderCanvas();
+              renderInspector();
             }),
           );
           content.appendChild(readOnlyField("Placement (computed)", classifyEnemyPlacement(floor, el)));
+          content.appendChild(readOnlyField("Stats on this floor", monsterStatsOnFloor(floor, el)));
           content.appendChild(checkField("End boss", !!el.isEndBoss, (v) => { el.isEndBoss = v || undefined; commit(floor); }));
           // 034 FR-021: elite = +50% HP/damage/defence and a 50% equipment drop chance.
-          content.appendChild(checkField("Elite", !!el.isElite, (v) => { el.isElite = v || undefined; commit(floor); }));
+          content.appendChild(checkField("Elite", !!el.isElite, (v) => { el.isElite = v || undefined; commit(floor); renderInspector(); }));
         } else if (arrayKey === "items") {
           content.appendChild(
             selectField("Kind", PALETTE.itemKinds, el.kind, (v) => {

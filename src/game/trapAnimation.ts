@@ -41,7 +41,7 @@ export const LAVA_BASE_MS = 900;
 export const LAVA_GLOW_MS = 600;
 const LAVA_CYCLE_TOTAL_MS = LAVA_BASE_MS + LAVA_GLOW_MS;
 
-export type LavaFrame = "lava" | "lava-glow";
+type LavaFrame = "lava" | "lava-glow";
 
 export function computeLavaFrame(lava: LavaTileDefinition, elapsedMs: number): LavaFrame {
   const t = (elapsedMs + computePositionPhase(lava.position)) % LAVA_CYCLE_TOTAL_MS;

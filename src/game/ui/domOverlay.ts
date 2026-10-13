@@ -55,7 +55,7 @@ export function px(designUnits: number): string {
   return `calc(var(--px) * ${designUnits})`;
 }
 
-export interface UiTextOptions {
+interface UiTextOptions {
   /** DESIGN_WIDTH/DESIGN_HEIGHT-space anchor point. */
   x: number;
   y: number;

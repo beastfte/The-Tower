@@ -25,7 +25,7 @@ const GAME_ZONE_TO_SHEET: Record<ZoneThemeId, SheetZone> = {
   arcane: "throne",
 };
 
-export function sheetZoneFor(zone: ZoneThemeId): SheetZone {
+function sheetZoneFor(zone: ZoneThemeId): SheetZone {
   return GAME_ZONE_TO_SHEET[zone];
 }
 
@@ -49,6 +49,23 @@ export function paintPixelsToTexture(scene: Phaser.Scene, key: string, pixels: P
   const width = pixels[0]?.length ?? 0;
   const canvasTexture = scene.textures.createCanvas(key, width, height)!;
   paintPixelsTo(canvasTexture.getContext(), pixels);
+  canvasTexture.refresh();
+  canvasTexture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+  return key;
+}
+
+/** 038 C4: a solid-white copy of a texture's opaque pixels, cached as `<key>-flash`. Tint is
+ * WebGL-only and the game runs on Canvas, so the hit flash fades this silhouette in over the sprite. */
+export function ensureFlashTexture(scene: Phaser.Scene, textureKey: string): string {
+  const key = `${textureKey}-flash`;
+  if (scene.textures.exists(key)) return key;
+  const source = scene.textures.get(textureKey).getSourceImage();
+  const canvasTexture = scene.textures.createCanvas(key, source.width, source.height)!;
+  const ctx = canvasTexture.getContext();
+  ctx.drawImage(source as CanvasImageSource, 0, 0); // eslint-disable-line no-undef
+  ctx.globalCompositeOperation = "source-in";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, source.width, source.height);
   canvasTexture.refresh();
   canvasTexture.setFilter(Phaser.Textures.FilterMode.NEAREST);
   return key;

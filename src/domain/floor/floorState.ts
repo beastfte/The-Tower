@@ -5,7 +5,7 @@ import type { DropTable } from "../character/grades";
 import type { Position } from "../types";
 import type { CrackedWallDefinition, EnemyDefinition, KeyedDoorDefinition, LeverDefinition } from "./types";
 
-export interface FloorStateUpdate {
+interface FloorStateUpdate {
   floorProgress: FloorProgress;
   character: PlayerCharacterState;
 }

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { MonsterSpecies } from "../../../src/domain/floor/types";
 import {
   advanceBattle,
   drinkPotion,
   flee,
+  monsterOnFloor,
   startBattle,
   type BattleEvent,
   type BattleState,
@@ -322,5 +324,108 @@ describe("dodge (032)", () => {
     const { events } = run(state, 1000, 0.01, seeded(7));
     expect(dodges(events).length / 1000).toBeGreaterThan(0.17);
     expect(dodges(events).length / 1000).toBeLessThan(0.23);
+  });
+});
+
+/** 038 C2: a monster's hit that leaves the player under 25% drinks one potion at once. */
+describe("auto-potion (038)", () => {
+  // The monster swings once a second; the player (hp 100 → 100 − 24 per hit) never kills it first.
+  const fight = (hp: number, potions: number, monster: Partial<CombatantStats> = {}) =>
+    startBattle(fighter({ hp, attackIntervalSec: 100 }), fighter({ attack: 24, ...monster }), 100, potions);
+  const swing = (state: BattleState) => advanceBattle(state, 1, never);
+
+  it("drinks one potion when a monster hit leaves HP below 25%", () => {
+    const step = swing(fight(40, 2)); // 40 − 24 = 16 < 25 → +25
+    expect(step.events).toEqual([
+      { kind: "hit", target: "player", damage: 24, isCrit: false },
+      { kind: "heal", amount: 25, auto: true },
+    ]);
+    expect(step.state.player.hp).toBe(41);
+    expect(step.state.potionCount).toBe(1);
+  });
+
+  it("does not drink at or above 25%", () => {
+    const step = swing(fight(49, 2)); // 49 − 24 = 25, not below
+    expect(step.events.some((e) => e.kind === "heal")).toBe(false);
+    expect(step.state.potionCount).toBe(2);
+  });
+
+  it("does nothing with no potions", () => {
+    const step = swing(fight(40, 0));
+    expect(step.events.some((e) => e.kind === "heal")).toBe(false);
+    expect(step.state.player.hp).toBe(16);
+  });
+
+  it("does not drink on a killing blow", () => {
+    const step = swing(fight(20, 3));
+    expect(step.state.outcome).toBe("defeat");
+    expect(step.state.potionCount).toBe(3);
+  });
+
+  it("does not drink after a dodge", () => {
+    const step = advanceBattle(startBattle(fighter({ hp: 10, dodgeChance: 1, attackIntervalSec: 100 }), fighter({ attack: 24 }), 100, 2), 1, always);
+    expect(step.events).toEqual([{ kind: "dodge", target: "player" }]);
+    expect(step.state.potionCount).toBe(2);
+  });
+
+  it("does not drink after the player's own hit", () => {
+    const state = startBattle(fighter({ hp: 10, attackIntervalSec: 1 }), fighter({ attackIntervalSec: 100 }), 100, 2);
+    const step = advanceBattle(state, 1, never);
+    expect(step.events.some((e) => e.kind === "heal")).toBe(false);
+  });
+
+  it("uses one potion per hit and leaves HP at or above 25%", () => {
+    const step = swing(startBattle(fighter({ hp: 30, attackIntervalSec: 100 }), fighter({ attack: 29 }), 4000, 3));
+    expect(step.events.filter((e) => e.kind === "heal")).toHaveLength(1);
+    expect(step.state.potionCount).toBe(2);
+    expect(step.state.player.hp).toBeGreaterThanOrEqual(1000);
+  });
+});
+
+/** 038 C1: floor scaling is built once from the species, elite and floor number. */
+describe("monsterOnFloor (038)", () => {
+  const species = (damage: number, interval: number, hp = 20, defence = 1): MonsterSpecies =>
+    ({
+      id: "goblin",
+      name: "Fixture",
+      baselineStats: { damage, defence, hp },
+      attackIntervalSec: interval,
+      critChance: 0.07,
+      critDamageBonus: 0.2,
+      dodgeChance: 0.12,
+    }) as MonsterSpecies;
+
+  it("floor 1 only rounds fractional per-hit attack up", () => {
+    expect(monsterOnFloor(species(4, 0.8), false, 1).attack).toBe(4); // 3.2
+    expect(monsterOnFloor(species(3, 0.5), false, 1).attack).toBe(2); // 1.5
+    expect(monsterOnFloor(species(25, 1.5), false, 1).attack).toBe(38); // 37.5
+    expect(monsterOnFloor(species(15, 2), false, 1)).toMatchObject({ hp: 20, attack: 30, defence: 1 });
+  });
+
+  it("scales ×1.1 per floor without floating-point overshoot (20 → 22, not 23)", () => {
+    expect(monsterOnFloor(species(10, 1), false, 2)).toMatchObject({ hp: 22, attack: 11, defence: 2 });
+  });
+
+  it("compounds from the base value on later floors", () => {
+    // 1.1^4 = 1.4641: 20 → 29.28 → 30, 10 → 14.64 → 15, 1 → 1.46 → 2
+    expect(monsterOnFloor(species(10, 1), false, 5)).toMatchObject({ hp: 30, attack: 15, defence: 2 });
+  });
+
+  it("keeps a zero stat at zero", () => {
+    expect(monsterOnFloor(species(10, 1, 20, 0), false, 6).defence).toBe(0);
+  });
+
+  it("applies the elite ×1.5 first, then the floor multiplier", () => {
+    // elite dps 10 → 15, hp 20 → 30; floor 2: 16.5 → 17, 33 → 33
+    expect(monsterOnFloor(species(10, 1), true, 2)).toMatchObject({ hp: 33, attack: 17 });
+  });
+
+  it("never scales attack speed, crit or dodge", () => {
+    expect(monsterOnFloor(species(10, 1), false, 9)).toMatchObject({
+      attackIntervalSec: 1,
+      critChance: 0.07,
+      critDamageBonus: 0.2,
+      dodgeChance: 0.12,
+    });
   });
 });

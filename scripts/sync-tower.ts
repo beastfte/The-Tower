@@ -10,7 +10,7 @@ import type { FloorDefinition } from "../src/domain/floor/types";
  * existing src/domain/floor validators (data-model.md's "Validation Rules" — unmodified),
  * and only if every check passes, regenerates src/data/floors/*.ts. No partial writes. */
 
-export interface SyncResult {
+interface SyncResult {
   ok: boolean;
   writtenFiles?: string[];
   errors?: string[];

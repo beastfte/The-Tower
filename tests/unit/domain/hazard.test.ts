@@ -115,7 +115,7 @@ describe("death and recovery", () => {
   // so a checkpoint restart undoes it for free with no special-casing.
   it("resumeFromCheckpoint reverts a purchase made during the current, uncompleted attempt", () => {
     const farmed = applyUpgradePurchase(buildSave().character, "vicious");
-    expect(farmed.bonusDamage).toBe(10); // 5 (fixture's pre-existing bonus) + 5 (the purchase)
+    expect(farmed.bonusDamage).toBe(6); // 5 (fixture's pre-existing bonus) + 1 (the purchase)
     expect(farmed.purchaseCounts?.vicious).toBe(1);
 
     const save = resumeFromCheckpoint({ ...buildSave(), character: farmed }, floor);
@@ -136,10 +136,10 @@ describe("death and recovery", () => {
       character: applyUpgradePurchase(buildSave().character, "vicious"),
     };
     const advanced = completeCurrentFloor(withPurchase, tower);
-    expect(advanced.checkpointCharacter?.bonusDamage).toBe(10);
+    expect(advanced.checkpointCharacter?.bonusDamage).toBe(6);
 
     const restarted = resumeFromCheckpoint(advanced, floor2);
-    expect(restarted.character.bonusDamage).toBe(10);
+    expect(restarted.character.bonusDamage).toBe(6);
     expect(restarted.character.purchaseCounts?.vicious).toBe(1);
   });
 

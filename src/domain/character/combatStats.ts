@@ -6,7 +6,7 @@ import { PLAYER_BASE_COMBAT } from "./initialState";
 import { COMMON_ROLL, gradedValue, type ExtraStats, type GearSlot } from "./grades";
 
 /** 027 (research R7): today's damage/defence/hp plus the live-battle stats. */
-export interface EffectiveStats extends CombatStats {
+interface EffectiveStats extends CombatStats {
   attackIntervalSec: number;
   critChance: number;
   critDamageBonus: number;

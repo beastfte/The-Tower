@@ -32,7 +32,7 @@ export interface NpcDialogueOption {
   onSelect: () => void;
 }
 
-/** 023 US3 (contracts C16, C17): builds the merchant's three option rows from current character
+/** 023 US3 (contracts C16, C17), 038: builds the merchant's four option rows from current character
  * state. Re-run this (and only this) after every purchase — see `NpcDialogueScene`, which calls
  * its own `getOptions()` again after each `onSelect` rather than being relaunched from outside
  * (research R19, analysis finding G1). */

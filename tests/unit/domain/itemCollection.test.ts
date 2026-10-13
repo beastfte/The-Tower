@@ -40,14 +40,14 @@ describe("attack/defense potion pickups (011 FR-007/FR-008)", () => {
   const armorCatalog: ReadonlyMap<string, ArmorPieceDefinition> = new Map(Object.entries(ARMOR_PIECES));
   const weaponCatalog = new Map(Object.entries(WEAPONS) as [WeaponId, (typeof WEAPONS)[WeaponId]][]);
 
-  it("attack potion permanently adds 2 to bonusDamage, cumulative across repeated pickups", () => {
+  it("attack potion permanently adds 1 (038) to bonusDamage, cumulative across repeated pickups", () => {
     const save = createInitialPlayerSave("floor-01", position);
     const potion: ItemDefinition = { id: "test-atk-potion", position, kind: "potionAttack", payload: undefined };
 
     let character = applyItemPickup(save.character, potion);
-    expect(character.bonusDamage).toBe(2);
+    expect(character.bonusDamage).toBe(1);
     character = applyItemPickup(character, potion);
-    expect(character.bonusDamage).toBe(4);
+    expect(character.bonusDamage).toBe(2);
   });
 
   it("defense potion permanently adds 1 to baseStats.defence, cumulative across repeated pickups", () => {
@@ -72,7 +72,7 @@ describe("attack/defense potion pickups (011 FR-007/FR-008)", () => {
     character = applyItemPickup(character, potion);
     const afterPotion = computeEffectiveStats(character, weaponCatalog, armorCatalog);
 
-    expect(afterPotion.damage).toBe(beforePotion.damage + 2);
+    expect(afterPotion.damage).toBe(beforePotion.damage + 1);
   });
 });
 

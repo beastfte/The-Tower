@@ -1,4 +1,4 @@
-export type MerchantFrame = "idle" | "breath";
+type MerchantFrame = "idle" | "breath";
 
 /** 023 US2 (research R3): the same 2-frame idle-breathing idiom as the player's own
  * `computePlayerIdleFrame` (playerAnimation.ts) — a pure function of elapsed time, matching

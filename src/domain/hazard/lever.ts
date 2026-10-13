@@ -9,7 +9,7 @@ export function findLeverAt(
   return floor.levers.find((l) => positionKey(l.position) === positionKey(position));
 }
 
-export interface ResolvedLeverEffects {
+interface ResolvedLeverEffects {
   unlockedDoorIds: Set<string>;
   revealedPathwayPositions: Position[];
   deactivatedTrapIds: Set<string>;

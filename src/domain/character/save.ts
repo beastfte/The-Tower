@@ -24,7 +24,8 @@ export interface FloorProgress {
 
 /** 023: the three merchant-shop upgrades — a fixed, closed set (spec Assumptions: "always the
  * same three"). */
-export type UpgradeId = "vicious" | "calm" | "robust";
+/** 038: "potion" buys one Health Potion at a fixed price; the other three are stat upgrades. */
+export type UpgradeId = "vicious" | "calm" | "robust" | "potion";
 
 export interface PlayerCharacterState {
   baseStats: CombatStats;

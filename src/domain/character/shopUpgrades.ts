@@ -1,7 +1,10 @@
 import type { PlayerCharacterState, UpgradeId } from "./save";
 import { healBy } from "./combatStats";
 
-export const UPGRADE_IDS: readonly UpgradeId[] = ["vicious", "calm", "robust"];
+export const UPGRADE_IDS: readonly UpgradeId[] = ["vicious", "calm", "robust", "potion"];
+
+/** 038: a Health Potion always costs this, however many have been bought. */
+const POTION_PRICE = 15;
 
 interface UpgradeDefinition {
   label: string;
@@ -10,7 +13,7 @@ interface UpgradeDefinition {
   apply: (character: PlayerCharacterState) => PlayerCharacterState;
 }
 
-/** 023 FR-005/FR-008/FR-009 (contract C3): the three merchant upgrades and their stat effects.
+/** 023 FR-005/FR-008/FR-009 (contract C3), 038: the merchant's options and their stat effects.
  * `robust` bumps `baseStats.hp` (max HP — there is no separate field, `computeMaxHp` just
  * returns it) BEFORE healing, so `healBy`'s own cap already reflects the new, higher maximum —
  * this is what turns 10/30 into 15/35 rather than capping at the old ceiling.
@@ -21,15 +24,15 @@ interface UpgradeDefinition {
 export const UPGRADES: Readonly<Record<UpgradeId, UpgradeDefinition>> = {
   vicious: {
     label: "Become more vicious",
-    statHint: "+5 attack",
-    apply: (character) => ({ ...character, bonusDamage: character.bonusDamage + 5 }),
+    statHint: "+1 attack",
+    apply: (character) => ({ ...character, bonusDamage: character.bonusDamage + 1 }),
   },
   calm: {
     label: "Become more sturdy",
-    statHint: "+5 defence",
+    statHint: "+1 defence",
     apply: (character) => ({
       ...character,
-      baseStats: { ...character.baseStats, defence: character.baseStats.defence + 5 },
+      baseStats: { ...character.baseStats, defence: character.baseStats.defence + 1 },
     }),
   },
   robust: {
@@ -43,11 +46,17 @@ export const UPGRADES: Readonly<Record<UpgradeId, UpgradeDefinition>> = {
       return healBy(withHigherMax, 5);
     },
   },
+  potion: {
+    label: "Buy a Health Potion",
+    statHint: "+1 potion",
+    apply: (character) => ({ ...character, potionCount: (character.potionCount ?? 0) + 1 }),
+  },
 };
 
 /** 023 FR-006/FR-007 (contract C1): price is derived from purchase count, never stored — the
- * Nth purchase of a given upgrade always costs 5 × N gold. */
+ * Nth purchase of a given upgrade always costs 5 × N gold. 038: a potion is always POTION_PRICE. */
 export function priceFor(character: PlayerCharacterState, id: UpgradeId): number {
+  if (id === "potion") return POTION_PRICE;
   const count = character.purchaseCounts?.[id] ?? 0;
   return 5 * (count + 1);
 }

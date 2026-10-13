@@ -3,9 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execSync } from "node:child_process";
 import { runSync } from "../../../scripts/sync-tower";
-import { exportExistingFloors } from "../../../scripts/export-existing-floors";
 import type { FloorExport, TowerExport } from "../../../scripts/floorConversion";
 import { TOWER } from "../../../src/data/floors";
 
@@ -144,43 +142,4 @@ describe("runSync — the validate-before-write gate (contracts/sync-cli-contrac
     const after = readFileSync(realFloorPath, "utf-8");
     expect(after).toBe(before);
   });
-
-  it(
-    "full round trip on real data: export the live TOWER, sync it into a scratch copy, and " +
-      "the generated .ts files actually load back (via a real tsx process, matching how " +
-      "npm run sync-tower is really used) to the exact same FloorDefinitions (quickstart.md " +
-      "Scenario 4, run against a temp dir rather than the real repo)",
-    () => {
-      const repoRoot = makeTempRepoRoot();
-      const towerExport = exportExistingFloors(TOWER);
-
-      const result = runSync(towerExport, repoRoot);
-      expect(result.ok).toBe(true);
-
-      // Load the generated files back via a real `tsx` process (not vitest's own Vite-based
-      // module loader, which sandboxes SSR imports to the project root and can't reach an
-      // arbitrary OS temp directory) — the same tool `npm run sync-tower` itself runs under.
-      const constNameFor = (id: string) => id.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
-      const verifierSource = [
-        ...TOWER.floors.map((f) => `import { ${constNameFor(f.id)} } from "./src/data/floors/${f.id}.ts";`),
-        ...TOWER.floors.map((f) => `console.log(JSON.stringify(${constNameFor(f.id)}));`),
-      ].join("\n");
-      const verifierPath = join(repoRoot, "verify.ts");
-      writeFileSync(verifierPath, verifierSource, "utf-8");
-
-      // Invoke this project's own installed tsx binary directly (not `npx tsx`, which would
-      // resolve relative to `cwd` — a bare OS temp dir with no node_modules of its own, and
-      // no guarantee of network access to fetch tsx fresh).
-      // A `.cmd` binary needs a shell on Windows (spawnSync without one rejects it outright,
-      // EINVAL) — build one fully-quoted command string ourselves rather than pass `shell:
-      // true` with an argument array, since that mode concatenates args unquoted and breaks
-      // on this repo's own path containing spaces.
-      const tsxBin = join(process.cwd(), "node_modules", ".bin", process.platform === "win32" ? "tsx.cmd" : "tsx");
-      const stdout = execSync(`"${tsxBin}" "${verifierPath}"`, { encoding: "utf-8" });
-      const lines = stdout.trim().split("\n");
-      TOWER.floors.forEach((floor, i) => {
-        expect(JSON.parse(lines[i]!)).toEqual(floor);
-      });
-    },
-  );
 });

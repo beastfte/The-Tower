@@ -16,7 +16,7 @@ export interface CombatIntroData {
 }
 
 /** 029 (contract C3): the one value the whole sequence is timed from — provisional, per the spec. */
-export const INTRO_MS = 1000;
+const INTRO_MS = 1000;
 /** Mockup keyframe percentage → ms (research R5). */
 const at = (fraction: number) => fraction * INTRO_MS;
 

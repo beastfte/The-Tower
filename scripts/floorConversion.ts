@@ -103,37 +103,6 @@ export function floorExportToDefinition(fe: FloorExport): FloorDefinition {
   return def;
 }
 
-/** `FloorDefinition` -> `FloorExport`, the inverse conversion. `order` has no equivalent on
- * `FloorDefinition` (the game only has array position in `TOWER.floors`), so the caller
- * supplies it — `export-existing-floors.ts` passes each floor's index in `TOWER.floors`. */
-export function floorDefinitionToExport(def: FloorDefinition, order: number): FloorExport {
-  const height = def.grid.length;
-  const width = def.grid[0]?.length ?? 0;
-  const walls = def.grid.map((row) => row.map((tile) => !tile.walkable));
-  const fe: FloorExport = {
-    id: def.id,
-    order,
-    width,
-    height,
-    walls,
-    entrance: def.entrance,
-    exit: def.exit,
-    enemies: def.enemies,
-    items: def.items,
-    keyedDoors: def.keyedDoors,
-    hazardTiles: def.hazardTiles,
-    spikePits: def.spikePits,
-    lavaTiles: def.lavaTiles,
-    levers: def.levers,
-    waterTiles: def.waterTiles,
-    crackedWalls: def.crackedWalls,
-    wallZoneOverrides: def.wallZoneOverrides,
-  };
-  if (def.zone) fe.zone = def.zone;
-  if (def.merchants) fe.merchants = def.merchants;
-  return fe;
-}
-
 /** Renders a `walls` grid back into the same `rowFromPattern("####...")` ASCII-row style
  * already used by every hand-authored floor (`src/data/floors/gridHelpers.ts`,
  * research.md #4) — one string per row, for generating a floor's `.ts` source text. */

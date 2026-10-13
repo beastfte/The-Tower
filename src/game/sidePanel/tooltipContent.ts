@@ -4,6 +4,9 @@ import type { PlayerCharacterState } from "../../domain/character/save";
 import type { ArmorPieceDefinition, WeaponDefinition, WeaponId } from "../../domain/character/types";
 import { armorPieceKey } from "../../data/armorPieces";
 import { COMMON_ROLL, GRADES, gradedValue, type GearRoll, type GradeId } from "../../domain/character/grades";
+import type { CombatantStats } from "../../domain/combat/battle";
+import { formatDamage, resolveHit } from "../../domain/combat/resolveAttack";
+import { formatSurvival, survivalChance } from "../../domain/combat/survival";
 import { keyTypeDescriptions, lootDescriptions } from "../uiContent/itemDescriptions";
 
 /** What a tooltip hover points at: a worn slot, a bag cell, or a key-ring tile. */
@@ -21,7 +24,7 @@ export interface TooltipCatalogs {
   keyTextureKeys: Readonly<Record<string, string>>;
 }
 
-export interface TooltipLine {
+interface TooltipLine {
   label: string;
   value: string;
   /** Present only for bag gear whose value differs from the worn piece's. */
@@ -61,9 +64,10 @@ const FIELDS: { key: keyof GearStats; label: string; percent: boolean }[] = [
   { key: "dodge", label: "DODGE", percent: true },
 ];
 
-const POTION_DESCRIPTION = "Carried; drink one in battle to heal 25% of max HP.";
+export const POTION_DESCRIPTION =
+  "Carried; drink one any time to heal 25% of max HP. In battle, one is drunk automatically when a monster's hit leaves you below 25% HP.";
 
-export interface GearInfo {
+interface GearInfo {
   name: string;
   grade: GradeId;
   slot: GearSlot;
@@ -183,7 +187,7 @@ export function buildTooltipContent(
   if (entry.kind === "potion") {
     return {
       iconKey: "potion",
-      name: "Health potion",
+      name: "Health Potion",
       kicker: `Potion · ×${entry.qty}`,
       lines: [],
       description: POTION_DESCRIPTION,
@@ -217,6 +221,38 @@ export function buildTooltipContent(
     lines: buildLines(info.stats, wornInfo?.stats ?? zero),
     comparedWith: wornInfo ? `Compared with your ${wornInfo.name}` : "Nothing worn in this slot",
     hint: "Click to select",
+    hintIsWarning: false,
+  };
+}
+
+interface MonsterTooltipInput {
+  name: string;
+  floorNumber: number;
+  isElite: boolean;
+  /** The floor-scaled monster (`monsterOnFloor`), at full HP. */
+  monster: CombatantStats;
+  /** The player as they would enter the fight right now. */
+  player: CombatantStats;
+  playerMaxHp: number;
+  potionCount: number;
+}
+
+/** 038 C6: what hovering a monster on the floor shows. */
+export function buildMonsterTooltip(input: MonsterTooltipInput): TooltipContent {
+  const { monster, player } = input;
+  const toYou = resolveHit(monster, player, false);
+  const survival = formatSurvival(survivalChance(player, monster, input.playerMaxHp, input.potionCount));
+  return {
+    name: input.name,
+    kicker: `Floor ${input.floorNumber}${input.isElite ? " · Elite" : ""}`,
+    lines: [
+      { label: "HP", value: formatDamage(monster.hp) },
+      { label: "DMG", value: `${formatDamage(monster.attack)} (${formatDamage(toYou)} to you)` },
+      { label: "DEF", value: formatDamage(monster.defence) },
+      { label: "ATK SPD", value: `${(1 / monster.attackIntervalSec).toFixed(2)}/s` },
+      { label: "SURVIVE", value: survival },
+    ],
+    hint: "",
     hintIsWarning: false,
   };
 }

@@ -7,7 +7,7 @@ import type { BattleEndOutcome } from "./battleResult";
  * asset paths for BootScene's preload loop (paths are URL-rooted since Vite serves public/ at /, mirroring
  * music.ts's *_KEY/*_PATH convention — 026 research R1, R12). */
 export const sfxClick = "sfxClick";
-export const sfxHover = "sfxHover";
+const sfxHover = "sfxHover";
 export const sfxError = "sfxError";
 export const sfxChest = "sfxChest";
 export const sfxDoor = "sfxDoor";

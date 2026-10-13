@@ -40,7 +40,7 @@ export function gradedValue(common: number, grade: GradeId): number {
 }
 
 /** 037: material tier of a piece of gear (1 leather/wood, 2 mail/metal, 3 plate/diamond). */
-export type GearGrade = 1 | 2 | 3;
+type GearGrade = 1 | 2 | 3;
 
 const WEAPON_GEAR_GRADE: Record<WeaponId, GearGrade> = { woodSword: 1, sword: 2, diamondSword: 3 };
 

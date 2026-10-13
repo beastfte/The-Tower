@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createInitialPlayerSave } from "../../../src/domain/character/initialState";
 import { applyUpgradePurchase, priceFor, UPGRADE_IDS, UPGRADES } from "../../../src/domain/character/shopUpgrades";
+import type { PlayerCharacterState } from "../../../src/domain/character/save";
 
 function freshCharacter() {
   return createInitialPlayerSave("floor-01", { x: 0, y: 0 }).character;
@@ -34,18 +35,18 @@ describe("shopUpgrades (contracts C1-C5)", () => {
     expect(character.purchaseCounts?.robust).toBeUndefined();
   });
 
-  it("vicious raises bonusDamage by 5 and nothing else stat-related (C3)", () => {
+  it("vicious raises bonusDamage by 1 (038) and nothing else stat-related (C3)", () => {
     const character = { ...freshCharacter(), currency: 100 };
     const next = applyUpgradePurchase(character, "vicious");
-    expect(next.bonusDamage).toBe(character.bonusDamage + 5);
+    expect(next.bonusDamage).toBe(character.bonusDamage + 1);
     expect(next.baseStats).toEqual(character.baseStats);
     expect(next.currentHp).toBe(character.currentHp);
   });
 
-  it("calm raises baseStats.defence by 5 (C3)", () => {
+  it("calm raises baseStats.defence by 1 (038, C3)", () => {
     const character = { ...freshCharacter(), currency: 100 };
     const next = applyUpgradePurchase(character, "calm");
-    expect(next.baseStats.defence).toBe(character.baseStats.defence + 5);
+    expect(next.baseStats.defence).toBe(character.baseStats.defence + 1);
     expect(next.baseStats.hp).toBe(character.baseStats.hp);
     expect(next.bonusDamage).toBe(character.bonusDamage);
   });
@@ -92,7 +93,7 @@ describe("shopUpgrades (contracts C1-C5)", () => {
     const character = { ...freshCharacter(), currency: 5 };
     const next = applyUpgradePurchase(character, "vicious");
     expect(next.currency).toBe(0);
-    expect(next.bonusDamage).toBe(character.bonusDamage + 5);
+    expect(next.bonusDamage).toBe(character.bonusDamage + 1);
   });
 
   it("never mutates the input character's purchaseCounts object (aliasing invariant)", () => {
@@ -104,14 +105,14 @@ describe("shopUpgrades (contracts C1-C5)", () => {
   });
 
   it("keeps the persisted UpgradeId keys unchanged despite the reworded display labels (research R17)", () => {
-    expect(UPGRADE_IDS).toEqual(["vicious", "calm", "robust"]);
+    expect(UPGRADE_IDS).toEqual(["vicious", "calm", "robust", "potion"]);
   });
 
   it("reworks display labels and adds a statHint for the dialogue box (2026-09-30 amendment)", () => {
     expect(UPGRADES.vicious.label).toBe("Become more vicious");
-    expect(UPGRADES.vicious.statHint).toBe("+5 attack");
+    expect(UPGRADES.vicious.statHint).toBe("+1 attack");
     expect(UPGRADES.calm.label).toBe("Become more sturdy");
-    expect(UPGRADES.calm.statHint).toBe("+5 defence");
+    expect(UPGRADES.calm.statHint).toBe("+1 defence");
     expect(UPGRADES.robust.label).toBe("Become more versatile");
     expect(UPGRADES.robust.statHint).toBe("+5 max HP");
   });
@@ -119,5 +120,16 @@ describe("shopUpgrades (contracts C1-C5)", () => {
   it("still prices an upgrade correctly on a save with existing purchaseCounts from before the label rework", () => {
     const character = { ...freshCharacter(), currency: 100, purchaseCounts: { calm: 2 } };
     expect(priceFor(character, "calm")).toBe(15);
+  });
+
+  it("sells a Health Potion for a fixed 15 gold, however many have been bought (038)", () => {
+    let character: PlayerCharacterState = { ...freshCharacter(), currency: 100, potionCount: 0 };
+    for (let i = 1; i <= 3; i++) {
+      expect(priceFor(character, "potion")).toBe(15);
+      character = applyUpgradePurchase(character, "potion");
+      expect(character.potionCount).toBe(i);
+    }
+    expect(character.currency).toBe(55);
+    expect(applyUpgradePurchase({ ...character, currency: 14 }, "potion").potionCount).toBe(3); // unaffordable: no-op
   });
 });

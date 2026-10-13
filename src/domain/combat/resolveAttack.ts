@@ -4,7 +4,7 @@ import type { CombatStats } from "../types";
  * 10 defence halves it and no amount of defence ever cancels it. */
 export const DEFENCE_K = 10;
 
-export function defenceMultiplier(defence: number): number {
+function defenceMultiplier(defence: number): number {
   return DEFENCE_K / (DEFENCE_K + Math.max(0, defence));
 }
 
@@ -16,13 +16,13 @@ export function resolveAttack(attacker: CombatStats, defender: CombatStats): num
   return Math.max(0, attacker.damage) * defenceMultiplier(defender.defence);
 }
 
-export interface HitAttacker {
+interface HitAttacker {
   attack: number;
   attackIntervalSec: number;
   critDamageBonus: number;
 }
 
-export interface HitDefender {
+interface HitDefender {
   defence: number;
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTooltipContent, type TooltipCatalogs } from "../../../src/game/sidePanel/tooltipContent";
+import { buildMonsterTooltip, buildTooltipContent, type TooltipCatalogs } from "../../../src/game/sidePanel/tooltipContent";
 import { createInitialPlayerSave } from "../../../src/domain/character/initialState";
 import type { GradeId } from "../../../src/domain/character/grades";
 import type { PlayerCharacterState } from "../../../src/domain/character/save";
@@ -86,7 +86,8 @@ describe("buildTooltipContent — worn, potion, loot, key", () => {
     const tip = buildTooltipContent(base(), { from: "bag", entry: { kind: "potion", qty: 3 } }, catalogs)!;
     expect(tip.lines).toEqual([]);
     expect(tip.kicker).toBe("Potion · ×3");
-    expect(tip.description).toMatch(/battle/);
+    expect(tip.name).toBe("Health Potion");
+    expect(tip.description).toMatch(/automatically.*below 25%/);
     expect(tip.hint).toBe("Drink during battle");
   });
 
@@ -144,5 +145,28 @@ describe("buildTooltipContent: grade and extras (034)", () => {
     const tip = buildTooltipContent(c, { from: "slot", slot: "weapon" }, catalogs)!;
     expect(tip.grade).toBe("legendary");
     expect(tip.kicker).toBe("Worn · Legendary Weapon");
+  });
+});
+
+describe("buildMonsterTooltip (038 C6)", () => {
+  const monster = { hp: 22, attack: 4, defence: 2, attackIntervalSec: 0.8, critChance: 0, critDamageBonus: 0, dodgeChance: 0 };
+  const player = { hp: 100, attack: 10, defence: 10, attackIntervalSec: 1, critChance: 0, critDamageBonus: 0, dodgeChance: 0 };
+
+  it("lists the five lines with raw damage, damage to you, and a deterministic survival chance", () => {
+    const tip = buildMonsterTooltip({ name: "Goblin", floorNumber: 2, isElite: true, monster, player, playerMaxHp: 100, potionCount: 0 });
+    expect(tip.name).toBe("Goblin");
+    expect(tip.kicker).toBe("Floor 2 · Elite");
+    expect(tip.lines).toEqual([
+      { label: "HP", value: "22" },
+      { label: "DMG", value: "4 (2 to you)" }, // defence 10 halves a hit
+      { label: "DEF", value: "2" },
+      { label: "ATK SPD", value: "1.25/s" },
+      { label: "SURVIVE", value: "100%" },
+    ]);
+  });
+
+  it("omits the Elite tag for a regular monster", () => {
+    const tip = buildMonsterTooltip({ name: "Goblin", floorNumber: 1, isElite: false, monster, player, playerMaxHp: 100, potionCount: 0 });
+    expect(tip.kicker).toBe("Floor 1");
   });
 });
