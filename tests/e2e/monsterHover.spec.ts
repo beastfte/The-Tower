@@ -16,8 +16,8 @@ async function newGame(page: Page): Promise<void> {
 async function firstMonsterCentre(page: Page): Promise<{ x: number; y: number }> {
   return page.evaluate(() => {
     type Marker = { gameObject: { getBounds: () => { centerX: number; centerY: number } } };
-    const game = (window as unknown as { __game: { canvas: { getBoundingClientRect: () => { left: number; top: number; width: number } }; scale: { width: number }; scene: { getScene: (k: string) => { livingMarkers: Marker[] } } } }).__game;
-    const marker = game.scene.getScene("FloorScene").livingMarkers[0];
+    const game = (window as unknown as { __game: { canvas: { getBoundingClientRect: () => { left: number; top: number; width: number } }; scale: { width: number }; scene: { getScene: (k: string) => { monsterMarkers: Marker[] } } } }).__game;
+    const marker = game.scene.getScene("FloorScene").monsterMarkers[0];
     if (!marker) throw new Error("no living marker on this floor");
     const b = marker.gameObject.getBounds();
     const rect = game.canvas.getBoundingClientRect();
@@ -37,6 +37,10 @@ test("hovering a monster shows HP, DMG, DEF, ATK SPD and SURVIVE, and leaving hi
   const labels = await tip.locator('[data-testid="tooltip-line"]').evaluateAll((rows) => rows.map((r) => r.children[0]?.textContent));
   expect(labels).toEqual(["HP", "DMG", "DEF", "ATK SPD", "SURVIVE"]);
   await expect(tip.locator('[data-testid="tooltip-name"]')).not.toHaveText("");
+  await expect(tip.locator('[data-testid="tooltip-threat"]')).toHaveText(/^(Trivial|Safe|Risky|Dangerous|Deadly)$/i);
+  // 041 C4: no empty icon box and no blank hint row on a monster card
+  await expect(tip.locator("img")).toHaveCount(0);
+  await expect(tip.locator('[data-testid="tooltip-hint"]')).toHaveCount(0);
 
   await page.mouse.move(1, 1); // off the canvas, so no other monster is under the pointer
   await expect(tip).toBeHidden();

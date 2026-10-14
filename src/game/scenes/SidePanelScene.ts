@@ -22,6 +22,7 @@ import {
   buildTooltipContent,
   gearInfo,
   type TooltipCatalogs,
+  type Tone,
   type TooltipContent,
   type TooltipSource,
 } from "../sidePanel/tooltipContent";
@@ -53,6 +54,30 @@ function glow(grade: GradeId, selected = false): Partial<CSSStyleDeclaration> {
   return { borderColor: selected ? "var(--ui-gold)" : colour, boxShadow: `0 0 ${px(5)} ${px(1)} ${colour}` };
 }
 
+/** 041: threat tone → palette colour (green / gold / red; rank colours never reuse these). */
+const TONE_COLOUR: Record<Tone, string> = { good: "var(--ui-green)", warn: "var(--ui-gold)", bad: "var(--ui-red)" };
+
+/** 041: elite / boss card decoration. Silver and violet are rank-only; threat owns green / gold / red. */
+const RANK_STYLE = {
+  elite: {
+    tag: "★ ELITE",
+    colour: "var(--ui-silver)",
+    borderPx: 1,
+    glowPx: 4,
+    // a second line outside the border, with a one-pixel gap, plus a soft glow
+    frameShadow: "0 0 0 2px var(--ui-card), 0 0 0 3px var(--ui-silver), 0 0 12px 3px rgba(200,204,212,0.35)",
+    corners: false,
+  },
+  boss: {
+    tag: "♛ BOSS",
+    colour: "var(--ui-violet)",
+    borderPx: 2,
+    glowPx: 8,
+    frameShadow: "0 0 18px 5px rgba(180,140,255,0.5)",
+    corners: true,
+  },
+} as const;
+
 const TOOLTIP_WIDTH = 205;
 const TOOLTIP_GAP = 8;
 
@@ -81,6 +106,9 @@ function iconSrc(key: string): string {
   return src;
 }
 
+/** 040: two clicks on the same bag entry inside this window act on it (Equip / Use). */
+const DOUBLE_CLICK_MS = 400;
+
 function entryId(e: BagEntry): string {
   return e.kind === "loot" ? `loot:${e.id}` : e.kind === "potion" ? "potion" : `gear:${e.index}`;
 }
@@ -99,6 +127,8 @@ export class SidePanelScene extends Phaser.Scene {
   private tooltip!: HTMLDivElement;
   private lastSignature = "";
   private selectedId: string | null = null;
+  /** 040: tracked by entry id, not DOM node — the first click's redraw replaces the cell, so `dblclick` can't fire. */
+  private lastBagClick: { id: string; at: number } | null = null;
 
   constructor() {
     super("SidePanelScene");
@@ -225,13 +255,15 @@ export class SidePanelScene extends Phaser.Scene {
 
   private fillTooltip(c: TooltipContent): void {
     this.tooltip.replaceChildren();
+    const rank = c.rank ? RANK_STYLE[c.rank] : undefined;
     const card = make(
       "div",
       {
+        position: "relative",
         background: "var(--ui-card)",
-        border: "1px solid var(--ui-border)",
+        border: rank ? `${px(rank.borderPx)} solid ${rank.colour}` : "1px solid var(--ui-border)",
         borderRadius: px(7),
-        boxShadow: "0 10px 26px -6px rgba(0,0,0,0.7)",
+        boxShadow: rank ? `${rank.frameShadow}, 0 10px 26px -6px rgba(0,0,0,0.7)` : "0 10px 26px -6px rgba(0,0,0,0.7)",
         padding: `${px(9)} ${px(11)}`,
         display: "flex",
         flexDirection: "column",
@@ -242,35 +274,89 @@ export class SidePanelScene extends Phaser.Scene {
     );
 
     const head = make("div", { display: "flex", gap: px(8), alignItems: "center" }, card);
-    const iconBox = make(
-      "div",
-      {
-        width: px(32),
-        height: px(32),
-        borderRadius: px(5),
-        background: "var(--ui-elev)",
-        border: "1px solid var(--ui-soft)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flex: "none",
-      },
-      head,
-    );
-    if (c.iconKey) this.addIcon(iconBox, c.iconKey, 26);
+    if (c.iconKey) {
+      const iconBox = make(
+        "div",
+        {
+          width: px(32),
+          height: px(32),
+          borderRadius: px(5),
+          background: "var(--ui-elev)",
+          border: "1px solid var(--ui-soft)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flex: "none",
+        },
+        head,
+      );
+      this.addIcon(iconBox, c.iconKey, 26);
+    }
     const titles = make("div", { display: "flex", flexDirection: "column", gap: px(1), minWidth: "0" }, head);
     make(
       "span",
-      { fontSize: px(11), fontWeight: "700", ...(c.grade ? { color: GRADES[c.grade].colour } : {}) },
+      {
+        fontSize: px(11),
+        fontWeight: "700",
+        ...(c.grade ? { color: GRADES[c.grade].colour } : {}),
+        ...(rank ? { textShadow: `0 0 ${px(rank.glowPx)} ${rank.colour}` } : {}),
+      },
       titles,
       c.name,
     ).dataset.testid = "tooltip-name";
+    const kickerRow = make("div", { display: "flex", flexWrap: "wrap", alignItems: "center", gap: px(5) }, titles);
     make(
       "span",
       { fontSize: px(7.5), fontWeight: "700", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--ui-gold)" },
-      titles,
+      kickerRow,
       c.kicker,
     );
+    if (rank) {
+      make(
+        "span",
+        { fontSize: px(7.5), fontWeight: "700", letterSpacing: "0.08em", color: rank.colour },
+        kickerRow,
+        rank.tag,
+      ).dataset.testid = "tooltip-rank";
+    }
+    if (rank?.corners) {
+      for (const [v, h] of [["top", "left"], ["top", "right"], ["bottom", "left"], ["bottom", "right"]] as const) {
+        const b = make(
+          "div",
+          {
+            position: "absolute",
+            [v]: px(2),
+            [h]: px(2),
+            width: px(6),
+            height: px(6),
+            pointerEvents: "none",
+            [`border${v === "top" ? "Top" : "Bottom"}`]: `1px solid ${rank.colour}`,
+            [`border${h === "left" ? "Left" : "Right"}`]: `1px solid ${rank.colour}`,
+          },
+          card,
+        );
+        b.dataset.testid = "tooltip-corner";
+      }
+    }
+    if (c.threat) {
+      const tone = TONE_COLOUR[c.threat.tone];
+      make(
+        "span",
+        {
+          fontSize: px(7),
+          fontWeight: "700",
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          color: tone,
+          border: `1px solid ${tone}`,
+          borderRadius: px(8),
+          padding: `${px(1)} ${px(5)}`,
+          background: "rgba(0,0,0,0.25)",
+        },
+        kickerRow,
+        c.threat.tier,
+      ).dataset.testid = "tooltip-threat";
+    }
 
     if (c.lines.length > 0) {
       const lines = make(
@@ -282,7 +368,7 @@ export class SidePanelScene extends Phaser.Scene {
         const row = make("div", { display: "flex", alignItems: "baseline", gap: px(6) }, lines);
         row.dataset.testid = "tooltip-line";
         make("span", { flex: "1", fontSize: px(7.5), fontWeight: "700", color: "var(--ui-muted)" }, row, ln.label);
-        make("span", { fontSize: px(9.5), fontWeight: "700" }, row, ln.value);
+        make("span", { fontSize: px(9.5), fontWeight: "700", ...(ln.tone ? { color: TONE_COLOUR[ln.tone] } : {}) }, row, ln.value);
         if (ln.delta) {
           const d = make(
             "span",
@@ -313,19 +399,20 @@ export class SidePanelScene extends Phaser.Scene {
       make("div", { fontSize: px(8), color: "var(--ui-faint)", whiteSpace: "normal" }, card, c.comparedWith).dataset.testid =
         "tooltip-compared";
     }
-    const hint = make(
-      "div",
-      {
-        fontSize: px(8),
-        fontWeight: "700",
-        color: c.hintIsWarning ? "var(--ui-red)" : "var(--ui-gold)",
-        borderTop: "1px dashed var(--ui-border)",
-        paddingTop: px(6),
-      },
-      card,
-      c.hint,
-    );
-    hint.dataset.testid = "tooltip-hint";
+    if (c.hint) {
+      make(
+        "div",
+        {
+          fontSize: px(8),
+          fontWeight: "700",
+          color: c.hintIsWarning ? "var(--ui-red)" : "var(--ui-gold)",
+          borderTop: "1px dashed var(--ui-border)",
+          paddingTop: px(6),
+        },
+        card,
+        c.hint,
+      ).dataset.testid = "tooltip-hint";
+    }
   }
 
   // ---- building blocks ----------------------------------------------------------------
@@ -387,6 +474,14 @@ export class SidePanelScene extends Phaser.Scene {
     if (!gearInfo(entry.key, this.catalogs)) return;
     this.ctx.save.character = equipFromBag(this.ctx.save.character, entry.index);
     this.commit();
+  }
+
+  /** 040: double-click = the Equip / Use button, only when that button would be enabled. */
+  private tryDoubleClick(entry: BagEntry): boolean {
+    if (entry.kind === "gear" && !this.isBusy()) this.doEquip(entry);
+    else if (entry.kind === "potion" && this.overlay()?.canDrinkPotion()) this.doUse(entry);
+    else return false;
+    return true;
   }
 
   private doDiscard(entry: BagEntry): void {
@@ -633,7 +728,15 @@ export class SidePanelScene extends Phaser.Scene {
         make("span", { position: "absolute", right: px(3), bottom: px(1), fontSize: px(8), fontWeight: "700" }, cell, `×${qty}`);
       }
       cell.addEventListener("click", () => {
-        this.selectedId = this.selectedId === entryId(entry) ? null : entryId(entry);
+        const id = entryId(entry);
+        const now = performance.now();
+        const twice = this.lastBagClick?.id === id && now - this.lastBagClick.at < DOUBLE_CLICK_MS;
+        if (twice && this.tryDoubleClick(entry)) {
+          this.lastBagClick = null;
+          return;
+        }
+        this.lastBagClick = { id, at: now };
+        this.selectedId = this.selectedId === id ? null : id;
         this.lastSignature = "";
       });
       const source: TooltipSource = { from: "bag", entry };

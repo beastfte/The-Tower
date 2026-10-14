@@ -338,6 +338,70 @@ test.describe("US4: bag actions and the 25-slot limit (033)", () => {
   });
 });
 
+test.describe("040: double-click a bag item to Equip / Use", () => {
+  const FIGHT = {
+    baseStats: { damage: 1, defence: 100_000, hp: 40 },
+    currentHp: 20,
+    potionCount: 2,
+    bagGear: [item("sword")],
+  };
+
+  async function startFight(page: Page): Promise<void> {
+    await clearSave(page);
+    await page.goto("/");
+    const plan = await approach(page, "enemy", { character: FIGHT });
+    expect(plan).not.toBeNull();
+    await page.keyboard.press(plan!.press);
+    await waitForActiveScene(page, "CombatOverlay");
+  }
+
+  test("double-clicking gear equips it", async ({ page }) => {
+    await newGame(page);
+    await setCharacter(page, { equippedWeaponId: "woodSword" });
+    const { onto } = await placeItemAhead(page, { id: "e2e-diamond-sword", kind: "weapon", payload: "diamondSword" });
+    await pressAndWait(page, onto);
+
+    await page.locator('[data-testid="bag-cell-0"]').dblclick();
+    await expect(page.locator('[data-testid="slot-weapon-name"]')).toHaveText("Diamond Sword");
+    expect((await getCtxSave(page)).character.bagGear).toEqual([item("woodSword")]);
+  });
+
+  test("double-clicking gear during a fight does nothing", async ({ page }) => {
+    await startFight(page);
+    await page.locator('[data-testid="bag-cell-1"]').dblclick();
+    const { character } = await getCtxSave(page);
+    expect(character.bagGear).toEqual([item("sword")]);
+  });
+
+  test("double-clicking the potion drinks exactly one, even on a triple click", async ({ page }) => {
+    await startFight(page);
+    await page.locator('[data-testid="bag-cell-0"]').dblclick();
+    await expect(page.locator('[data-testid="combat-player-hp-value"]')).toHaveText("30");
+    await expect(page.locator('[data-testid="combat-potion"]')).toHaveText("Health Potion ×1");
+    await page.locator('[data-testid="bag-cell-0"]').click({ clickCount: 3 });
+    await expect(page.locator('[data-testid="combat-potion"]')).toHaveText("Health Potion ×0");
+  });
+
+  test("double-clicking the potion outside battle does nothing", async ({ page }) => {
+    await newGame(page);
+    await setCharacter(page, { potionCount: 2 });
+    await page.locator('[data-testid="bag-cell-0"]').dblclick();
+    expect((await getCtxSave(page)).character.potionCount).toBe(2);
+  });
+
+  test("two slow single clicks still select then deselect", async ({ page }) => {
+    await newGame(page);
+    await setCharacter(page, { bagGear: [item("sword")] });
+    const cell = page.locator('[data-testid="bag-cell-0"]');
+    await cell.click();
+    await expect(page.locator('[data-testid="bag-equip"]')).toBeEnabled();
+    await page.waitForTimeout(600);
+    await cell.click();
+    await expect(page.locator('[data-testid="bag-equip"]')).toBeDisabled();
+    expect((await getCtxSave(page)).character.bagGear).toEqual([item("sword")]);
+  });
+});
+
 test.describe("034: grade display", () => {
   test("a graded bag item glows in its grade colour without tinting the cell, and a worn name takes the colour", async ({ page }) => {
     await newGame(page);

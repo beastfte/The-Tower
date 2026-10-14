@@ -6,7 +6,7 @@ import { armorPieceKey } from "../../data/armorPieces";
 import { COMMON_ROLL, GRADES, gradedValue, type GearRoll, type GradeId } from "../../domain/character/grades";
 import type { CombatantStats } from "../../domain/combat/battle";
 import { formatDamage, resolveHit } from "../../domain/combat/resolveAttack";
-import { formatSurvival, survivalChance } from "../../domain/combat/survival";
+import { formatSurvival, survivalChance, threatTier, type ThreatTier } from "../../domain/combat/survival";
 import { keyTypeDescriptions, lootDescriptions } from "../uiContent/itemDescriptions";
 
 /** What a tooltip hover points at: a worn slot, a bag cell, or a key-ring tile. */
@@ -24,11 +24,16 @@ export interface TooltipCatalogs {
   keyTextureKeys: Readonly<Record<string, string>>;
 }
 
+/** 041: how worrying a value is; the renderer maps it to green / gold / red. */
+export type Tone = "good" | "warn" | "bad";
+
 interface TooltipLine {
   label: string;
   value: string;
   /** Present only for bag gear whose value differs from the worn piece's. */
   delta?: { text: string; better: boolean };
+  /** 041: tints the value; set only on a monster card's SURVIVE line. */
+  tone?: Tone;
 }
 
 export interface TooltipContent {
@@ -38,6 +43,10 @@ export interface TooltipContent {
   iconKey?: string;
   name: string;
   kicker: string;
+  /** 041: a monster card's named danger tier (the pill beside the kicker). */
+  threat?: { tier: ThreatTier; tone: Tone };
+  /** 041: elite / boss cards get a rank tag, name glow and ornamented frame; unset for normal monsters. */
+  rank?: "elite" | "boss";
   lines: TooltipLine[];
   description?: string;
   comparedWith?: string;
@@ -229,6 +238,8 @@ interface MonsterTooltipInput {
   name: string;
   floorNumber: number;
   isElite: boolean;
+  /** The end boss; wins over `isElite` for the card's rank. */
+  isEndBoss?: boolean;
   /** The floor-scaled monster (`monsterOnFloor`), at full HP. */
   monster: CombatantStats;
   /** The player as they would enter the fight right now. */
@@ -237,20 +248,26 @@ interface MonsterTooltipInput {
   potionCount: number;
 }
 
+const TIER_TONE: Record<ThreatTier, Tone> = { Trivial: "good", Safe: "good", Risky: "warn", Dangerous: "bad", Deadly: "bad" };
+
 /** 038 C6: what hovering a monster on the floor shows. */
 export function buildMonsterTooltip(input: MonsterTooltipInput): TooltipContent {
   const { monster, player } = input;
   const toYou = resolveHit(monster, player, false);
-  const survival = formatSurvival(survivalChance(player, monster, input.playerMaxHp, input.potionCount));
+  const chance = survivalChance(player, monster, input.playerMaxHp, input.potionCount);
+  const tier = threatTier(chance);
+  const tone = TIER_TONE[tier];
   return {
     name: input.name,
-    kicker: `Floor ${input.floorNumber}${input.isElite ? " · Elite" : ""}`,
+    kicker: `Floor ${input.floorNumber}`,
+    threat: { tier, tone },
+    ...(input.isEndBoss ? { rank: "boss" as const } : input.isElite ? { rank: "elite" as const } : {}),
     lines: [
       { label: "HP", value: formatDamage(monster.hp) },
       { label: "DMG", value: `${formatDamage(monster.attack)} (${formatDamage(toYou)} to you)` },
       { label: "DEF", value: formatDamage(monster.defence) },
       { label: "ATK SPD", value: `${(1 / monster.attackIntervalSec).toFixed(2)}/s` },
-      { label: "SURVIVE", value: survival },
+      { label: "SURVIVE", value: formatSurvival(chance), tone },
     ],
     hint: "",
     hintIsWarning: false,

@@ -21,10 +21,20 @@ import {
   playSfx,
   sfxPotion,
 } from "../sfx";
-import { computeMonsterAttackFrame, MONSTER_ATTACK_IMPACT_MS, type MonsterCombatFrame } from "../monsterAnimation";
+import {
+  computeMonsterAttackFrame,
+  computeMonsterIdleFrame,
+  computeMonsterIdlePose,
+  IDLE_POSE_IDENTITY,
+  monsterIdleStyle,
+  MONSTER_ATTACK_IMPACT_MS,
+  type MonsterCombatFrame,
+  type MonsterIdlePose,
+} from "../monsterAnimation";
 import { computePlayerAttackFrame, type PlayerAttackFrame } from "../playerAnimation";
 import { ensureFlashTexture, ensureMonsterCombatTexture, ensurePlayerTexture, hasMonsterCombatFrames, type PlayerArmourLook } from "../render/spriteTextures";
 import type { WeaponId } from "../../domain/character/types";
+import type { MonsterSpeciesId } from "../../domain/floor/types";
 import { POTION_DESCRIPTION } from "../sidePanel/tooltipContent";
 import { formatDamage } from "../../domain/combat/resolveAttack";
 
@@ -45,6 +55,8 @@ export interface CombatOverlayData {
   monsterTextureKey: string;
   /** 030: the species' sprite key, from which the side-profile attack frames are derived. */
   monsterSpeciesKey: string;
+  /** 039: the species id, from which the idle motion style is chosen. */
+  monsterSpeciesId: MonsterSpeciesId;
   /** 031 (contract C5): the Prince's raw look, so the duel can bake his attack frames too —
    * `playerTextureKey` alone only covers idle. */
   playerArmourLook: PlayerArmourLook;
@@ -154,6 +166,8 @@ export class CombatOverlay extends Phaser.Scene {
   /** The monster's hit, held back until its strike frame (FR-005). */
   private pendingImpact_: ImpactEvent | null = null;
   private attackFrame_: MonsterCombatFrame = "idle";
+  /** 039: ms on the same gated battle clock, driving the monster's idle frame swap and pose. */
+  private idleElapsedMs_ = 0;
   /** 031: ms into the Prince's swing on the same gated clock; null = not swinging. */
   private playerAttackElapsedMs_: number | null = null;
   private playerAttackFrame_: "idle" | PlayerAttackFrame = "idle";
@@ -175,6 +189,7 @@ export class CombatOverlay extends Phaser.Scene {
     this.attackElapsedMs_ = null;
     this.pendingImpact_ = null;
     this.attackFrame_ = "idle";
+    this.idleElapsedMs_ = 0;
     this.playerAttackElapsedMs_ = null;
     this.playerAttackFrame_ = "idle";
     this.pendingAutoHeals_ = [];
@@ -279,10 +294,11 @@ export class CombatOverlay extends Phaser.Scene {
       // 030 (contract C4): scaled, not sized, so a 44-wide attack frame keeps the same pixel size
       // (FR-006a); and anchored on the right edge of the usual box, where every frame's body
       // lines up (the sheet's dx = 32 - w), so only the reach moves — leftward, at the Prince.
+      // 039: also anchored on the box's bottom, so the idle breathe/squash grows up from the feet.
       sprite
         .setScale(toCanvas(SPRITE) / 32)
-        .setOrigin(1, 0.5)
-        .setX(toCanvas(SPRITE_CENTRE_X.monster + SPRITE / 2));
+        .setOrigin(1, 1)
+        .setPosition(toCanvas(SPRITE_CENTRE_X.monster + SPRITE / 2), toCanvas(SPRITE_CENTRE_Y + SPRITE / 2));
     }
 
     // Health readout in this side's top corner (C10, FR-039).
@@ -347,7 +363,8 @@ export class CombatOverlay extends Phaser.Scene {
     // FR-010 (research R3): the battle clock only runs while the game has focus, and a long
     // stall can't land a burst of hits on return.
     const elapsedSec = document.hasFocus() ? Math.min(delta, 100) / 1000 : 0;
-    // 030 (C8): the attack animation runs on the same gated clock, so it freezes with the battle.
+    // 030 (C8): the attack animation runs on the same gated clock, so it freezes with the battle
+    // (039: and so does the idle loop).
     this.advanceMonsterAttack(elapsedSec * 1000);
     this.advancePlayerAttack(elapsedSec * 1000);
     const step = advanceBattle(this.state_, elapsedSec, Math.random);
@@ -440,7 +457,14 @@ export class CombatOverlay extends Phaser.Scene {
   /** The silhouette follows an attack frame change while a flash is still visible. */
   private syncFlash(side: Side): void {
     const { sprite, flash } = this.views_[side];
-    if (flash.alpha > 0) flash.setTexture(ensureFlashTexture(this, sprite.texture.key));
+    if (flash.alpha > 0) {
+      // 039: the sprite now moves between hits, so the silhouette tracks its whole transform.
+      flash
+        .setTexture(ensureFlashTexture(this, sprite.texture.key))
+        .setOrigin(sprite.originX, sprite.originY)
+        .setPosition(sprite.x, sprite.y)
+        .setScale(sprite.scaleX, sprite.scaleY);
+    }
   }
 
   /** 030 (C6): (re)starts the attack from its wind-up. A hit still waiting on an earlier strike
@@ -453,12 +477,30 @@ export class CombatOverlay extends Phaser.Scene {
   }
 
   private advanceMonsterAttack(deltaMs: number): void {
-    if (this.attackElapsedMs_ === null) return;
-    this.attackElapsedMs_ += deltaMs;
-    if (this.attackElapsedMs_ >= MONSTER_ATTACK_IMPACT_MS) this.flushImpact(); // C7
-    const frame = computeMonsterAttackFrame(this.attackElapsedMs_);
-    if (frame === null) this.attackElapsedMs_ = null;
-    this.setMonsterFrame(frame ?? "idle");
+    this.idleElapsedMs_ += deltaMs;
+    if (this.attackElapsedMs_ !== null) {
+      this.attackElapsedMs_ += deltaMs;
+      if (this.attackElapsedMs_ >= MONSTER_ATTACK_IMPACT_MS) this.flushImpact(); // C7
+      const frame = computeMonsterAttackFrame(this.attackElapsedMs_);
+      if (frame !== null) {
+        this.setMonsterFrame(frame);
+        this.applyMonsterPose(IDLE_POSE_IDENTITY); // 039 FR-007a: hold still while swinging
+        return;
+      }
+      this.attackElapsedMs_ = null;
+    }
+    // 039: between attacks, swap idle/breath (species with combat art) and apply the species motion.
+    this.setMonsterFrame(this.animates_ ? computeMonsterIdleFrame(this.idleElapsedMs_) : "idle");
+    this.applyMonsterPose(computeMonsterIdlePose(monsterIdleStyle(this.data_.monsterSpeciesId), this.idleElapsedMs_, 0));
+  }
+
+  /** 039: scales the monster from its resting scale and lifts it by `dy` of its sprite box. */
+  private applyMonsterPose(pose: MonsterIdlePose): void {
+    const base = toCanvas(SPRITE) / 32;
+    this.views_.monster.sprite
+      .setScale(base * pose.sx, base * pose.sy)
+      .setY(toCanvas(SPRITE_CENTRE_Y + SPRITE / 2 + pose.dy * SPRITE));
+    this.syncFlash("monster");
   }
 
   private flushImpact(): void {

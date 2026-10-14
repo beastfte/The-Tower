@@ -79,7 +79,8 @@ export interface PlayerSave {
    * moment the current floor attempt began (set in `createInitialPlayerSave` and
    * `completeCurrentFloor`'s advance branch). FR-005 (003-pause-menu/spec.md): "Restart at
    * last checkpoint" must undo everything gained during the current attempt, not just
-   * floor-local state — `resumeFromCheckpoint` restores `character` from this field. Absent
+   * floor-local state — `resumeFromCheckpoint` restores `character` from this field, current HP
+   * included (bug fix: checkpoint-resume-state). Absent
    * on a save persisted before this field existed; callers must tolerate that (see
    * `resumeFromCheckpoint`). */
   checkpointCharacter?: PlayerCharacterState;

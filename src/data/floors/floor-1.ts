@@ -204,6 +204,54 @@ export const FLOOR_1: FloorDefinition = {
         "y": 5
       },
       "species": "goblin"
+    },
+    {
+      "id": "floor-1-enemy-29",
+      "position": {
+        "x": 5,
+        "y": 6
+      },
+      "species": "voidwalker"
+    },
+    {
+      "id": "floor-1-enemy-30",
+      "position": {
+        "x": 5,
+        "y": 5
+      },
+      "species": "bandit"
+    },
+    {
+      "id": "floor-1-enemy-31",
+      "position": {
+        "x": 7,
+        "y": 6
+      },
+      "species": "necromancer"
+    },
+    {
+      "id": "floor-1-enemy-32",
+      "position": {
+        "x": 7,
+        "y": 5
+      },
+      "species": "skeleton"
+    },
+    {
+      "id": "floor-1-enemy-33",
+      "position": {
+        "x": 5,
+        "y": 4
+      },
+      "species": "ogre"
+    },
+    {
+      "id": "floor-1-enemy-34",
+      "position": {
+        "x": 7,
+        "y": 4
+      },
+      "species": "wizard"
     }
   ],
   items: [
@@ -304,27 +352,6 @@ export const FLOOR_1: FloorDefinition = {
       "payload": 5
     },
     {
-      "id": "floor-1-item-19",
-      "position": {
-        "x": 2,
-        "y": 2
-      },
-      "kind": "armor",
-      "payload": {
-        "material": "leather",
-        "slot": "chest"
-      }
-    },
-    {
-      "id": "floor-1-item-20",
-      "position": {
-        "x": 10,
-        "y": 2
-      },
-      "kind": "weapon",
-      "payload": "woodSword"
-    },
-    {
       "id": "floor-1-item-21",
       "position": {
         "x": 9,
@@ -343,18 +370,6 @@ export const FLOOR_1: FloorDefinition = {
       "payload": undefined
     },
     {
-      "id": "floor-1-item-23",
-      "position": {
-        "x": 1,
-        "y": 5
-      },
-      "kind": "key",
-      "payload": {
-        "id": "key-bronze",
-        "keyType": "bronze"
-      }
-    },
-    {
       "id": "floor-1-item-24",
       "position": {
         "x": 1,
@@ -371,6 +386,84 @@ export const FLOOR_1: FloorDefinition = {
       },
       "kind": "currency",
       "payload": 10
+    },
+    {
+      "id": "floor-1-item-30",
+      "position": {
+        "x": 2,
+        "y": 4
+      },
+      "kind": "key",
+      "payload": {
+        "id": "key-bronze",
+        "keyType": "bronze"
+      }
+    },
+    {
+      "id": "floor-1-item-31",
+      "position": {
+        "x": 1,
+        "y": 4
+      },
+      "kind": "potionAttack",
+      "payload": undefined
+    },
+    {
+      "id": "floor-1-item-32",
+      "position": {
+        "x": 9,
+        "y": 4
+      },
+      "kind": "potionDefense",
+      "payload": undefined
+    },
+    {
+      "id": "floor-1-item-33",
+      "position": {
+        "x": 3,
+        "y": 4
+      },
+      "kind": "potion",
+      "payload": undefined
+    },
+    {
+      "id": "floor-1-item-34",
+      "position": {
+        "x": 11,
+        "y": 4
+      },
+      "kind": "potion",
+      "payload": undefined
+    },
+    {
+      "id": "floor-1-item-35",
+      "position": {
+        "x": 10,
+        "y": 4
+      },
+      "kind": "currency",
+      "payload": 10
+    },
+    {
+      "id": "floor-1-item-36",
+      "position": {
+        "x": 2,
+        "y": 2
+      },
+      "kind": "weapon",
+      "payload": "woodSword"
+    },
+    {
+      "id": "floor-1-item-37",
+      "position": {
+        "x": 10,
+        "y": 2
+      },
+      "kind": "armor",
+      "payload": {
+        "material": "leather",
+        "slot": "helm"
+      }
     }
   ],
   keyedDoors: [

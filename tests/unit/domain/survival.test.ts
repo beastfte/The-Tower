@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { advanceBattle, startBattle, type CombatantStats } from "../../../src/domain/combat/battle";
-import { formatSurvival, survivalChance } from "../../../src/domain/combat/survival";
+import { formatSurvival, survivalChance, threatTier } from "../../../src/domain/combat/survival";
 
 /** Local fixtures only — never the live tower (Constitution IV). */
 const fighter = (overrides: Partial<CombatantStats> = {}): CombatantStats => ({
@@ -108,5 +108,34 @@ describe("formatSurvival (FR-013a)", () => {
   it("rounds everything else to a whole percent", () => {
     expect(formatSurvival({ win: 0.5, lose: 0.5 })).toBe("50%");
     expect(formatSurvival({ win: 0.874, lose: 0.126 })).toBe("87%");
+  });
+});
+
+describe("threatTier (041 C1)", () => {
+  const tier = (win: number) => threatTier({ win, lose: 1 - win });
+
+  it("is Trivial for a certain win, >99% and 99%", () => {
+    expect(threatTier({ win: 1, lose: 0 })).toBe("Trivial");
+    expect(tier(0.9997)).toBe("Trivial");
+    expect(tier(0.99)).toBe("Trivial");
+  });
+
+  it("judges the displayed percentage: a true 98.6% shows 99% and is Trivial", () => {
+    expect(tier(0.986)).toBe("Trivial");
+  });
+
+  it("puts each boundary in the safer band", () => {
+    expect(tier(0.98)).toBe("Safe");
+    expect(tier(0.9)).toBe("Safe");
+    expect(tier(0.89)).toBe("Risky");
+    expect(tier(0.6)).toBe("Risky");
+    expect(tier(0.59)).toBe("Dangerous");
+    expect(tier(0.25)).toBe("Dangerous");
+    expect(tier(0.24)).toBe("Deadly");
+  });
+
+  it("is Deadly for <1% and a certain loss", () => {
+    expect(tier(0.002)).toBe("Deadly");
+    expect(threatTier({ win: 0, lose: 1 })).toBe("Deadly");
   });
 });

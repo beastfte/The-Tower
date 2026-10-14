@@ -139,3 +139,20 @@ export function formatSurvival({ win, lose }: Survival): string {
   if (pct <= 0) return "<1%";
   return `${pct}%`;
 }
+
+export type ThreatTier = "Trivial" | "Safe" | "Risky" | "Dangerous" | "Deadly";
+
+/**
+ * 041 C1: the named danger band for a fight. Judged on the whole percent `formatSurvival` shows,
+ * so the tier word never contradicts the number beside it; a boundary belongs to the safer band.
+ */
+export function threatTier({ win, lose }: Survival): ThreatTier {
+  if (win <= 0) return "Deadly";
+  if (lose <= 0) return "Trivial";
+  const pct = Math.round(win * 100);
+  if (pct >= 99) return "Trivial";
+  if (pct >= 90) return "Safe";
+  if (pct >= 60) return "Risky";
+  if (pct >= 25) return "Dangerous";
+  return "Deadly";
+}

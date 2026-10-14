@@ -6,9 +6,15 @@ import type { FloorDefinition } from "../floor/types";
  * FR-013d option 1 / 003-pause-menu FR-005: "resume from last checkpoint" — the checkpoint is
  * the current floor's entrance. Resets that floor's FloorProgress to its original fixed state
  * and restores the character to the exact state it was in when this floor attempt began
- * (`checkpointCharacter`), healed to full HP. `completedFloorIds`/`completedFloorStates` (and
- * anything earned before this floor attempt began) are untouched — only what happened
- * *during* the current, not-yet-completed attempt is undone.
+ * (`checkpointCharacter`) — HP included: a player who entered the floor on 10 HP comes back on
+ * 10 HP. `completedFloorIds`/`completedFloorStates` (and anything earned before this floor
+ * attempt began) are untouched — only what happened *during* the current, not-yet-completed
+ * attempt is undone.
+ *
+ * bug fix: checkpoint-resume-state — this used to heal to full HP (001 SC-012, 003 FR-005,
+ * which this supersedes). The one exception is a snapshot at 0 HP: `ensureCheckpointCharacter`
+ * can backfill one from a save that was persisted while dead, and respawning dead would be an
+ * endless death loop, so that case restores to full HP.
  *
  * bug fix: checkpoint-restart-stat-exploit — previously this only reset floor-local state and
  * healed HP, leaving inventory/currency/keys/equipment/potion bonuses at whatever the player
@@ -20,13 +26,15 @@ import type { FloorDefinition } from "../floor/types";
  */
 export function resumeFromCheckpoint(save: PlayerSave, floor: FloorDefinition): PlayerSave {
   const checkpointCharacter = save.checkpointCharacter ?? save.character;
+  const maxHp = computeMaxHp(checkpointCharacter);
+  const snapshotHp = Math.min(checkpointCharacter.currentHp, maxHp);
   return {
     ...withoutDeathCause(save),
     isDead: false,
     currentFloorState: emptyFloorProgress(floor.id, floor.entrance),
     character: {
       ...checkpointCharacter,
-      currentHp: computeMaxHp(checkpointCharacter),
+      currentHp: snapshotHp > 0 ? snapshotHp : maxHp,
     },
   };
 }

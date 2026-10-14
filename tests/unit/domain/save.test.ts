@@ -94,6 +94,7 @@ describe("pre-027 saves (SC-009)", () => {
     const floor = { id: "floor-01", entrance: position } as Parameters<typeof resumeFromCheckpoint>[1];
     const restarted = resumeFromCheckpoint({ ...save, isDead: true }, floor);
     expect(restarted.character.potionCount ?? 0).toBe(0);
-    expect(restarted.character.currentHp).toBe(30);
+    // bug fix: checkpoint-resume-state — the backfilled snapshot carries the 22 HP it was taken at.
+    expect(restarted.character.currentHp).toBe(22);
   });
 });

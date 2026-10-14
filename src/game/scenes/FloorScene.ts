@@ -69,6 +69,7 @@ import { buildMonsterTooltip } from "../sidePanel/tooltipContent";
 import { scalePx } from "../scaleConfig";
 import { computeTileLayerOrigin } from "../floorLayout";
 import { computeBobOffset, computePositionPhase } from "../livingAnimation";
+import { computeMonsterIdlePose, monsterIdleStyle, type MonsterIdleStyle } from "../monsterAnimation";
 import {
   computeLavaFrame,
   computeSpikePitSegment,
@@ -155,13 +156,24 @@ export class FloorScene extends Phaser.Scene {
    * overflowing behind the side panel/event log (002 FR-007/FR-016). */
   private tileSize!: number;
   /** 008: markers for every "living" floor entity currently bobbing (rebuilt every redraw()).
-   * Monsters are pushed here; the player character is deliberately excluded (008 follow-up —
+   * Monsters of a known species moved to `monsterMarkers` (039); the merchant and unknown-species
+   * placeholders stay here. The player character is deliberately excluded (008 follow-up —
    * idle motion turned off for the player specifically) even though it's also "alive". Item
    * pickups were removed from this list too — they render static, see the item-rendering loop
    * below. */
   private livingMarkers: {
     gameObject: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Image;
     baseY: number;
+    phase: number;
+  }[] = [];
+  /** 039: monster markers with a species idle motion (rebuilt every redraw()); update() applies
+   * `computeMonsterIdlePose` to each. Replaces the shared bob for monsters of a known species. */
+  private monsterMarkers: {
+    gameObject: Phaser.GameObjects.Image;
+    baseY: number;
+    baseScaleX: number;
+    baseScaleY: number;
+    style: MonsterIdleStyle;
     phase: number;
   }[] = [];
   /** 007 US1: spike-pit markers currently cycling (rebuilt every redraw()); update()
@@ -628,6 +640,7 @@ export class FloorScene extends Phaser.Scene {
       name: species?.name ?? "Unknown creature",
       floorNumber,
       isElite: !!enemy.isElite,
+      isEndBoss: !!enemy.isEndBoss,
       monster: monsterOnFloor(species, enemy.isElite, floorNumber),
       player: this.playerCombatant(),
       playerMaxHp: computeMaxHp(character),
@@ -684,6 +697,7 @@ export class FloorScene extends Phaser.Scene {
       // The floor marker keeps the front sprite (addTextureMarker below).
       monsterTextureKey: speciesKey ? ensureMonsterCombatTexture(this, speciesKey, "idle") : "__MISSING",
       monsterSpeciesKey: speciesKey ?? "__MISSING",
+      monsterSpeciesId: enemy.species,
       playerArmourLook: this.playerArmourLook(),
       playerWeapon: this.playerWeapon(),
       // 033 FR-016a: only what the bag can take is announced as looted.
@@ -785,6 +799,7 @@ export class FloorScene extends Phaser.Scene {
 
     this.tileLayer.removeAll(true);
     this.livingMarkers = [];
+    this.monsterMarkers = [];
     this.spikePitMarkers = [];
     this.lavaMarkers = [];
     this.merchantMarkers = [];
@@ -893,11 +908,26 @@ export class FloorScene extends Phaser.Scene {
       const marker = species
         ? this.addTextureMarker(enemy.position, monsterSpriteKey(species.textureKey, enemy.isElite), species.spriteScale)
         : this.addMarker(enemy.position, COLORS.enemy, 0.8);
-      this.livingMarkers.push({
-        gameObject: marker,
-        baseY: marker.y,
-        phase: computePositionPhase(enemy.position),
-      });
+      const phase = computePositionPhase(enemy.position);
+      if (species && marker instanceof Phaser.GameObjects.Image) {
+        // 039: breathe/squash grow up from the feet (origin at the bottom, resting pose unchanged);
+        // hover stays centre-anchored.
+        const style = monsterIdleStyle(species.id);
+        if (style !== "hover") {
+          marker.setOrigin(0.5, 1);
+          marker.y += marker.displayHeight / 2;
+        }
+        this.monsterMarkers.push({
+          gameObject: marker,
+          baseY: marker.y,
+          baseScaleX: marker.scaleX,
+          baseScaleY: marker.scaleY,
+          style,
+          phase,
+        });
+      } else {
+        this.livingMarkers.push({ gameObject: marker, baseY: marker.y, phase });
+      }
       if (marker instanceof Phaser.GameObjects.Image) {
         marker.setInteractive();
         marker.on("pointerover", () => this.showMonsterCard(enemy, marker));
@@ -1020,6 +1050,11 @@ export class FloorScene extends Phaser.Scene {
     }
     for (const { gameObject, baseY, phase } of this.livingMarkers) {
       gameObject.y = baseY + computeBobOffset(time, phase);
+    }
+    for (const { gameObject, baseY, baseScaleX, baseScaleY, style, phase } of this.monsterMarkers) {
+      const pose = computeMonsterIdlePose(style, time, phase);
+      gameObject.setScale(baseScaleX * pose.sx, baseScaleY * pose.sy);
+      gameObject.y = baseY + pose.dy * this.tileSize;
     }
     for (const { gameObject, pit } of this.spikePitMarkers) {
       const segment = computeSpikePitSegment(pit, time);

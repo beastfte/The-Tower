@@ -155,18 +155,34 @@ describe("buildMonsterTooltip (038 C6)", () => {
   it("lists the five lines with raw damage, damage to you, and a deterministic survival chance", () => {
     const tip = buildMonsterTooltip({ name: "Goblin", floorNumber: 2, isElite: true, monster, player, playerMaxHp: 100, potionCount: 0 });
     expect(tip.name).toBe("Goblin");
-    expect(tip.kicker).toBe("Floor 2 · Elite");
+    expect(tip.kicker).toBe("Floor 2");
+    expect(tip.rank).toBe("elite");
     expect(tip.lines).toEqual([
       { label: "HP", value: "22" },
       { label: "DMG", value: "4 (2 to you)" }, // defence 10 halves a hit
       { label: "DEF", value: "2" },
       { label: "ATK SPD", value: "1.25/s" },
-      { label: "SURVIVE", value: "100%" },
+      { label: "SURVIVE", value: "100%", tone: "good" },
     ]);
+    expect(tip.threat).toEqual({ tier: "Trivial", tone: "good" });
   });
 
-  it("omits the Elite tag for a regular monster", () => {
+  it("tags an unwinnable fight Deadly with the bad tone on the SURVIVE line", () => {
+    const brute = { ...monster, hp: 5000, attack: 80, defence: 50 };
+    const tip = buildMonsterTooltip({ name: "Ogre", floorNumber: 9, isElite: false, monster: brute, player, playerMaxHp: 100, potionCount: 0 });
+    expect(tip.threat).toEqual({ tier: "Deadly", tone: "bad" });
+    expect(tip.lines.find((l) => l.label === "SURVIVE")?.tone).toBe("bad");
+  });
+
+  it("has no rank for a regular monster", () => {
     const tip = buildMonsterTooltip({ name: "Goblin", floorNumber: 1, isElite: false, monster, player, playerMaxHp: 100, potionCount: 0 });
     expect(tip.kicker).toBe("Floor 1");
+    expect(tip.rank).toBeUndefined();
+  });
+
+  it("ranks the end boss as boss, even when it is also elite", () => {
+    const base = { name: "Lich", floorNumber: 10, monster, player, playerMaxHp: 100, potionCount: 0 };
+    expect(buildMonsterTooltip({ ...base, isElite: false, isEndBoss: true }).rank).toBe("boss");
+    expect(buildMonsterTooltip({ ...base, isElite: true, isEndBoss: true }).rank).toBe("boss");
   });
 });

@@ -65,13 +65,13 @@ test("defeat: no retry, saved before Continue, death screen names the killer (US
   await expect(page.locator('[data-testid="death-cause"]')).toHaveText(`Slain by ${name}`);
 
   // C15: the existing checkpoint option behaves exactly as for a trap death — floor entrance,
-  // full HP, death state and cause cleared.
+  // checkpoint HP, death state and cause cleared.
   await page.getByRole("button", { name: /Resume from last checkpoint/ }).click();
   await waitForActiveScene(page, "FloorScene");
   const restarted = await readSave(page);
   expect(restarted?.isDead).toBe(false);
   expect(restarted?.deathCause).toBeUndefined();
-  expect(restarted?.character.currentHp).toBe(restarted?.character.baseStats.hp);
+  expect(restarted?.character.currentHp).toBe(restarted?.checkpointCharacter?.currentHp);
 });
 
 test("defeat: reloading before Continue still lands on the death screen (US2 AS5, C14)", async ({ page }) => {

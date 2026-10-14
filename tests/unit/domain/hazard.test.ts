@@ -87,13 +87,46 @@ describe("death and recovery", () => {
     expect(save.character.currentHp).toBe(0);
   });
 
-  it("resumeFromCheckpoint resets the floor attempt and restores max HP", () => {
+  it("resumeFromCheckpoint resets the floor attempt and restores the HP the floor was entered with", () => {
     const save = resumeFromCheckpoint(buildSave(), floor);
     expect(save.isDead).toBe(false);
     expect(save.currentFloorState.defeatedEnemyIds).toEqual([]);
     expect(save.currentFloorState.collectedItemIds).toEqual([]);
     expect(save.currentFloorState.playerPosition).toEqual(floor.entrance);
+    expect(save.character.currentHp).toBe(12); // the snapshot's HP, not max (30)
+  });
+
+  // bug fix: checkpoint-resume-state — a snapshot at 0 HP (backfilled from a save persisted while
+  // dead) would respawn the player dead forever, so only that case falls back to full HP.
+  it("resumeFromCheckpoint restores full HP when the snapshot is at 0 HP", () => {
+    const save = resumeFromCheckpoint({ ...buildSave(), checkpointCharacter: { ...checkpointCharacter, currentHp: 0 } }, floor);
     expect(save.character.currentHp).toBe(30);
+  });
+
+  it("resumeFromCheckpoint never restores above max HP", () => {
+    const save = resumeFromCheckpoint({ ...buildSave(), checkpointCharacter: { ...checkpointCharacter, currentHp: 999 } }, floor);
+    expect(save.character.currentHp).toBe(30);
+  });
+
+  // bug fix: checkpoint-resume-state — every character field rides the snapshot, not just HP.
+  it("resumeFromCheckpoint restores the whole snapshot: stats, gear, bag, potions, gold, keys", () => {
+    const snapshot = {
+      ...checkpointCharacter,
+      currentHp: 7,
+      currency: 25,
+      keyIds: ["silver"],
+      inventory: ["note"],
+      equippedWeaponId: "sword" as const,
+      equippedArmor: { chest: "leather" as const },
+      equippedRolls: { weapon: { grade: "rare" as const, extras: {} } },
+      bagGear: [{ key: "diamondSword", grade: "common" as const, extras: {} }],
+      potionCount: 3,
+      bonusDamage: 2,
+      purchaseCounts: { robust: 1 },
+    };
+    const farmed = { ...snapshot, currentHp: 0, currency: 99, potionCount: 0, bagGear: [], keyIds: [], bonusDamage: 9 };
+    const save = resumeFromCheckpoint({ ...buildSave(), character: farmed, checkpointCharacter: snapshot }, floor);
+    expect(save.character).toEqual(snapshot);
   });
 
   // bug fix: checkpoint-restart-stat-exploit — a restart must undo everything the character
@@ -151,8 +184,9 @@ describe("death and recovery", () => {
   it("resumeFromCheckpoint falls back to the current character when checkpointCharacter is missing (defensive backstop, not normally reachable)", () => {
     const legacySave: PlayerSave = { ...buildSave(), checkpointCharacter: undefined };
     const save = resumeFromCheckpoint(legacySave, floor);
-    // No checkpoint to revert to — behaves as it always did: floor state resets, HP maxes out,
-    // farmed character fields are left as they were.
+    // No checkpoint to revert to — behaves as it always did: floor state resets and farmed
+    // character fields are left as they were. The current character is dead (0 HP), so the
+    // 0-HP guard restores full HP.
     expect(save.character.currency).toBe(40);
     expect(save.character.currentHp).toBe(30);
   });
